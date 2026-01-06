@@ -5,7 +5,8 @@
   "main": "electron/main.js",
   "scripts": {
     "dev": "concurrently \"vite --port 3000\" \"wait-on http://localhost:3000 && cross-env NODE_ENV=development electron .\"",
-    "build": "vite build && electron-builder",
+    "build": "vite build",
+    "make": "electron-builder",
     "build-renderer": "vite build",
     "start": "vite preview && electron .",
     "electron": "electron .",

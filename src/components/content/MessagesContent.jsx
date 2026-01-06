@@ -33,12 +33,24 @@ const MessagesContent = () => {
 
     const load = async () => {
       try {
-        const res = await electronAPI.getAllUsers();
+        // Set current user online
+        await electronAPI.setUserOnline(currentUser.id);
+
+        // Trigger sync to Supabase
+        try {
+          await electronAPI.syncToSupabase();
+          console.log('Data synced to Supabase');
+        } catch (syncError) {
+          console.warn('Sync failed:', syncError);
+        }
+
+        // Get users with presence status
+        const res = await electronAPI.getUsersWithPresence();
         if (res?.success) {
           const others = res.users.filter(u => u.id !== currentUser.id);
           setAvailableUsers(others);
 
-          // calculate unread count per user (using existing IPC methods only)
+          // calculate unread count per user
           const counts = {};
           for (const u of others) {
             const msgRes = await electronAPI.getMessages({
@@ -61,6 +73,13 @@ const MessagesContent = () => {
       }
     };
     load();
+
+    // Set user offline on unmount
+    return () => {
+      if (electronAPI && currentUser?.id) {
+        electronAPI.setUserOffline(currentUser.id);
+      }
+    };
   }, [currentUser?.id]);
 
   // Presence
@@ -289,6 +308,68 @@ const MessagesContent = () => {
   };
 
   return (
+    <div className="flex h-full">
+      {/* User List Sidebar */}
+      <div className="w-80 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col rounded-lg">
+        <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Messages</h3>
+        </div>
+        <div className="flex-1 overflow-y-auto">
+          {availableUsers.map(user => {
+            const userName = user.name || `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'User';
+            const isOnline = user.is_online;
+            const unreadCount = unreadCounts[user.id] || 0;
+            const isSelected = otherUser?.id === user.id;
+
+            return (
+              <div
+                key={user.id}
+                onClick={() => setOtherUser(user)}
+                className={`p-4 border-b border-gray-100 dark:border-gray-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 ${
+                  isSelected ? 'bg-blue-50 dark:bg-blue-900' : ''
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="relative">
+                    <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 text-gray-700 font-bold text-sm dark:bg-gray-600 dark:text-gray-200">
+                      {userName.split(' ').map(n => n[0]).join('')}
+                    </span>
+                    <span className={`absolute bottom-0 right-0 block h-3 w-3 rounded-full ring-2 ring-white ${
+                      isOnline ? 'bg-green-400' : 'bg-gray-400'
+                    }`} title={isOnline ? 'Online' : 'Offline'}></span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{userName}</p>
+                      {unreadCount > 0 && (
+                        <span className="inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white bg-red-600 rounded-full">
+                          {unreadCount}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{user.role}</p>
+                    <p className="text-xs text-gray-400 dark:text-gray-500">
+                      {isOnline ? 'Online' : user.last_seen ? `Last seen ${new Date(user.last_seen).toLocaleString()}` : 'Offline'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Chat Area */}
+      <div className="flex-1 flex flex-col">
+        {!otherUser ? (
+          <div className="flex-1 flex items-center justify-center text-gray-500 dark:text-gray-400">
+            <div className="text-center">
+              <p className="text-lg mb-2">Select a user to start messaging</p>
+              <p className="text-sm">Choose someone from the list to begin a conversation</p>
+            </div>
+          </div>
+        ) : (
+          <>
     <div className="flex flex-col h-full p-6">
       <div className="flex flex-col">
       <form onSubmit={handleSearch} className="flex items-center gap-2 mb-2">
@@ -307,35 +388,39 @@ const MessagesContent = () => {
         </button>
       </form>
         <div className="flex items-center gap-6 p-6 bg-white rounded-lg shadow mb-5 w-full dark:bg-gray-800">
-          {/* Doctor avatar and status */}
+          {/* Current user avatar and status */}
           <div className="flex items-center gap-2">
             <div className="relative">
               <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-blue-100 text-blue-700 font-bold text-lg">
-                {currentUser?.name ? currentUser.name.split(' ').map(n => n[0]).join('') : 'U'}
+                {currentUserName.split(' ').map(n => n[0]).join('')}
               </span>
               <span className="absolute bottom-0 right-0 block h-3 w-3 rounded-full ring-2 ring-white bg-green-400" title="Online"></span>
             </div>
             <div className="flex flex-col">
-              <span className="font-medium text-gray-900 dark:text-gray-100">{currentUser?.name || 'User'}</span>
+              <span className="font-medium text-gray-900 dark:text-gray-100">{currentUserName}</span>
               <span className="text-xs text-green-500">Online</span>
             </div>
           </div>
           <span className="text-gray-300 text-2xl dark:text-gray-600">|</span>
-          {/* Assistant avatar and status */}
+          {/* Other user avatar and status */}
           <div className="flex items-center gap-2">
             <div className="relative">
               <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-pink-100 text-pink-700 font-bold text-lg">
-                {otherUser?.name ? otherUser.name.split(' ').map(n => n[0]).join('') : 'S'}
+                {otherUserName.split(' ').map(n => n[0]).join('')}
               </span>
-              <span className="absolute bottom-0 right-0 block h-3 w-3 rounded-full ring-2 ring-white bg-green-400" title="Online"></span>
+              <span className={`absolute bottom-0 right-0 block h-3 w-3 rounded-full ring-2 ring-white ${
+                otherUser?.is_online ? 'bg-green-400' : 'bg-gray-400'
+              }`} title={otherUser?.is_online ? 'Online' : 'Offline'}></span>
             </div>
             <div className="flex flex-col">
-              <span className="font-medium text-gray-900 dark:text-gray-100">{otherUser?.name || 'Staff'}</span>
-              <span className="text-xs text-green-500">Online</span>
+              <span className="font-medium text-gray-900 dark:text-gray-100">{otherUserName}</span>
+              <span className={`text-xs ${
+                otherUser?.is_online ? 'text-green-500' : 'text-gray-500'
+              }`}>{otherUser?.is_online ? 'Online' : 'Offline'}</span>
             </div>
           </div>
           <div className="flex-1 flex justify-center">
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Doctor & Assistant Chat</h2>
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Chat with {otherUserName}</h2>
           </div>
         </div>
       </div>
@@ -589,6 +674,10 @@ const MessagesContent = () => {
           </div>
         </div>
       )}
+    </div>
+          </>
+        )}
+      </div>
     </div>
   );
 };

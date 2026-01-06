@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useRef } from 'react'
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom'
 import Layout from './layout/Layout'
 import DashboardContent from './content/DashboardContent'
@@ -32,6 +32,9 @@ const MainApp = () => {
     generateReport: false,
     newMessage: false
   });
+
+  // Create a ref to trigger patient list refresh
+  const patientsContentRef = useRef(null);
 
   // Determine active section from route
   const getActiveSection = () => {
@@ -88,6 +91,20 @@ const MainApp = () => {
     setModals((prev) => ({ ...prev, [modalKey]: false }));
   };
 
+  const handlePatientAdded = () => {
+    console.log('handlePatientAdded called in MainApp');
+    // Trigger refresh of patient list
+    if (patientsContentRef.current?.refreshPatients) {
+      console.log('Calling refreshPatients via ref');
+      patientsContentRef.current.refreshPatients();
+    } else {
+      console.log('patientsContentRef.current is null or refreshPatients not available');
+    }
+    // Also dispatch a custom event as fallback
+    console.log('Dispatching patientAdded event');
+    window.dispatchEvent(new CustomEvent('patientAdded'));
+  };
+
   const handleLogout = async () => {
     try {
       await logout();
@@ -111,7 +128,7 @@ const MainApp = () => {
       <Routes>
         <Route path="/" element={user?.role === 'doctor' ? <DoctorsDashboard /> : <DashboardContent />} />
         <Route path="/messages" element={<MessagesContent />} />
-        <Route path="/patients" element={<PatientsContent searchTerm={searchTerm} />} />
+        <Route path="/patients" element={<PatientsContent searchTerm={searchTerm} ref={patientsContentRef} />} />
         <Route path="/tests" element={<TestsContent />} />
         <Route path="/reports" element={<ReportsContent />} />
         <Route path="/inventory" element={<InventoryContent />} />
@@ -143,7 +160,7 @@ const MainApp = () => {
       </Layout>
 
       {/* Modals */}
-      {modals.addPatient && <AddPatientModal onClose={() => closeModal('addPatient')} />}
+      {modals.addPatient && <AddPatientModal onClose={() => closeModal('addPatient')} onPatientAdded={handlePatientAdded} />}
       {modals.uploadTest && <UploadTestModal onClose={() => closeModal('uploadTest')} />}
       {modals.generateReport && <GenerateReportModal onClose={() => closeModal('generateReport')} />}
       {modals.newMessage && <NewMessageModal onClose={() => closeModal('newMessage')} />}

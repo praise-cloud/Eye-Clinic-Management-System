@@ -7,7 +7,7 @@ class SyncService {
         this.db = new Database();
         this.supabase = SupabaseService;
         this.syncInProgress = false;
-        this.tables = ['users', 'patients', 'tests', 'reports', 'chat', 'inventory', 'activity_logs', 'settings'];
+        this.tables = ['users', 'patients', 'tests', 'reports', 'chat', 'inventory', 'activity_logs', 'settings', 'user_presence'];
         this.realtimeSubscriptions = [];
     }
 

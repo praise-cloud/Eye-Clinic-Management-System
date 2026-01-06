@@ -13,6 +13,7 @@ class IPCHandlers {
         this.registerAdminHandlers();
         this.registerFileHandlers();
         this.registerChatHandlers();
+        this.registerPresenceHandlers();
         this.registerSettingsHandlers();
         this.registerSystemHandlers();
         this.registerWindowHandlers();
@@ -893,15 +894,10 @@ class IPCHandlers {
         });
 
         // Send message with real-time sync
-        ipcMain.handle('chat:sendMessage', async (event, data = {}) => {
-            const { senderId, receiverId, messageText, attachment } = data;
+        ipcMain.handle('chat:sendMessage', async (event, senderId, receiverId, messageText, attachment) => {
             try {
-                const requiredFields = ['senderId', 'receiverId', 'messageText'];
-                const msgData = { senderId, receiverId, messageText };
-                for (const field of requiredFields) {
-                    if (!msgData[field]) {
-                        return { error: `${field} is required` };
-                    }
+                if (!senderId || !receiverId || !messageText) {
+                    return { error: 'Sender ID, Receiver ID, and message text are required' };
                 }
                 
                 // Use SyncService for instant sync
@@ -976,6 +972,88 @@ class IPCHandlers {
                 return result;
             } catch (error) {
                 console.error('Delete message error:', error);
+                return { error: error.message };
+            }
+        });
+    }
+
+    registerPresenceHandlers() {
+        // Set user online
+        ipcMain.handle('presence:setOnline', async (event, data = {}) => {
+            const { userId, sessionId } = data;
+            try {
+                if (!userId) {
+                    return { error: 'User ID is required' };
+                }
+                await DatabaseService.setUserOnline(userId, sessionId);
+                
+                // Broadcast online status to all windows
+                const onlineUsers = await DatabaseService.getOnlineUsers();
+                const { BrowserWindow } = require('electron');
+                BrowserWindow.getAllWindows().forEach(window => {
+                    window.webContents.send('presence-update', onlineUsers.map(u => u.id));
+                });
+                
+                return { success: true };
+            } catch (error) {
+                console.error('Set user online error:', error);
+                return { error: error.message };
+            }
+        });
+
+        // Set user offline
+        ipcMain.handle('presence:setOffline', async (event, userId) => {
+            try {
+                if (!userId) {
+                    return { error: 'User ID is required' };
+                }
+                await DatabaseService.setUserOffline(userId);
+                
+                // Broadcast online status to all windows
+                const onlineUsers = await DatabaseService.getOnlineUsers();
+                const { BrowserWindow } = require('electron');
+                BrowserWindow.getAllWindows().forEach(window => {
+                    window.webContents.send('presence-update', onlineUsers.map(u => u.id));
+                });
+                
+                return { success: true };
+            } catch (error) {
+                console.error('Set user offline error:', error);
+                return { error: error.message };
+            }
+        });
+
+        // Get online users
+        ipcMain.handle('presence:getOnlineUsers', async () => {
+            try {
+                const users = await DatabaseService.getOnlineUsers();
+                return { success: true, users };
+            } catch (error) {
+                console.error('Get online users error:', error);
+                return { error: error.message };
+            }
+        });
+
+        // Get all users with presence status
+        ipcMain.handle('presence:getUsersWithPresence', async () => {
+            try {
+                const users = await DatabaseService.getUsersWithPresence();
+                return { success: true, users };
+            } catch (error) {
+                console.error('Get users with presence error:', error);
+                return { error: error.message };
+            }
+        });
+
+        // Manual sync trigger
+        ipcMain.handle('presence:syncToSupabase', async () => {
+            try {
+                const SyncService = require('../src/services/SyncService');
+                await SyncService.initialize();
+                const result = await SyncService.syncAll();
+                return result;
+            } catch (error) {
+                console.error('Sync to Supabase error:', error);
                 return { error: error.message };
             }
         });

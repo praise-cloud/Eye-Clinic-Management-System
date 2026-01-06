@@ -69,12 +69,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
     // Chat APIs
     getMessages: (data) => ipcRenderer.invoke('chat:getMessages', data),
-    sendMessage: (data) => ipcRenderer.invoke('chat:sendMessage', data),
+    sendMessage: (senderId, receiverId, messageText, attachment) => ipcRenderer.invoke('chat:sendMessage', senderId, receiverId, messageText, attachment),
     markMessageRead: (data) => ipcRenderer.invoke('chat:markAsRead', data),
     getUnreadCount: (userId) => ipcRenderer.invoke('chat:getUnreadCount', userId),
-    deleteMessage: (data) => ipcRenderer.invoke('chat:deleteMessage', data),
+    deleteMessage: (messageId) => ipcRenderer.invoke('chat:deleteMessage', messageId),
     onNewMessage: (callback) => ipcRenderer.on('new-message', callback),
     removeNewMessageListener: (callback) => ipcRenderer.removeListener('new-message', callback),
+
+    // Presence APIs
+    setUserOnline: (userId, sessionId) => ipcRenderer.invoke('presence:setOnline', { userId, sessionId }),
+    setUserOffline: (userId) => ipcRenderer.invoke('presence:setOffline', userId),
+    getOnlineUsers: () => ipcRenderer.invoke('presence:getOnlineUsers'),
+    getUsersWithPresence: () => ipcRenderer.invoke('presence:getUsersWithPresence'),
+    syncToSupabase: () => ipcRenderer.invoke('presence:syncToSupabase'),
 
     // File APIs
     selectFile: (options) => ipcRenderer.invoke('file:select', options),

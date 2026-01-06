@@ -176,6 +176,15 @@ class Database {
                 record_id TEXT NOT NULL,
                 last_synced_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(table_name, record_id)
+            )`,
+
+            // User presence table for online status tracking
+            `CREATE TABLE IF NOT EXISTS user_presence (
+                user_id TEXT PRIMARY KEY,
+                is_online BOOLEAN DEFAULT FALSE,
+                last_seen DATETIME DEFAULT CURRENT_TIMESTAMP,
+                session_id TEXT,
+                FOREIGN KEY (user_id) REFERENCES users (id)
             )`
         ];
 
@@ -195,7 +204,7 @@ class Database {
             // Check if attachment column exists in chat table
             const chatTableInfo = await this.all("PRAGMA table_info(chat)");
             const hasAttachmentColumn = chatTableInfo.some(column => column.name === 'attachment');
-            
+
             if (!hasAttachmentColumn) {
                 console.log('Adding attachment column to chat table...');
                 await this.run('ALTER TABLE chat ADD COLUMN attachment TEXT');
@@ -205,27 +214,27 @@ class Database {
             // Check if image_path column exists in inventory table
             const inventoryTableInfo = await this.all("PRAGMA table_info(inventory)");
             const hasImagePathColumn = inventoryTableInfo.some(column => column.name === 'image_path');
-            
+
             if (!hasImagePathColumn) {
                 console.log('Adding image_path column to inventory table...');
                 await this.run('ALTER TABLE inventory ADD COLUMN image_path TEXT');
                 console.log('Migration completed: Added image_path column to inventory table');
             }
-            
+
             // Check if phone_number column exists in users table
             const usersTableInfo = await this.all("PRAGMA table_info(users)");
             const hasPhoneNumberColumn = usersTableInfo.some(column => column.name === 'phone_number');
-            
+
             if (!hasPhoneNumberColumn) {
                 console.log('Adding phone_number column to users table...');
                 await this.run('ALTER TABLE users ADD COLUMN phone_number TEXT');
                 console.log('Migration completed: Added phone_number column to users table');
             }
-            
+
             // Migrate name to first_name/last_name if needed
             const hasFirstNameColumn = usersTableInfo.some(column => column.name === 'first_name');
             const hasNameColumn = usersTableInfo.some(column => column.name === 'name');
-            
+
             if (hasNameColumn && !hasFirstNameColumn) {
                 console.log('Migrating name to first_name/last_name...');
                 await this.run('ALTER TABLE users ADD COLUMN first_name TEXT');
@@ -242,6 +251,19 @@ class Database {
             }
         } catch (error) {
             console.error('Migration error:', error);
+        }
+
+        try {
+        // Add gender column if missing (with default for existing rows)
+        await this.run(`
+            ALTER TABLE users ADD COLUMN gender TEXT NOT NULL DEFAULT 'other'
+        `);
+        console.log('Migration: added gender column with default');
+        } catch (e) {
+        // Ignore if column already exists
+        if (!e.message.includes('duplicate column name')) {
+            console.warn('Gender migration skipped:', e.message);
+        }
         }
     }
 
@@ -311,6 +333,50 @@ class Database {
 
     async getAllUsers() {
         const query = 'SELECT id, first_name, last_name, email, role, phone_number, created_at FROM users ORDER BY created_at DESC';
+        return await this.all(query);
+    }
+
+    // Online Status Management
+    async setUserOnline(userId, sessionId = null) {
+        const query = `
+            INSERT INTO user_presence (user_id, is_online, last_seen, session_id)
+            VALUES (?, TRUE, CURRENT_TIMESTAMP, ?)
+            ON CONFLICT(user_id) DO UPDATE SET
+                is_online = TRUE,
+                last_seen = CURRENT_TIMESTAMP,
+                session_id = excluded.session_id
+        `;
+        return await this.run(query, [userId, sessionId]);
+    }
+
+    async setUserOffline(userId) {
+        const query = `
+            UPDATE user_presence 
+            SET is_online = FALSE, last_seen = CURRENT_TIMESTAMP 
+            WHERE user_id = ?
+        `;
+        return await this.run(query, [userId]);
+    }
+
+    async getOnlineUsers() {
+        const query = `
+            SELECT u.id, u.first_name, u.last_name, u.email, u.role, p.last_seen
+            FROM users u
+            JOIN user_presence p ON u.id = p.user_id
+            WHERE p.is_online = TRUE
+            ORDER BY u.first_name, u.last_name
+        `;
+        return await this.all(query);
+    }
+
+    async getUsersWithPresence() {
+        const query = `
+            SELECT u.id, u.first_name, u.last_name, u.email, u.role, u.phone_number,
+                   COALESCE(p.is_online, FALSE) as is_online, p.last_seen
+            FROM users u
+            LEFT JOIN user_presence p ON u.id = p.user_id
+            ORDER BY p.is_online DESC, u.first_name, u.last_name
+        `;
         return await this.all(query);
     }
 

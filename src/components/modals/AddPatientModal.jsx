@@ -33,25 +33,36 @@ const AddPatientModal = ({ onClose, currentUser, onPatientAdded }) => {
       if (!formData.firstName || !formData.lastName || !formData.dateOfBirth) {
         throw new Error('First name, last name, and date of birth are required')
       }
-      // Add patient via API - map form fields to database fields
-      const result = await window.electronAPI.createPatient({
+      
+      const patientData = {
         patient_id: `P${Date.now()}`, // Generate a simple patient ID
         first_name: formData.firstName,
         last_name: formData.lastName,
         dob: formData.dateOfBirth,
-        gender: formData.gender,
+        gender: formData.gender || 'other', // Ensure gender is never empty
         contact: formData.phoneNumber || null,
         email: formData.email || null,
         address: formData.address || null,
         reason_for_visit: formData.reasonForVisit || null
-      })
+      }
+      
+      console.log('Creating patient with data:', patientData);
+      
+      // Add patient via API - map form fields to database fields
+      const result = await window.electronAPI.createPatient(patientData)
+      
+      console.log('Create patient result:', result);
 
-      // Close modal on success
-      onClose()
-
-      // Notify parent component to refresh patient list
-      if (onPatientAdded) {
-        onPatientAdded()
+      if (result?.success) {
+        // Close modal on success
+        onClose()
+        
+        // Notify parent component to refresh patient list
+        if (onPatientAdded) {
+          onPatientAdded()
+        }
+      } else {
+        throw new Error(result?.error || 'Failed to add patient')
       }
     } catch (err) {
       setError(err.message || 'Failed to add patient')
@@ -85,7 +96,7 @@ const AddPatientModal = ({ onClose, currentUser, onPatientAdded }) => {
             <h3 className="text-lg font-semibold text-blue-600 dark:text-blue-400 mb-4 pb-2 border-b-2 border-gray-200 dark:border-gray-600">Personal Details</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
               <div className="flex flex-col">
-                <label htmlFor="firstName" className="text-sm font-medium text-gray-700 mb-1">First Name *</label>
+                <label htmlFor="firstName" className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">First Name *</label>
                 <input
                   type="text"
                   id="firstName"
@@ -93,13 +104,13 @@ const AddPatientModal = ({ onClose, currentUser, onPatientAdded }) => {
                   value={formData.firstName}
                   onChange={handleInputChange}
                   placeholder="John"
-                  className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   required
                 />
               </div>
 
               <div className="flex flex-col">
-                <label htmlFor="lastName" className="text-sm font-medium text-gray-700 mb-1">Last Name *</label>
+                <label htmlFor="lastName" className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Last Name *</label>
                 <input
                   type="text"
                   id="lastName"
@@ -107,32 +118,32 @@ const AddPatientModal = ({ onClose, currentUser, onPatientAdded }) => {
                   value={formData.lastName}
                   onChange={handleInputChange}
                   placeholder="Doe"
-                  className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   required
                 />
               </div>
 
               <div className="flex flex-col">
-                <label htmlFor="dateOfBirth" className="text-sm font-medium text-gray-700 mb-1">Date of Birth *</label>
+                <label htmlFor="dateOfBirth" className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Date of Birth *</label>
                 <input
                   type="date"
                   id="dateOfBirth"
                   name="dateOfBirth"
                   value={formData.dateOfBirth}
                   onChange={handleInputChange}
-                  className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   required
                 />
               </div>
 
               <div className="flex flex-col">
-                <label htmlFor="gender" className="text-sm font-medium text-gray-700 mb-1">Gender</label>
+                <label htmlFor="gender" className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Gender</label>
                 <select
                   id="gender"
                   name="gender"
                   value={formData.gender}
                   onChange={handleInputChange}
-                  className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                  className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 >
                   <option value="">- select -</option>
                   <option value="male">Male</option>
@@ -142,7 +153,7 @@ const AddPatientModal = ({ onClose, currentUser, onPatientAdded }) => {
               </div>
 
               <div className="flex flex-col">
-                <label htmlFor="email" className="text-sm font-medium text-gray-700 mb-1">Email</label>
+                <label htmlFor="email" className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email</label>
                 <input
                   type="email"
                   id="email"
@@ -150,12 +161,12 @@ const AddPatientModal = ({ onClose, currentUser, onPatientAdded }) => {
                   value={formData.email}
                   onChange={handleInputChange}
                   placeholder="john.doe@example.com"
-                  className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
 
               <div className="flex flex-col">
-                <label htmlFor="phoneNumber" className="text-sm font-medium text-gray-700 mb-1">Phone Number</label>
+                <label htmlFor="phoneNumber" className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Phone Number</label>
                 <input
                   type="tel"
                   id="phoneNumber"
@@ -163,14 +174,14 @@ const AddPatientModal = ({ onClose, currentUser, onPatientAdded }) => {
                   value={formData.phoneNumber}
                   onChange={handleInputChange}
                   placeholder="(123) 456-7890"
-                  className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
             </div>
 
             <div className="grid grid-cols-1 gap-4">
               <div className="flex flex-col">
-                <label htmlFor="address" className="text-sm font-medium text-gray-700 mb-1">Address</label>
+                <label htmlFor="address" className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Address</label>
                 <textarea
                   id="address"
                   name="address"
@@ -178,12 +189,12 @@ const AddPatientModal = ({ onClose, currentUser, onPatientAdded }) => {
                   onChange={handleInputChange}
                   rows="3"
                   placeholder="Enter full address"
-                  className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-vertical"
+                  className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-vertical"
                 />
               </div>
 
               <div className="flex flex-col">
-                <label htmlFor="reasonForVisit" className="text-sm font-medium text-gray-700 mb-1">Reason for Visit</label>
+                <label htmlFor="reasonForVisit" className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Reason for Visit</label>
                 <textarea
                   id="reasonForVisit"
                   name="reasonForVisit"
@@ -191,17 +202,17 @@ const AddPatientModal = ({ onClose, currentUser, onPatientAdded }) => {
                   onChange={handleInputChange}
                   rows="2"
                   placeholder="e.g., Routine checkup, Blurred vision, Eye pain, etc."
-                  className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-vertical"
+                  className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-vertical"
                 />
               </div>
             </div>
           </div>
 
-          <div className="flex justify-end gap-3 pt-6 border-t">
+          <div className="flex justify-end gap-3 pt-6 border-t dark:border-gray-600">
             <button
               type="button"
               onClick={onClose}
-              className="px-6 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors duration-200"
+              className="px-6 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 dark:bg-gray-500 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors duration-200"
             >
               Cancel
             </button>
