@@ -1,0 +1,10 @@
+
+{
+  "models": [
+    {
+      "title": "DeepSeek Coder",
+      "provider": "ollama",
+      "model": "deepseek-coder"
+    }
+  ]
+}

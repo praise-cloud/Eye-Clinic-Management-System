@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Eye Clinic Management System</title>
+    <link rel="stylesheet" href="styles/main.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="header-content">
+                <div class="logo">
+                    <i class="fas fa-eye"></i>
+                    <h1>Eye Clinic</h1>
+                </div>
+                <div class="header-actions">
+                    <button class="btn btn-primary" id="newPatientBtn">
+                        <i class="fas fa-plus"></i>
+                        New Patient
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Sidebar Navigation -->
+            <nav class="sidebar">
+                <ul class="nav-menu">
+                    <li class="nav-item active">
+                        <a href="#dashboard" class="nav-link">
+                            <i class="fas fa-tachometer-alt"></i>
+                            Dashboard
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#patients" class="nav-link">
+                            <i class="fas fa-users"></i>
+                            Patients
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#appointments" class="nav-link">
+                            <i class="fas fa-calendar-alt"></i>
+                            Appointments
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#examinations" class="nav-link">
+                            <i class="fas fa-stethoscope"></i>
+                            Examinations
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#prescriptions" class="nav-link">
+                            <i class="fas fa-prescription"></i>
+                            Prescriptions
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#reports" class="nav-link">
+                            <i class="fas fa-chart-bar"></i>
+                            Reports
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#settings" class="nav-link">
+                            <i class="fas fa-cog"></i>
+                            Settings
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+
+            <!-- Content Area -->
+            <div class="content-area">
+                <!-- Dashboard Section -->
+                <section id="dashboard-section" class="content-section active">
+                    <div class="section-header">
+                        <h2>Dashboard</h2>
+                        <p>Overview of your eye clinic operations</p>
+                    </div>
+
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-icon">
+                                <i class="fas fa-users"></i>
+                            </div>
+                            <div class="stat-content">
+                                <h3>Total Patients</h3>
+                                <span class="stat-number">0</span>
+                            </div>
+                        </div>
+
+                        <div class="stat-card">
+                            <div class="stat-icon">
+                                <i class="fas fa-calendar-check"></i>
+                            </div>
+                            <div class="stat-content">
+                                <h3>Today's Appointments</h3>
+                                <span class="stat-number">0</span>
+                            </div>
+                        </div>
+
+                        <div class="stat-card">
+                            <div class="stat-icon">
+                                <i class="fas fa-clock"></i>
+                            </div>
+                            <div class="stat-content">
+                                <h3>Pending Appointments</h3>
+                                <span class="stat-number">0</span>
+                            </div>
+                        </div>
+
+                        <div class="stat-card">
+                            <div class="stat-icon">
+                                <i class="fas fa-dollar-sign"></i>
+                            </div>
+                            <div class="stat-content">
+                                <h3>Monthly Revenue</h3>
+                                <span class="stat-number">$0</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="dashboard-widgets">
+                        <div class="widget">
+                            <div class="widget-header">
+                                <h3>Recent Appointments</h3>
+                            </div>
+                            <div class="widget-content">
+                                <p class="empty-state">No appointments scheduled</p>
+                            </div>
+                        </div>
+
+                        <div class="widget">
+                            <div class="widget-header">
+                                <h3>Quick Actions</h3>
+                            </div>
+                            <div class="widget-content">
+                                <div class="quick-actions">
+                                    <button class="quick-action-btn">
+                                        <i class="fas fa-user-plus"></i>
+                                        Add Patient
+                                    </button>
+                                    <button class="quick-action-btn">
+                                        <i class="fas fa-calendar-plus"></i>
+                                        Schedule Appointment
+                                    </button>
+                                    <button class="quick-action-btn">
+                                        <i class="fas fa-file-medical"></i>
+                                        New Examination
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Other sections will be added here -->
+                <section id="patients-section" class="content-section">
+                    <div class="section-header">
+                        <h2>Patients</h2>
+                        <p>Manage patient information and records</p>
+                    </div>
+                    <p>Patient management functionality coming soon...</p>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <!-- Scripts -->
+    <script src="scripts/renderer.js"></script>
+</body>
+</html>

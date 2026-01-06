@@ -1,0 +1,83 @@
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Production builds
+dist/
+build/
+
+# Environment files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Editor directories and files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Electron build outputs
+out/
+packages/
+release/
+
+# Database files (development)
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+logs/
+*.log
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage/
+
+# Development progress file (not for repo)
+progress.md
+
+# Temporary files
+*.tmp
+*.temp
+
+# Debug and temporary documentation
+DARK_MODE_UPDATE.txt
+FIX_DATABASE_MISMATCH.md
+FIXES_APPLIED.md
+QUICK_FIX_GUIDE.md
+SYNC_FIX_SUMMARY.md
+CLEANUP_PLAN.md
+
+# Debug scripts
+check-users.js
+test-sync.js
+migrate-users-table.js
+fix-database.bat
+force-delete-db.bat
+setup-db.bat
+SUPABASE_RLS_FIX.sql
+
+# Scripts folder (if contains only debug scripts)
+scripts/auth.js
+scripts/renderer.js
