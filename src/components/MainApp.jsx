@@ -102,6 +102,11 @@ const MainApp = () => {
   console.log('MainApp - User role:', user?.role);
 
   const renderContent = () => {
+    // Don't render content if user is not loaded yet
+    if (!user) {
+      return <div className="flex items-center justify-center h-full text-gray-500 dark:text-gray-400">Loading...</div>;
+    }
+
     return (
       <Routes>
         <Route path="/" element={user?.role === 'doctor' ? <DoctorsDashboard /> : <DashboardContent />} />

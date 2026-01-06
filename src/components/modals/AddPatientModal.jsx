@@ -61,12 +61,12 @@ const AddPatientModal = ({ onClose, currentUser, onPatientAdded }) => {
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto shadow-2xl">
-        <div className="flex justify-between items-center p-6 border-b bg-gray-50 rounded-t-lg">
-          <h2 className="text-2xl font-semibold text-gray-800">Add New Patient</h2>
+    <div className="fixed inset-0 bg-black bg-opacity-50 dark:bg-opacity-70 flex items-center justify-center z-50 p-4">
+      <div className="bg-white dark:bg-gray-800 rounded-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto shadow-2xl">
+        <div className="flex justify-between items-center p-6 border-b dark:border-gray-700 bg-gray-50 dark:bg-gray-700 rounded-t-lg">
+          <h2 className="text-2xl font-semibold text-gray-800 dark:text-gray-100">Add New Patient</h2>
           <button
-            className="w-8 h-8 rounded-full flex items-center justify-center text-gray-500 hover:bg-gray-200 hover:text-red-500 transition-colors duration-200"
+            className="w-8 h-8 rounded-full flex items-center justify-center text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 hover:text-red-500 dark:hover:text-red-400 transition-colors duration-200"
             onClick={onClose}
           >
             ×
@@ -75,14 +75,14 @@ const AddPatientModal = ({ onClose, currentUser, onPatientAdded }) => {
 
         <form onSubmit={handleSubmit} className="p-6">
           {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md mb-6 text-sm">
+            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 px-4 py-3 rounded-md mb-6 text-sm">
               {error}
             </div>
           )}
 
           {/* Personal Details */}
           <div className="mb-8">
-            <h3 className="text-lg font-semibold text-blue-600 mb-4 pb-2 border-b-2 border-gray-200">Personal Details</h3>
+            <h3 className="text-lg font-semibold text-blue-600 dark:text-blue-400 mb-4 pb-2 border-b-2 border-gray-200 dark:border-gray-600">Personal Details</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
               <div className="flex flex-col">
                 <label htmlFor="firstName" className="text-sm font-medium text-gray-700 mb-1">First Name *</label>

@@ -27,31 +27,31 @@ const WelcomeScreen = ({ onGetStarted }) => {
   ]
 
   return (
-    <div className="relative flex items-center justify-center min-h-screen p-6 overflow-hidden">
+    <div className="relative flex items-center justify-center min-h-screen p-6 overflow-hidden bg-gray-50 dark:bg-gray-900">
       {/* Full background logo */}
       <div className="absolute inset-0">
         <img
           src={logo}
           alt="Background Logo"
-          className="w-full h-full object-cover opacity-15"
+          className="w-full h-full object-cover opacity-15 dark:opacity-10"
         />
       </div>
 
       {/* Background text close to logo */}
-      <div className="absolute inset-0 flex items-center justify-center opacity-20 pointer-events-none select-none z-0">
+      <div className="absolute inset-0 flex items-center justify-center opacity-20 dark:opacity-10 pointer-events-none select-none z-0">
         <div className="">
-          <h1 className="text-6xl font-extrabold tracking-wide">KORENYE CLINIC</h1>
-          <h2 className="text-3xl">NIG. LTD.</h2>
+          <h1 className="text-6xl font-extrabold tracking-wide text-gray-900 dark:text-white">KORENYE CLINIC</h1>
+          <h2 className="text-3xl text-gray-900 dark:text-white">NIG. LTD.</h2>
         </div>
       </div>
 
       {/* Foreground content */}
       <div className="relative w-full max-w-4xl z-10">
         <div className="text-center mb-12 animate-fade-in">
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">
+          <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-4">
             Eye Clinic Management System
           </h1>
-          <p className="text-xl text-gray-600 mb-8 max-w-2xl mx-auto">
+          <p className="text-xl text-gray-600 dark:text-gray-400 mb-8 max-w-2xl mx-auto">
             Professional visual field test management for medical professionals.
             Streamline your clinic operations with comprehensive patient care tools.
           </p>
@@ -62,13 +62,13 @@ const WelcomeScreen = ({ onGetStarted }) => {
           {features.map((feature, index) => (
             <div
               key={index}
-              className="bg-white rounded-xl p-6 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 animate-fade-in border border-gray-100"
+              className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 animate-fade-in border border-gray-100 dark:border-gray-700"
               style={{ animationDelay: `${index * 0.1}s` }}
             >
               <div className="flex flex-col items-center text-center">
                 <div className="mb-4">{feature.icon}</div>
-                <h3 className="font-semibold text-gray-900 mb-2">{feature.title}</h3>
-                <p className="text-sm text-gray-600 leading-relaxed">
+                <h3 className="font-semibold text-gray-900 dark:text-white mb-2">{feature.title}</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
                   {feature.description}
                 </p>
               </div>
@@ -85,7 +85,7 @@ const WelcomeScreen = ({ onGetStarted }) => {
             <span>Get Started</span>
             <ArrowRightIcon className="ml-3 w-6 h-6" />
           </button>
-          <p className="mt-4 text-gray-500 text-sm">
+          <p className="mt-4 text-gray-500 dark:text-gray-400 text-sm">
             Set up your account in just a few simple steps
           </p>
         </div>

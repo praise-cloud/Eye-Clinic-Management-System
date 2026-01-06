@@ -151,7 +151,39 @@ const useUser = () => {
     // Rely on router guard to redirect to login
   }, [])
 
-  // Update user profile
+  // Create new user
+  const createUser = useCallback(async (userData) => {
+    setLoading(true)
+    setError(null)
+
+    try {
+      let result
+      if (window.electronAPI?.createUser) {
+        result = await window.electronAPI.createUser(userData)
+        console.log('Create user result:', result)
+
+        if (result?.success && result?.user) {
+          const newUser = result.user
+          setUser(newUser)
+          localStorage.setItem('currentUser', JSON.stringify(newUser))
+          setLoading(false)
+          return newUser
+        } else {
+          setLoading(false)
+          const error = new Error(result?.error || 'User creation failed')
+          setError(error.message)
+          throw error
+        }
+      } else {
+        throw new Error('Electron API not available')
+      }
+    } catch (err) {
+      console.error('Create user error:', err)
+      setError(err.message)
+      setLoading(false)
+      throw err
+    }
+  }, [])
   const updateProfile = useCallback(async (updates) => {
     try {
       setLoading(true)
@@ -200,6 +232,7 @@ const useUser = () => {
     error,
     login,
     logout,
+    createUser,
     updateProfile,
     hasRole,
     hasPermission,

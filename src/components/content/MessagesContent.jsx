@@ -311,12 +311,12 @@ const MessagesContent = () => {
           <div className="flex items-center gap-2">
             <div className="relative">
               <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-blue-100 text-blue-700 font-bold text-lg">
-                {currentUser.name.split(' ').map(n => n[0]).join('')}
+                {currentUser?.name ? currentUser.name.split(' ').map(n => n[0]).join('') : 'U'}
               </span>
               <span className="absolute bottom-0 right-0 block h-3 w-3 rounded-full ring-2 ring-white bg-green-400" title="Online"></span>
             </div>
             <div className="flex flex-col">
-              <span className="font-medium text-gray-900 dark:text-gray-100">{currentUser.name}</span>
+              <span className="font-medium text-gray-900 dark:text-gray-100">{currentUser?.name || 'User'}</span>
               <span className="text-xs text-green-500">Online</span>
             </div>
           </div>
@@ -325,12 +325,12 @@ const MessagesContent = () => {
           <div className="flex items-center gap-2">
             <div className="relative">
               <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-pink-100 text-pink-700 font-bold text-lg">
-                {otherUser.name.split(' ').map(n => n[0]).join('')}
+                {otherUser?.name ? otherUser.name.split(' ').map(n => n[0]).join('') : 'S'}
               </span>
               <span className="absolute bottom-0 right-0 block h-3 w-3 rounded-full ring-2 ring-white bg-green-400" title="Online"></span>
             </div>
             <div className="flex flex-col">
-              <span className="font-medium text-gray-900 dark:text-gray-100">{otherUser.name}</span>
+              <span className="font-medium text-gray-900 dark:text-gray-100">{otherUser?.name || 'Staff'}</span>
               <span className="text-xs text-green-500">Online</span>
             </div>
           </div>
@@ -362,7 +362,7 @@ const MessagesContent = () => {
                 }`}
               >
                 <span className="block font-bold mb-1">
-                  {msg.sender_id === currentUser.id ? currentUser.name : otherUser.name}
+                  {msg.sender_id === currentUser.id ? (currentUser?.name || 'Me') : (otherUser?.name || 'Staff')}
                 </span>
                 {(() => {
                   // Check backend reply field or client-side tracking
@@ -377,7 +377,7 @@ const MessagesContent = () => {
                             : 'bg-gray-200 border-gray-400 text-gray-600 dark:bg-gray-600 dark:border-gray-500 dark:text-gray-300'
                         }`}>
                           <div className="font-medium">
-                            Replying to {referencedMsg.sender_id === currentUser.id ? currentUser.name : otherUser.name}
+                            Replying to {referencedMsg.sender_id === currentUser.id ? (currentUser?.name || 'Me') : (otherUser?.name || 'Staff')}
                           </div>
                           <div className="truncate">
                             {referencedMsg.message_text || 'File attachment'}
@@ -499,7 +499,7 @@ const MessagesContent = () => {
       {replyTo && (
         <div className="mb-2 p-2 bg-yellow-50 border border-yellow-200 rounded dark:bg-yellow-900 dark:border-yellow-700">
           <div className="flex items-center justify-between mb-1">
-            <span className="text-xs text-yellow-700 font-medium dark:text-yellow-300">Replying to {replyTo.sender_id === currentUser.id ? currentUser.name : otherUser.name}</span>
+            <span className="text-xs text-yellow-700 font-medium dark:text-yellow-300">Replying to {replyTo.sender_id === currentUser.id ? (currentUser?.name || 'Me') : (otherUser?.name || 'Staff')}</span>
             <button onClick={() => setReplyTo(null)} className="text-yellow-600 hover:text-yellow-800 text-sm dark:text-yellow-400 dark:hover:text-yellow-200">✕</button>
           </div>
           <div className="text-sm text-gray-600 truncate dark:text-gray-300">{replyTo.message_text || 'File attachment'}</div>

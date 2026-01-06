@@ -25,7 +25,7 @@ const SignupScreen = ({ selectedRole, onComplete, onBack, onBackToWelcome }) => 
   // Normalize role to proper title case (handles multi-word like 'clinic assistant' → 'Clinic Assistant')
   const normalizedRole = currentRole
     ? currentRole.replace(/\b\w/g, l => l.toUpperCase())
-    : 'Unknown'
+    : null
 
   // Default props
   const handleBack = onBack || (() => console.warn('onBack not provided'))
@@ -33,8 +33,10 @@ const SignupScreen = ({ selectedRole, onComplete, onBack, onBackToWelcome }) => 
 
   // One-time log on mount/update
   useEffect(() => {
-    console.log('Raw selectedRole:', selectedRole, 'Normalized:', normalizedRole);
-  }, [selectedRole, normalizedRole]);
+    if (currentRole) {
+      console.log('Raw selectedRole:', selectedRole, 'Normalized:', normalizedRole);
+    }
+  }, [selectedRole, normalizedRole, currentRole]);
 
   const roles = [
     { id: 'doctor', name: 'Doctor', description: 'Medical practitioner with full access' },
