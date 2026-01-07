@@ -1008,17 +1008,37 @@ class IPCHandlers {
                     return { error: 'Sender ID, Receiver ID, and message text are required' };
                 }
 
-                // Use SyncService for instant sync
-                const result = await SyncService.sendChatMessage({
+                // Create message directly using DatabaseService
+                const { v4: uuidv4 } = require('uuid');
+                const messageId = uuidv4();
+                const timestamp = new Date().toISOString();
+                
+                const messageData = {
+                    id: messageId,
                     sender_id: senderId,
                     receiver_id: receiverId,
                     message_text: messageText,
                     attachment: attachment || null,
+                    timestamp: timestamp,
                     status: 'unread',
                     reply_to_id: replyToId || null
+                };
+
+                // Save to local database
+                const db = await DatabaseService.getDatabase();
+                await db.run(
+                    `INSERT INTO chat (id, sender_id, receiver_id, message_text, attachment, timestamp, status) 
+                     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                    [messageId, senderId, receiverId, messageText, attachment, timestamp, 'unread']
+                );
+
+                // Broadcast to all windows
+                const { BrowserWindow } = require('electron');
+                BrowserWindow.getAllWindows().forEach(window => {
+                    window.webContents.send('new-message', messageData);
                 });
 
-                return result;
+                return { success: true, message: messageData };
             } catch (error) {
                 console.error('Send message error:', error);
                 return { error: error.message };
