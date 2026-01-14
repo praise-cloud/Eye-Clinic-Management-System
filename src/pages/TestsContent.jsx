@@ -19,6 +19,7 @@ const TestsContent = ({ clientName, additionalTests = [] }) => {
 
   const mappedDbTests = useMemo(() => dbTests.map(test => ({
     id: test.id,
+    patientId: test.patient_id,
     patientName: `${test.first_name} ${test.last_name}`,
     testType: test.machine_type || 'Unknown',
     result: 'Completed',
@@ -48,7 +49,7 @@ const TestsContent = ({ clientName, additionalTests = [] }) => {
   useEffect(() => {
     // Merge database tests with additional tests from TestResultsContent
     const allTests = [...mappedDbTests, ...additionalTests];
-    // setTests(allTests);
+    setTests(allTests);
   }, [mappedDbTests, additionalTests])
   const getResultColor = (result) => {
     switch (result?.toLowerCase()) {
@@ -156,7 +157,17 @@ const TestsContent = ({ clientName, additionalTests = [] }) => {
                         <ViewIcon />
                       </button>
                       <button
-                        onClick={() => navigate(`/tests/edit/${test.id}`)}
+                        onClick={() => {
+                          // Navigate to client details with test editing context
+                          const patientName = test.patientName;
+                          // Find patient and navigate to their details
+                          navigate('/dashboard', {
+                            state: {
+                              editTest: test,
+                              patientName: patientName
+                            }
+                          });
+                        }}
                         className="text-green-500 hover:text-green-700 p-1"
                         title="Edit"
                       >

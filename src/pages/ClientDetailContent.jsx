@@ -4,7 +4,7 @@ import TestResultsContent from './TestResultsContent';
 import TestsContent from './TestsContent';
 import useTests from '../hooks/useTests';
 
-const ClientDetailContent = ({ client, onBack, onSave }) => {
+const ClientDetailContent = ({ client, onBack, onSave, initialEditTest }) => {
   const [editMode, setEditMode] = useState(false);
   const [activeTab, setActiveTab] = useState('details');
   const [sharedTests, setSharedTests] = useState([]);
@@ -29,7 +29,7 @@ const ClientDetailContent = ({ client, onBack, onSave }) => {
     const loadTestHistory = async () => {
       if (client?.id) {
         try {
-          const result = await window.electronAPI.getTestsByPatient(client.id);
+          const result = await window.electronAPI.getTests({ patientId: client.id });
           if (result.success) {
             const formattedTests = result.tests.map(test => ({
               id: test.id,
@@ -111,14 +111,14 @@ const ClientDetailContent = ({ client, onBack, onSave }) => {
       {/* Tab Navigation */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow mb-6">
 
-        <div className="border-b border-gray-200">
+        <div className="border-b border-gray-200 dark:border-gray-700">
           <nav className="flex space-x-8 px-6">
             <button
               onClick={() => setActiveTab('details')}
               className={`py-4 px-1 border-b-2 font-medium text-sm ${
                 activeTab === 'details'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
+                  ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
               }`}
             >
               Client Details
@@ -127,8 +127,8 @@ const ClientDetailContent = ({ client, onBack, onSave }) => {
               onClick={() => setActiveTab('tests')}
               className={`py-4 px-1 border-b-2 font-medium text-sm ${
                 activeTab === 'tests'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
+                  ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
               }`}
             >
               Test Results
@@ -137,8 +137,8 @@ const ClientDetailContent = ({ client, onBack, onSave }) => {
               onClick={() => setActiveTab('scheduled')}
               className={`py-4 px-1 border-b-2 font-medium text-sm ${
                 activeTab === 'scheduled'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
+                  ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
               }`}
             >
               Scheduled Tests
@@ -151,15 +151,15 @@ const ClientDetailContent = ({ client, onBack, onSave }) => {
       {activeTab === 'details' && (
         <>
           {/* Client Information Card */}
-          <div className="bg-white rounded-lg shadow p-6 mb-6">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-2xl font-semibold text-gray-800">Client Details</h2>
+          <h2 className="text-2xl font-semibold text-gray-800 dark:text-gray-100">Client Details</h2>
           <div className="flex gap-2">
             {editMode ? (
               <>
                 <button
                   onClick={() => setEditMode(false)}
-                  className="px-4 py-2 text-gray-600 border border-gray-300 rounded hover:bg-gray-50"
+                  className="px-4 py-2 text-gray-600 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700"
                 >
                   Cancel
                 </button>
@@ -183,80 +183,80 @@ const ClientDetailContent = ({ client, onBack, onSave }) => {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name</label>
             {editMode ? (
               <input
                 type="text"
                 value={formData.name}
                 onChange={(e) => handleInputChange('name', e.target.value)}
-                className="w-full border border-gray-300 rounded-md p-2"
+                className="w-full border border-gray-300 dark:border-gray-600 rounded-md p-2 dark:bg-gray-700 dark:text-white"
               />
             ) : (
-              <p className="text-gray-900">{formData.name}</p>
+              <p className="text-gray-900 dark:text-gray-100">{formData.name}</p>
             )}
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Phone</label>
             {editMode ? (
               <input
                 type="text"
                 value={formData.phone}
                 onChange={(e) => handleInputChange('phone', e.target.value)}
-                className="w-full border border-gray-300 rounded-md p-2"
+                className="w-full border border-gray-300 dark:border-gray-600 rounded-md p-2 dark:bg-gray-700 dark:text-white"
               />
             ) : (
-              <p className="text-gray-900">{formData.phone}</p>
+              <p className="text-gray-900 dark:text-gray-100">{formData.phone}</p>
             )}
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email</label>
             {editMode ? (
               <input
                 type="email"
                 value={formData.email}
                 onChange={(e) => handleInputChange('email', e.target.value)}
-                className="w-full border border-gray-300 rounded-md p-2"
+                className="w-full border border-gray-300 dark:border-gray-600 rounded-md p-2 dark:bg-gray-700 dark:text-white"
               />
             ) : (
-              <p className="text-gray-900">{formData.email}</p>
+              <p className="text-gray-900 dark:text-gray-100">{formData.email}</p>
             )}
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Date</label>
             {editMode ? (
               <input
                 type="text"
                 value={formData.date}
                 onChange={(e) => handleInputChange('date', e.target.value)}
-                className="w-full border border-gray-300 rounded-md p-2"
+                className="w-full border border-gray-300 dark:border-gray-600 rounded-md p-2 dark:bg-gray-700 dark:text-white"
               />
             ) : (
-              <p className="text-gray-900">{formData.date}</p>
+              <p className="text-gray-900 dark:text-gray-100">{formData.date}</p>
             )}
           </div>
 
           <div className="md:col-span-2">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Current Case</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Current Case</label>
             {editMode ? (
               <textarea
                 value={formData.case}
                 onChange={(e) => handleInputChange('case', e.target.value)}
-                className="w-full border border-gray-300 rounded-md p-2 h-20"
+                className="w-full border border-gray-300 dark:border-gray-600 rounded-md p-2 h-20 dark:bg-gray-700 dark:text-white"
               />
             ) : (
-              <p className="text-gray-900">{formData.case}</p>
+              <p className="text-gray-900 dark:text-gray-100">{formData.case}</p>
             )}
           </div>
         </div>
       </div>
 
           {/* Case History & Schedule Test */}
-          <div className="bg-white rounded-lg shadow p-6">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-xl font-semibold text-gray-800">Test History</h3>
+              <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-100">Test History</h3>
               <button
                 onClick={() => setShowScheduleModal(true)}
                 className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 flex items-center gap-2"
@@ -268,20 +268,19 @@ const ClientDetailContent = ({ client, onBack, onSave }) => {
               </button>
             </div>
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
+              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead className="bg-gray-50 dark:bg-gray-700">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Test Description</th>
-
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Date</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Test Description</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Status</th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+                <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                   {testHistory.length > 0 ? testHistory.map((testItem) => (
                     <tr key={testItem.id}>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{testItem.date}</td>
-                      <td className="px-6 py-4 text-sm text-gray-900">{testItem.case}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">{testItem.date}</td>
+                      <td className="px-6 py-4 text-sm text-gray-900 dark:text-gray-100">{testItem.case}</td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(testItem.status)}`}>
                           {testItem.status}
@@ -290,22 +289,11 @@ const ClientDetailContent = ({ client, onBack, onSave }) => {
                     </tr>
                   )) : (
                     <tr>
-                      <td colSpan="3" className="px-6 py-4 text-center text-sm text-gray-500">
+                      <td colSpan="3" className="px-6 py-4 text-center text-sm text-gray-500 dark:text-gray-400">
                         No test history available for this patient.
                       </td>
                     </tr>
                   )}
-                  {otherCases.map((caseItem) => (
-                    <tr key={caseItem.id}>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{caseItem.date}</td>
-                      <td className="px-6 py-4 text-sm text-gray-900">{caseItem.case}</td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(caseItem.status)}`}>
-                          {caseItem.status}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
                 </tbody>
               </table>
             </div>
@@ -315,7 +303,7 @@ const ClientDetailContent = ({ client, onBack, onSave }) => {
 
       {/* Test Results Tab */}
       {activeTab === 'tests' && (
-        <div className="bg-white rounded-lg shadow">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
           <TestResultsContent
             clientName={formData.name}
             onTestCreate={(newTest) => {
@@ -328,13 +316,14 @@ const ClientDetailContent = ({ client, onBack, onSave }) => {
               };
               setSharedTests(prev => [...prev, scheduledTest]);
             }}
+            initialEditTest={initialEditTest}
           />
         </div>
       )}
 
       {/* Scheduled Tests Tab */}
       {activeTab === 'scheduled' && (
-        <div className="bg-white rounded-lg shadow">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
           <TestsContent
             clientName={formData.name}
             additionalTests={sharedTests}
@@ -344,16 +333,16 @@ const ClientDetailContent = ({ client, onBack, onSave }) => {
             {/* Schedule Test Modal */}
       {showScheduleModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
-            <h3 className="text-lg font-semibold mb-4">Schedule Test for {formData.name}</h3>
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md mx-4">
+            <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">Schedule Test for {formData.name}</h3>
 
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Test Type</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Test Type</label>
                 <select
                   value={scheduleFormData.testType}
                   onChange={(e) => handleScheduleInputChange('testType', e.target.value)}
-                  className="w-full border border-gray-300 rounded-md p-2"
+                  className="w-full border border-gray-300 dark:border-gray-600 rounded-md p-2 dark:bg-gray-700 dark:text-white"
                 >
                   <option value="">Select test type</option>
                   <option value="Vision Test">Vision Test</option>
@@ -367,21 +356,21 @@ const ClientDetailContent = ({ client, onBack, onSave }) => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Scheduled Date & Time</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Scheduled Date & Time</label>
                 <input
                   type="datetime-local"
                   value={scheduleFormData.scheduledDate}
                   onChange={(e) => handleScheduleInputChange('scheduledDate', e.target.value)}
-                  className="w-full border border-gray-300 rounded-md p-2"
+                  className="w-full border border-gray-300 dark:border-gray-600 rounded-md p-2 dark:bg-gray-700 dark:text-white"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Notes</label>
                 <textarea
                   value={scheduleFormData.notes}
                   onChange={(e) => handleScheduleInputChange('notes', e.target.value)}
-                  className="w-full border border-gray-300 rounded-md p-2 h-20"
+                  className="w-full border border-gray-300 dark:border-gray-600 rounded-md p-2 h-20 dark:bg-gray-700 dark:text-white"
                   placeholder="Additional notes or instructions..."
                 />
               </div>
@@ -393,13 +382,14 @@ const ClientDetailContent = ({ client, onBack, onSave }) => {
                   setShowScheduleModal(false);
                   setScheduleFormData({ testType: '', scheduledDate: '', notes: '' });
                 }}
-                className="px-4 py-2 text-gray-600 border border-gray-300 rounded hover:bg-gray-50"
+                className="px-4 py-2 text-gray-600 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700"
               >
                 Cancel
               </button>
               <button
                 onClick={handleScheduleTest}
-                className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+                disabled={!scheduleFormData.testType || !scheduleFormData.scheduledDate}
+                className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
               >
                 Schedule Test
               </button>

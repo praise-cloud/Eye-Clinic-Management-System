@@ -50,19 +50,24 @@ const App = () => {
     const handleBackToDashboard = () => {
         setSelectedClient(null);
     };
-    
-    const filteredPatients = patients.filter(patient => 
+
+    const filteredPatients = patients.filter(patient =>
         searchTerm === '' ||
         patient.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         patient.case.toLowerCase().includes(searchTerm.toLowerCase()) ||
         patient.email.toLowerCase().includes(searchTerm.toLowerCase())
     );
-    
+
     const totalPages = Math.ceil(filteredPatients.length / rowsPerPage);
     const paginatedPatients = filteredPatients.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage);
 
     if (selectedClient) {
-        return <ClientDetailContent client={selectedClient} onBack={handleBackToDashboard} onSave={handleClientSave} />;
+        return <ClientDetailContent
+            client={selectedClient}
+            onBack={handleBackToDashboard}
+            onSave={handleClientSave}
+            initialEditTest={location.state?.editTest}
+        />;
     }
 
     const DashboardSection = () => (

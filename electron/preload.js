@@ -69,8 +69,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
     // Chat APIs
     getMessages: (data) => ipcRenderer.invoke('chat:getMessages', data),
-    sendMessage: (senderId, receiverId, messageText, attachment) => ipcRenderer.invoke('chat:sendMessage', senderId, receiverId, messageText, attachment),
-    markMessageRead: (data) => ipcRenderer.invoke('chat:markAsRead', data),
+    sendMessage: (senderId, receiverId, messageText, attachment, replyToId) => ipcRenderer.invoke('chat:sendMessage', senderId, receiverId, messageText, attachment, replyToId),
+    markMessageRead: (data) => ipcRenderer.invoke('chat:markMessageRead', data),
+    markAllAsRead: (userId, otherUserId) => ipcRenderer.invoke('chat:markAllAsRead', { userId, otherUserId }),
     getUnreadCount: (userId) => ipcRenderer.invoke('chat:getUnreadCount', userId),
     deleteMessage: (messageId) => ipcRenderer.invoke('chat:deleteMessage', messageId),
     onNewMessage: (callback) => ipcRenderer.on('new-message', callback),

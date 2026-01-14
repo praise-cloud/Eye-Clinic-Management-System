@@ -61,7 +61,7 @@ class DatabaseService {
     }
 
     // Chat/Messages Management
-    async getMessages(userId, otherUserId = null, search = '') {
+    async getMessages(userId, otherUserId = null, search = '', limit = 50, offset = 0) {
         const db = await this.getDatabase();
         let query = `
             SELECT * FROM chat 
@@ -76,6 +76,17 @@ class DatabaseService {
         }
         
         query += ` ORDER BY timestamp ASC`;
+        
+        if (limit) {
+            query += ` LIMIT ?`;
+            params.push(limit);
+        }
+        
+        if (offset) {
+            query += ` OFFSET ?`;
+            params.push(offset);
+        }
+        
         return await db.all(query, params);
     }
 
@@ -84,6 +95,13 @@ class DatabaseService {
         const query = `UPDATE chat SET status = 'read' WHERE id = ? AND receiver_id = ?`;
         await db.run(query, [messageId, userId]);
         return { success: true };
+    }
+
+    async markAllMessagesAsRead(userId, otherUserId) {
+        const db = await this.getDatabase();
+        const query = `UPDATE chat SET status = 'read' WHERE receiver_id = ? AND sender_id = ? AND status = 'unread'`;
+        const result = await db.run(query, [userId, otherUserId]);
+        return { success: true, updated: result.changes };
     }
 
     async deleteMessage(messageId, userId) {

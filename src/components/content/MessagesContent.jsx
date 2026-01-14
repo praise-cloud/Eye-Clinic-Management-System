@@ -93,26 +93,40 @@ const MessagesContent = () => {
 
   // Real-time messages
   useEffect(() => {
-    if (!electronAPI || !currentUser) return;
+  if (!electronAPI || !currentUser) return;
 
-    const handler = msg => {
-      const inThisChat =
-        (msg.sender_id === currentUser.id && msg.receiver_id === otherUser?.id) ||
-        (msg.sender_id === otherUser?.id && msg.receiver_id === currentUser.id);
+  const handler = (msg) => {
+    // Only process if it's for this chat
+    const inThisChat =
+      (msg.sender_id === currentUser.id && msg.receiver_id === otherUser?.id) ||
+      (msg.sender_id === otherUser?.id && msg.receiver_id === currentUser.id);
 
-      if (inThisChat) {
-        setMessages(prev => (prev.some(m => m.id === msg.id) ? prev : [...prev, msg]));
-        if (msg.receiver_id === currentUser.id && msg.status !== 'read') {
-          electronAPI.markMessageRead({ messageId: msg.id, userId: currentUser.id });
-        }
-      } else if (msg.receiver_id === currentUser.id) {
+    if (!inThisChat) {
+      // For other chats → only update unread count
+      if (msg.receiver_id === currentUser.id && msg.status !== 'read') {
         setUnreadCounts(p => ({ ...p, [msg.sender_id]: (p[msg.sender_id] || 0) + 1 }));
       }
-    };
+      return;
+    }
 
-    const off = electronAPI.onIpcEvent('new-message', handler);
-    return () => off && off();
-  }, [currentUser?.id, otherUser?.id]);
+    // Prevent duplicate: check if message ID already exists
+    setMessages(prev => {
+      if (prev.some(existing => existing.id === msg.id)) {
+        console.log('Duplicate prevented:', msg.id);
+        return prev;
+      }
+      return [...prev, msg];
+    });
+
+    // Mark as read if it's for us
+    if (msg.receiver_id === currentUser.id && msg.status !== 'read') {
+      electronAPI.markMessageRead({ messageId: msg.id, userId: currentUser.id });
+    }
+  };
+
+  const off = electronAPI.onIpcEvent('new-message', handler);
+  return () => off && off();
+}, [currentUser?.id, otherUser?.id, electronAPI]);
 
   // Load messages when chat selected
   const loadMessages = useCallback(async () => {
@@ -121,19 +135,34 @@ const MessagesContent = () => {
       return;
     }
     try {
+      console.log('Loading messages for:', {
+        currentUserId: currentUser.id,
+        otherUserId: otherUser.id
+      });
+
       const res = await electronAPI.getMessages({
         userId: currentUser.id,
         otherUserId: otherUser.id,
         limit: 500,
         offset: 0,
       });
+
+      console.log('Get messages response:', res);
+
       if (res.success) {
         setMessages(res.messages.reverse());
         setUnreadCounts(p => ({ ...p, [otherUser.id]: 0 }));
-        await electronAPI.markAllAsRead?.(currentUser.id, otherUser.id);
+        // Mark all messages as read
+        try {
+          await electronAPI.markAllAsRead(currentUser.id, otherUser.id);
+        } catch (error) {
+          console.warn('Failed to mark messages as read:', error);
+        }
+      } else {
+        console.error('Failed to load messages:', res.error);
       }
     } catch (e) {
-      console.error(e);
+      console.error('Load messages error:', e);
     }
   }, [currentUser?.id, otherUser?.id]);
 
@@ -232,39 +261,29 @@ const MessagesContent = () => {
     }
   };
 
-  const sendMessage = async (attachment = null) => {
-    try {
-      const attachmentData = attachment ? JSON.stringify(attachment) : null;
-      const messageText = input.trim() || (attachment ? 'File attachment' : '');
-      const replyToId = replyTo ? replyTo.id : null;
+const sendMessage = async (attachment = null) => {
+  try {
+    const attachmentData = attachment ? JSON.stringify(attachment) : null;
+    const messageText = input.trim() || (attachment ? 'File attachment' : '');
+    const replyToId = replyTo ? replyTo.id : null;
 
-      console.log('Sending message with replyToId:', replyToId);
+    const res = await electronAPI.sendMessage(
+      currentUser.id,
+      otherUser.id,
+      messageText,
+      attachmentData,
+      replyToId
+    );
 
-      // Try with replyToId first, fallback without it if backend doesn't support it
-      let res;
-      try {
-        res = await electronAPI.sendMessage(currentUser.id, otherUser.id, messageText, attachmentData, replyToId);
-      } catch (replyError) {
-        console.warn('Backend may not support replyToId, sending without it:', replyError);
-        res = await electronAPI.sendMessage(currentUser.id, otherUser.id, messageText, attachmentData);
-      }
-
-      if (res.success) {
-        // Store reply reference client-side until backend supports it
-        if (replyToId) {
-          setClientReplies(prev => ({
-            ...prev,
-            [res.message.id]: replyToId
-          }));
-        }
-        setMessages((msgs) => [...msgs, res.message]);
-        setReplyTo(null);
-      }
-    } catch (err) {
-      console.error('Send message error:', err);
+    if (res && res.success) {
+      setReplyTo(null);
+      setInput('');
+      // console.log('Message sent — waiting for real-time broadcast');
     }
-  };
-
+  } catch (err) {
+    console.error('Send message error:', err);
+  }
+};
   // Fetch messages with optional search
   const fetchMessages = useCallback(async (searchTerm = '') => {
     if (!otherUser) return;
@@ -434,9 +453,9 @@ const MessagesContent = () => {
         ) : messages.length === 0 ? (
           <div className="text-center text-gray-400 dark:text-gray-500">No messages yet.</div>
         ) : (
-          messages.map((msg) => (
+          messages.map((msg, index) => (
             <div
-              key={msg.id}
+              key={`${msg.id}-${index}`}
               className={`flex mb-2 ${msg.sender_id === currentUser.id ? 'justify-end' : 'justify-start'}`}
             >
               <div

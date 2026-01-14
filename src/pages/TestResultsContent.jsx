@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { DeleteIcon, EditIcon, ViewIcon } from '../components/Icons';
 
-const TestResultsContent = ({ clientName, onTestCreate }) => {
+const TestResultsContent = ({ clientName, onTestCreate, initialEditTest }) => {
   const [testResults, setTestResults] = useState([
     { id: 1, patientName: 'Dr. Ammar', testType: 'Vision Test', result: 'Normal', date: '25/01/2024', notes: 'Good vision clarity' },
     { id: 2, patientName: 'Dr. Khan', testType: 'Eye Pressure', result: 'High', date: '24/01/2024', notes: 'Requires monitoring' },
@@ -11,11 +11,22 @@ const TestResultsContent = ({ clientName, onTestCreate }) => {
 
   const [showModal, setShowModal] = useState(false);
   const [editingTest, setEditingTest] = useState(null);
+
+  useEffect(() => {
+    if (initialEditTest) {
+      // Ensure we set the form data correctly for the passed test
+      setEditingTest(initialEditTest);
+      setFormData(initialEditTest);
+      setShowModal(true);
+    }
+  }, [initialEditTest]);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [viewingTest, setViewingTest] = useState(null);
   const [formData, setFormData] = useState({
     patientName: clientName || '',
+    patientId: '',
     testType: '',
+    eye: 'both',
     result: '',
     date: '',
     notes: ''
@@ -36,24 +47,56 @@ const TestResultsContent = ({ clientName, onTestCreate }) => {
   };
 
   // Save test result (create or update)
-  const handleSave = () => {
-    if (editingTest) {
-      // Update existing
-      setTestResults(prev => prev.map(test =>
-        test.id === editingTest.id ? { ...formData, id: editingTest.id } : test
-      ));
-    } else {
-      // Create new
-      const newTest = { ...formData, id: Date.now() };
-      setTestResults(prev => [...prev, newTest]);
+  const handleSave = async () => {
+    try {
+      if (editingTest) {
+        // Update existing test in database
+        const result = await window.electronAPI.updateTest(editingTest.id, {
+          patient_id: formData.patientId,
+          machine_type: formData.testType,
+          eye: formData.eye || 'both',
+          test_date: formData.date,
+          raw_data: JSON.stringify({
+            result: formData.result,
+            notes: formData.notes
+          })
+        });
 
-      // Notify parent component about new test creation
-      if (onTestCreate) {
-        onTestCreate(newTest);
+        if (result.success) {
+          // Update local state
+          setTestResults(prev => prev.map(test =>
+            test.id === editingTest.id ? { ...formData, id: editingTest.id } : test
+          ));
+        }
+      } else {
+        // Create new test in database
+        const result = await window.electronAPI.createTest({
+          patient_id: formData.patientId,
+          machine_type: formData.testType,
+          eye: formData.eye || 'both',
+          test_date: formData.date,
+          raw_data: JSON.stringify({
+            result: formData.result,
+            notes: formData.notes
+          })
+        });
+
+        if (result.success) {
+          const newTest = { ...formData, id: result.test.id };
+          setTestResults(prev => [...prev, newTest]);
+
+          // Notify parent component about new test creation
+          if (onTestCreate) {
+            onTestCreate(newTest);
+          }
+        }
       }
+
+      setShowModal(false);
+      setEditingTest(null);
+    } catch (error) {
+      console.error('Error saving test:', error);
     }
-    setShowModal(false);
-    setEditingTest(null);
   };
 
   // Delete test result
@@ -194,6 +237,19 @@ const TestResultsContent = ({ clientName, onTestCreate }) => {
                   <option value="Retinal Scan">Retinal Scan</option>
                   <option value="Color Blindness">Color Blindness</option>
                   <option value="Field Test">Field Test</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Eye</label>
+                <select
+                  value={formData.eye}
+                  onChange={(e) => handleInputChange('eye', e.target.value)}
+                  className="w-full border border-gray-300 rounded-md p-2"
+                >
+                  <option value="both">Both Eyes</option>
+                  <option value="left">Left Eye</option>
+                  <option value="right">Right Eye</option>
                 </select>
               </div>
 

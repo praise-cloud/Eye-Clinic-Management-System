@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 import React, { useState, useEffect } from 'react';
 import './DoctorsChatScreen.css';
 import useUser from '../hooks/useUser';
@@ -36,80 +35,12 @@ const DoctorsChatScreen = () => {
             </div>
         );
     }
-=======
-import React, { useState, useEffect, useRef } from 'react';
-
-// Main application component
-const App = () => {
-    // State to hold the chat messages
-    const [messages, setMessages] = useState([]);
-    // Refs for accessing the DOM elements for input and auto-scrolling
-    const messageInputRef = useRef(null);
-    const chatBodyRef = useRef(null);
-
-    // Function to format the current time as HH:MM AM/PM
-    const formatTime = () => {
-        const now = new Date();
-        const hours = now.getHours();
-        const minutes = now.getMinutes();
-        const ampm = hours >= 12 ? 'PM' : 'AM';
-        const formattedHours = hours % 12 === 0 ? 12 : hours % 12;
-        const formattedMinutes = minutes < 10 ? '0' + minutes : minutes;
-        return `${formattedHours}:${formattedMinutes} ${ampm}`;
-    };
-    
-    // Function to handle sending a message
-    const sendMessage = () => {
-        const messageText = messageInputRef.current.value.trim();
-
-        if (messageText === "") return; // Stop if the input is empty
-
-        const newMessage = {
-            id: Date.now(),
-            text: messageText,
-            timestamp: formatTime(),
-            type: 'sent', // All user-sent messages are type 'sent'
-        };
-
-        // Update the messages state
-        setMessages(prevMessages => [...prevMessages, newMessage]);
-        
-        // Clear the input field
-        messageInputRef.current.value = '';
-    };
-
-    // Handler for pressing the Enter key in the input box
-    const handleKeyDown = (e) => {
-        if (e.key === 'Enter') {
-            e.preventDefault(); 
-            sendMessage();
-        }
-    };
-
-    // Effect hook for auto-scrolling to the bottom whenever messages change
-    useEffect(() => {
-        if (chatBodyRef.current) {
-            chatBodyRef.current.scrollTop = chatBodyRef.current.scrollHeight;
-        }
-    }, [messages]);
-
-    // Dummy data for example conversation if needed:
-    /*
-    useEffect(() => {
-        setMessages([
-            { id: 1, text: "Welcome to Korenye Clinic Assistant. How can I help you with the patient records today?", timestamp: "10:00 AM", type: 'received' },
-            { id: 2, text: "I need to check Dr. Smith's appointment schedule for tomorrow.", timestamp: "10:01 AM", type: 'sent' },
-        ]);
-    }, []);
-    */
->>>>>>> d7adb94f093a3e0b1314671557a7ee3c3ed7e9e9
 
 
     return (
         <div className="app-container">
-<<<<<<< HEAD
             {/* The header remains the same */}
-=======
+
             {/* CSS Styles Block (Embedded for single-file compliance) */}
             <style jsx="true">{`
                 /* -----------------------------------------------------
@@ -134,20 +65,20 @@ const App = () => {
                     --border-color: #374151;
                     --bg-light: #111827;
                     --bg-white: #1f2937;
-                    
+
                     /* Sidebar Specific */
                     --sidebar-bg: #764ba2;
                     --sidebar-text: #bdc3c7;
                     --sidebar-active-bg: #3742fa;
                     --accent-color: #ffd700; /* Yellow accent for logo/active indicator */
-                    
+
                     /* Header Specific */
                     --header-bg: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                    
+
                     /* Card/Shadows */
                     --card-bg: #ffffff;
                     --shadow-light: rgba(0, 0, 0, 0.05);
-                    
+
                     /* Status Colors */
                     --danger-color: #dc3545;
                 }
@@ -174,13 +105,13 @@ const App = () => {
                 .app-container {
                     height: 100vh;
                     display: flex;
-                    flex-direction: column; 
+                    flex-direction: column;
                 }
 
                 .main-content-wrapper {
                     display: flex;
-                    flex: 1; 
-                    overflow: hidden; 
+                    flex: 1;
+                    overflow: hidden;
                 }
 
                 /* -----------------------------------------------------
@@ -203,9 +134,9 @@ const App = () => {
                 }
 
                 .logo {
-                    display: flex; 
-                    align-items: center; 
-                    gap: 10px; 
+                    display: flex;
+                    align-items: center;
+                    gap: 10px;
                 }
 
                 .logo i {
@@ -222,7 +153,7 @@ const App = () => {
                     display: flex;
                     align-items: center;
                     gap: 10px;
-                    color: white; 
+                    color: white;
                     font-weight: 500;
                 }
 
@@ -242,7 +173,7 @@ const App = () => {
                     width: 250px;
                     background-color: var(--sidebar-bg);
                     color: white;
-                    height: 100%; 
+                    height: 100%;
                     overflow-y: auto;
                     box-shadow: 2px 0 10px rgba(0,0,0,0.1);
                 }
@@ -294,7 +225,7 @@ const App = () => {
                 * Main Content Area and Chat Styles
                 * ----------------------------------------------------- */
                 .content-area {
-                    flex: 1; 
+                    flex: 1;
                     padding: 2rem;
                     overflow-y: auto;
                     background-color: var(--bg-light);
@@ -380,8 +311,8 @@ const App = () => {
                 .message {
                     max-width: 70%;
                     margin-bottom: 15px;
-                    padding: 10px 15px; 
-                    border-radius: 7px; 
+                    padding: 10px 15px;
+                    border-radius: 7px;
                     line-height: 1.4;
                     position: relative;
                     font-size: 0.95rem;
@@ -398,16 +329,16 @@ const App = () => {
                     font-size: 0.7rem;
                     color: rgba(255, 255, 255, 0.7);
                     margin-top: 5px;
-                    text-align: right; 
+                    text-align: right;
                 }
 
                 /* Received Message (Assistant) */
                 .message.received {
-                    background-color: #e9ecef; 
+                    background-color: #e9ecef;
                     color: var(--text-color);
-                    text-align: left; 
+                    text-align: left;
                     margin-left: 0;
-                    margin-right: auto; 
+                    margin-right: auto;
                 }
 
                 .message.received .timestamp {
@@ -419,9 +350,9 @@ const App = () => {
                 .message.sent {
                     background-color: var(--primary-color);
                     color: var(--bg-white);
-                    margin-left: auto; 
+                    margin-left: auto;
                     margin-right: 0;
-                    text-align: left; 
+                    text-align: left;
                 }
 
                 .chat-input {
@@ -436,7 +367,7 @@ const App = () => {
                     flex-grow: 1;
                     padding: 10px 15px;
                     border: 1px solid #ced4da;
-                    border-radius: 7px; 
+                    border-radius: 7px;
                     font-size: 1rem;
                     margin-right: 15px;
                     outline: none;
@@ -483,9 +414,9 @@ const App = () => {
                         justify-content: center;
                         padding: 10px 0;
                     }
-                    .nav-link span { 
-                        display: none; 
-                    } 
+                    .nav-link span {
+                        display: none;
+                    }
                     .nav-link:hover,
                     .nav-item.active .nav-link {
                         border-left: none;
@@ -514,8 +445,8 @@ const App = () => {
                         z-index: 1000;
                         transition: left 0.3s ease;
                     }
-                    .main-content-wrapper { 
-                        flex-grow: 1; 
+                    .main-content-wrapper {
+                        flex-grow: 1;
                         width: 100%;
                     }
                     .content-area {
@@ -537,7 +468,6 @@ const App = () => {
                         <h1>KORENE EYE CLINIC</h1>
                     </div>
                     <div className="user-info">
-<<<<<<< HEAD
                         <img
                             src="https://via.placeholder.com/30"
                             alt="Admin Avatar Placeholder"
@@ -548,26 +478,11 @@ const App = () => {
                             }}
                         />
                         <span>{user ? user.name : '...'}</span>
-=======
-                        {/* Placeholder image handling in React uses alt text and needs a local URL */}
-                        <img 
-                            src="https://via.placeholder.com/30" 
-                            alt="Admin Avatar Placeholder" 
-                            className="avatar"
-                            // A simple onError replacement for React
-                            onError={(e) => { 
-                                e.target.onerror = null; 
-                                e.target.src = 'https://placehold.co/30x30/3742fa/ffffff?text=A'; 
-                            }}
-                        /> 
-                        <span>Admin</span>
->>>>>>> d7adb94f093a3e0b1314671557a7ee3c3ed7e9e9
                     </div>
                 </div>
             </header>
 
             <div className="main-content-wrapper">
-<<<<<<< HEAD
                 {/* Sidebar for user selection */}
                 <nav className="sidebar">
                     <ul className="nav-menu">
@@ -579,22 +494,10 @@ const App = () => {
                                 </a>
                             </li>
                         ))}
-=======
-                {/* Sidebar */}
-                <nav className="sidebar">
-                    <ul className="nav-menu">
-                        <li className="nav-item"><a href="#" className="nav-link"><i className="fas fa-th-large"></i> <span>Dashboard</span></a></li>
-                        <li className="nav-item active"><a href="#" className="nav-link"><i className="fas fa-envelope"></i> <span>Messages</span></a></li>
-                        <li className="nav-item"><a href="#" className="nav-link"><i className="fas fa-clipboard-check"></i> <span>Tests</span></a></li>
-                        <li className="nav-item"><a href="#" className="nav-link"><i className="fas fa-chart-bar"></i> <span>Reports</span></a></li>
-                        <li className="nav-item"><a href="#" className="nav-link"><i className="fas fa-cog"></i> <span>Settings</span></a></li>
-                        <li className="nav-item"><a href="#" className="nav-link"><i className="fas fa-sign-out-alt"></i> <span>Logout</span></a></li>
->>>>>>> d7adb94f093a3e0b1314671557a7ee3c3ed7e9e9
                     </ul>
                 </nav>
 
                 <main className="content-area">
-<<<<<<< HEAD
                     {/* Conditionally render MessagesContent or a placeholder */}
                     {selectedUser ? (
                         <MessagesContent key={selectedUser.id} currentUser={user} otherUser={selectedUser} />
@@ -606,7 +509,7 @@ const App = () => {
                             </div>
                         </div>
                     )}
-=======
+
                     {/* Chat Interface */}
                     <section className="chat-container">
                         <div className="chat-header">
@@ -619,12 +522,12 @@ const App = () => {
                             </div>
                             <i className="fas fa-search search-icon"></i>
                         </div>
-                        
+
                         <div className="chat-body" ref={chatBodyRef}>
                             {/* Dynamically render messages from state */}
                             {messages.map((message) => (
-                                <div 
-                                    key={message.id} 
+                                <div
+                                    key={message.id}
                                     // Use type to conditionally apply styling
                                     className={`message ${message.type}`}
                                 >
@@ -635,31 +538,26 @@ const App = () => {
                         </div>
 
                         <div className="chat-input">
-                            <input 
-                                type="text" 
-                                placeholder="Type a message" 
+                            <input
+                                type="text"
+                                placeholder="Type a message"
                                 ref={messageInputRef}
                                 onKeyDown={handleKeyDown} // Handle Enter key press
                             />
                             <div className="input-icons">
                                 <i className="fas fa-image"></i>
                                 <i className="fas fa-paperclip"></i>
-                                <i 
-                                    className="fas fa-paper-plane" 
+                                <i
+                                    className="fas fa-paper-plane"
                                     onClick={sendMessage} // Handle click
                                 ></i>
                             </div>
                         </div>
                     </section>
->>>>>>> d7adb94f093a3e0b1314671557a7ee3c3ed7e9e9
                 </main>
             </div>
         </div>
     );
 };
 
-<<<<<<< HEAD
 export default DoctorsChatScreen;
-=======
-export default App;
->>>>>>> d7adb94f093a3e0b1314671557a7ee3c3ed7e9e9

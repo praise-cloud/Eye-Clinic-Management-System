@@ -113,8 +113,10 @@ class Database {
                 attachment TEXT,
                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
                 status TEXT DEFAULT 'unread' CHECK (status IN ('read', 'unread')),
+                reply_to_id TEXT,
                 FOREIGN KEY (sender_id) REFERENCES users (id),
-                FOREIGN KEY (receiver_id) REFERENCES users (id)
+                FOREIGN KEY (receiver_id) REFERENCES users (id),
+                FOREIGN KEY (reply_to_id) REFERENCES chat (id)
             )`,
 
             // Inventory table for medical supplies and equipment
@@ -204,11 +206,18 @@ class Database {
             // Check if attachment column exists in chat table
             const chatTableInfo = await this.all("PRAGMA table_info(chat)");
             const hasAttachmentColumn = chatTableInfo.some(column => column.name === 'attachment');
+            const hasReplyToIdColumn = chatTableInfo.some(column => column.name === 'reply_to_id');
 
             if (!hasAttachmentColumn) {
                 console.log('Adding attachment column to chat table...');
                 await this.run('ALTER TABLE chat ADD COLUMN attachment TEXT');
                 console.log('Migration completed: Added attachment column to chat table');
+            }
+
+            if (!hasReplyToIdColumn) {
+                console.log('Adding reply_to_id column to chat table...');
+                await this.run('ALTER TABLE chat ADD COLUMN reply_to_id TEXT');
+                console.log('Migration completed: Added reply_to_id column to chat table');
             }
 
             // Check if image_path column exists in inventory table
