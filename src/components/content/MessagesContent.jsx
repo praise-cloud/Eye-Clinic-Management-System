@@ -18,6 +18,7 @@ const MessagesContent = () => {
   const chatEndRef = useRef(null);
   const imageInputRef = useRef(null);
   const fileInputRef = useRef(null);
+  const messagesContainerRef = useRef(null);
 
   const currentUserName = currentUser
     ? (currentUser.name || `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim() || 'Me')
@@ -190,6 +191,19 @@ const MessagesContent = () => {
     document.addEventListener('click', handleClickOutside);
     return () => document.removeEventListener('click', handleClickOutside);
   }, []);
+
+  useEffect(() => {
+    if (!chatEndRef.current) return;
+
+    // Only auto-scroll if user was already at bottom (or it's the first load)
+    const container = messagesContainerRef.current;
+    const isAtBottom =
+      container.scrollHeight - container.scrollTop - container.clientHeight < 100; // 100px tolerance
+
+    if (isAtBottom || messages.length <= 1) { // also scroll on very first message
+      chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+}, [messages]);
 
   // Close modal on escape key
   useEffect(() => {
@@ -444,7 +458,7 @@ const sendMessage = async (attachment = null) => {
         </div>
       </div>
       {/* Search bar */}
-      <div className="flex-1 overflow-y-auto mb-4 px-2">
+      <div className="flex-1 overflow-y-auto mb-4 px-2" ref={messagesContainerRef}>
         {notification && (
           <div className="text-center text-green-600 font-semibold mb-2">{notification}</div>
         )}
@@ -537,7 +551,7 @@ const sendMessage = async (attachment = null) => {
                   </div>
                 )}
                 <span className="block text-xs text-right mt-1 opacity-70">
-                  {msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                  {msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true}) : ''}
                   {msg.sender_id === currentUser.id && (
                     <span className="ml-2">
                       {msg.status === 'read' ? (
