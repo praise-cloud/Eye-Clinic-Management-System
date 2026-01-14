@@ -6,64 +6,45 @@ const useUser = () => {
   const [error, setError] = useState(null)
 
   // Initialize user from storage
-  useEffect(() => {
-    const initializeUser = async () => {
-      setLoading(true);
-      let storedUser = null;
-      let mainProcessUser = null;
-
-      try {
-        // 1. Try to load from localStorage
-        const storedUserString = localStorage.getItem('currentUser');
-        if (storedUserString) {
-          storedUser = JSON.parse(storedUserString);
-        }
-      } catch (err) {
-        console.error('Error loading user from localStorage:', err);
-        storedUser = null; // In case of parsing error
+ useEffect(() => {
+  const initializeUser = async () => {
+    setLoading(true);
+    try {
+      // 1. Get user from main process (most authoritative)
+      const result = await window.electronAPI.getCurrentUser();
+      if (result?.success && result.user) {
+        const userData = result.user;
+        setUser(userData);
+        localStorage.setItem('currentUser', JSON.stringify(userData));
+        setLoading(false);
+        return;
       }
 
-      try {
-        // 2. Get user from main process (Electron)
-        if (window.electronAPI?.getCurrentUser) {
-          const result = await window.electronAPI.getCurrentUser();
-          if (result?.success && result?.user) {
-            mainProcessUser = result.user;
-          }
-        }
-      } catch (err) {
-        console.error('Error getting user from main process:', err);
-        mainProcessUser = null;
-      }
-
-      // 3. Reconcile states
-      if (mainProcessUser) {
-        // Main process has a user, ensure frontend is in sync
-        if (!storedUser || storedUser.id !== mainProcessUser.id) {
-          console.log('Reconciling: Main process user found, updating localStorage and frontend state.');
-          setUser(mainProcessUser);
-          localStorage.setItem('currentUser', JSON.stringify(mainProcessUser));
+      // 2. Fallback: localStorage (in case main process restarted)
+      const stored = localStorage.getItem('currentUser');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        // Quick validation with main process
+        const check = await window.electronAPI.isAuthenticated();
+        if (check) {
+          setUser(parsed);
         } else {
-          // Both have same user, good to go
-          setUser(storedUser);
-        }
-      } else {
-        // Main process has no user
-        if (storedUser) {
-          // Frontend has a stale user, clear it
-          console.log('Reconciling: Main process has no user, clearing stale localStorage and frontend state.');
           localStorage.removeItem('currentUser');
           setUser(null);
-        } else {
-          // Neither has a user, as expected
-          setUser(null);
         }
+      } else {
+        setUser(null);
       }
+    } catch (err) {
+      console.error('Session init error:', err);
+      setUser(null);
+    } finally {
       setLoading(false);
-    };
+    }
+  };
 
-    initializeUser();
-  }, []);
+  initializeUser();
+}, []);
 
   // Login user
   const login = useCallback(async (credentials) => {
@@ -131,25 +112,18 @@ const useUser = () => {
   }, [])
 
   // Logout user
-  const logout = useCallback(async (data = {}) => {
-    console.log('Logout called')
-
-    try {
-      // Call backend logout to clear main process state and log activity
-      if (window.electronAPI?.logout) {
-        await window.electronAPI.logout(data)
-      }
-    } catch (error) {
-      console.error('Backend logout error:', error)
-      // Continue with frontend cleanup even if backend fails
-    }
-
-    // Clear frontend state
-    localStorage.removeItem('currentUser')
-    setUser(null)
-
-    // Rely on router guard to redirect to login
-  }, [])
+  const logout = useCallback(async () => {
+  try {
+    await window.electronAPI.logout();
+    localStorage.removeItem('currentUser');
+    setUser(null);
+  } catch (err) {
+    console.error('Logout failed:', err);
+    // Force clear anyway
+    localStorage.removeItem('currentUser');
+    setUser(null);
+  }
+}, []);
 
   // Create new user
   const createUser = useCallback(async (userData) => {

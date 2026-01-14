@@ -80,6 +80,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getCurrentUser: () => ipcRenderer.invoke('auth:getCurrentUser'),
     checkUpdate: () => ipcRenderer.invoke('app:checkUpdate'),
 
+    isAuthenticated: () => ipcRenderer.invoke('auth:isAuthenticated'),
+    getCurrentUser: () => ipcRenderer.invoke('auth:getCurrentUser'),
+
     // Event listeners
     onMessage: (callback) => {
         const subscription = (event, data) => callback(data);
@@ -98,6 +101,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
         ipcRenderer.on('tests:imported', subscription);
         return () => ipcRenderer.removeListener('tests:imported', subscription);
     }
+
+
 });
 
 // Listen for preload events

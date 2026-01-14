@@ -26,6 +26,7 @@ async function initializeDatabase() {
     database = new Database();
     await database.initialize();
     console.log('Database initialized successfully');
+
   } catch (error) {
     console.error('Failed to initialize database:', error);
     dialog.showErrorBox('Database Error', 'Failed to initialize database. The application will exit.');
@@ -186,11 +187,15 @@ function createMainWindow() {
 // Initialize app when ready
 app.whenReady().then(async () => {
   await initializeDatabase();
-  
+  ipcMain.handle('auth:restoreSession', async () => {
+  // For now we keep it in-memory — can later use keytar or secure storage
+  return currentUser;
+});
+
   // Initialize sync service
   await SyncService.initialize();
   SyncService.startAutoSync(5);
-  
+
   // Setup real-time chat listener
   setupChatListener();
 
@@ -266,7 +271,7 @@ function setupWindowHandlers() {
   });
 
   ipcMain.handle('auth:getCurrentUser', async () => {
-    return currentUser;
+    return currentUser ? { success: true, user: currentUser } : { success: false };
   });
 
   ipcMain.handle('auth:createUser', async (event, userData) => {
@@ -277,6 +282,10 @@ function setupWindowHandlers() {
       console.error('Create user error:', error);
       return { success: false, message: error.message };
     }
+  });
+
+  ipcMain.handle('auth:isAuthenticated', async () => {
+    return !!currentUser;
   });
 
   ipcMain.handle('auth:completeSetup', async (event, { clinicData, adminData }) => {
@@ -416,7 +425,7 @@ function createAppMenu() {
 // Setup chat listener for real-time updates
 function setupChatListener() {
   const db = new Database();
-  
+
   // Listen for new chat messages from database
   setInterval(async () => {
     if (mainWindow && !mainWindow.isDestroyed()) {
