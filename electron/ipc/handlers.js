@@ -1,8 +1,8 @@
 const { ipcMain } = require('electron');
-const DatabaseService = require('../../services/DatabaseService');
-const FileService = require('../../services/FileService');
+const DatabaseService = require('../../src/services/DatabaseService');
+const FileService = require('../../src/services/FileService');
 const path = require('path');
-const SyncService = require('../../services/SyncService');
+const SyncService = require('../../src/services/SyncService');
 const SupabaseService = require('../../src/lib/supabase');
 
 let currentUser = null; // Centralized user state in the main process
@@ -70,7 +70,6 @@ class IPCHandlers {
             }
             });
 
-
         // Login user
         ipcMain.handle('auth:login', async (event, email, password) => {
             try {
@@ -91,7 +90,7 @@ class IPCHandlers {
                         phone: user.phone_number
                     };
                     currentUser = userWithName; // Set currentUser on successful login
-                    SyncService.initializeRealtime(userWithName); // Start real-time services
+                    // SyncService.initializeRealtime(userWithName); // Start real-time services
                     return { success: true, user: userWithName };
                 } else {
                     return { error: 'Invalid credentials' };
@@ -140,8 +139,7 @@ class IPCHandlers {
                     phone: userResult.phone_number
                 };
                 currentUser = userWithName; // Set currentUser on successful setup
-                SyncService.initializeRealtime(userWithName); // Start real-time services
-
+                // SyncService.initializeRealtime(userWithName); // Start real-time services
 
                 // Mark setup complete
                 await DatabaseService.setSetting('setup_complete', 'true');
@@ -1005,7 +1003,7 @@ class IPCHandlers {
         ipcMain.handle('chat:sendMessage', async (event, senderId, receiverId, messageText, attachment, replyToId) => {
             try {
                 console.log('Chat handler - sending message:', { senderId, receiverId, messageText: messageText?.substring(0, 50) });
-                
+
                 if (!senderId || !receiverId || !messageText) {
                     return { error: 'Sender ID, Receiver ID, and message text are required' };
                 }
@@ -1014,7 +1012,7 @@ class IPCHandlers {
                 const { v4: uuidv4 } = require('uuid');
                 const messageId = uuidv4();
                 const timestamp = new Date().toISOString();
-                
+
                 const messageData = {
                     id: messageId,
                     sender_id: senderId,
@@ -1032,7 +1030,7 @@ class IPCHandlers {
                 try {
                     const db = await DatabaseService.getDatabase();
                     const result = await db.run(
-                        `INSERT INTO chat (id, sender_id, receiver_id, message_text, attachment, timestamp, status, reply_to_id) 
+                        `INSERT INTO chat (id, sender_id, receiver_id, message_text, attachment, timestamp, status, reply_to_id)
                          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
                         [messageId, senderId, receiverId, messageText, attachment, timestamp, 'unread', replyToId || null]
                     );
@@ -1130,14 +1128,14 @@ class IPCHandlers {
                     return { error: 'User ID is required' };
                 }
                 await DatabaseService.setUserOnline(userId, sessionId);
-                
+
                 // Broadcast online status to all windows
                 const onlineUsers = await DatabaseService.getOnlineUsers();
                 const { BrowserWindow } = require('electron');
                 BrowserWindow.getAllWindows().forEach(window => {
                     window.webContents.send('presence-update', onlineUsers.map(u => u.id));
                 });
-                
+
                 return { success: true };
             } catch (error) {
                 console.error('Set user online error:', error);
@@ -1152,14 +1150,14 @@ class IPCHandlers {
                     return { error: 'User ID is required' };
                 }
                 await DatabaseService.setUserOffline(userId);
-                
+
                 // Broadcast online status to all windows
                 const onlineUsers = await DatabaseService.getOnlineUsers();
                 const { BrowserWindow } = require('electron');
                 BrowserWindow.getAllWindows().forEach(window => {
                     window.webContents.send('presence-update', onlineUsers.map(u => u.id));
                 });
-                
+
                 return { success: true };
             } catch (error) {
                 console.error('Set user offline error:', error);

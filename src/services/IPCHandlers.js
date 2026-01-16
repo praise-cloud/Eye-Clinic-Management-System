@@ -77,14 +77,14 @@ class IPCHandlers {
         ipcMain.handle('auth:login', async (event, email, password) => {
             try {
                 console.log('Login attempt:', { email, password: '***' });
-                
+
                 if (!email || !password) {
                     return { error: 'Email and password are required' };
                 }
 
                 const user = await DatabaseService.authenticateUser(email, password);
                 console.log('Authentication result:', user ? 'SUCCESS' : 'FAILED');
-                
+
                 if (user) {
                     return { success: true, user };
                 } else {
@@ -158,7 +158,7 @@ class IPCHandlers {
                     phone_number: userData.phoneNumber || null,
                     gender: userData.gender || 'other'
                 };
-                
+
                 const requiredFields = ['first_name', 'last_name', 'email', 'password', 'role'];
                 for (const field of requiredFields) {
                     if (!dbUserData[field]) {
@@ -899,9 +899,9 @@ class IPCHandlers {
                 if (!senderId || !receiverId || !messageText) {
                     return { error: 'Sender ID, Receiver ID, and message text are required' };
                 }
-                
+
                 // Use SyncService for instant sync
-                const SyncService = require('../src/services/SyncService');
+                const SyncService = require('./SyncService');
                 const result = await SyncService.sendChatMessage({
                     sender_id: senderId,
                     receiver_id: receiverId,
@@ -909,7 +909,7 @@ class IPCHandlers {
                     attachment: attachment || null,
                     status: 'unread'
                 });
-                
+
                 return result;
             } catch (error) {
                 console.error('Send message error:', error);
@@ -986,14 +986,14 @@ class IPCHandlers {
                     return { error: 'User ID is required' };
                 }
                 await DatabaseService.setUserOnline(userId, sessionId);
-                
+
                 // Broadcast online status to all windows
                 const onlineUsers = await DatabaseService.getOnlineUsers();
                 const { BrowserWindow } = require('electron');
                 BrowserWindow.getAllWindows().forEach(window => {
                     window.webContents.send('presence-update', onlineUsers.map(u => u.id));
                 });
-                
+
                 return { success: true };
             } catch (error) {
                 console.error('Set user online error:', error);
@@ -1008,14 +1008,14 @@ class IPCHandlers {
                     return { error: 'User ID is required' };
                 }
                 await DatabaseService.setUserOffline(userId);
-                
+
                 // Broadcast online status to all windows
                 const onlineUsers = await DatabaseService.getOnlineUsers();
                 const { BrowserWindow } = require('electron');
                 BrowserWindow.getAllWindows().forEach(window => {
                     window.webContents.send('presence-update', onlineUsers.map(u => u.id));
                 });
-                
+
                 return { success: true };
             } catch (error) {
                 console.error('Set user offline error:', error);
@@ -1048,7 +1048,7 @@ class IPCHandlers {
         // Manual sync trigger
         ipcMain.handle('presence:syncToSupabase', async () => {
             try {
-                const SyncService = require('../src/services/SyncService');
+                const SyncService = require('./SyncService');
                 await SyncService.initialize();
                 const result = await SyncService.syncAll();
                 return result;
@@ -1154,14 +1154,14 @@ class IPCHandlers {
             try {
                 console.log('Redirecting to main app...');
                 const { BrowserWindow } = require('electron');
-                
+
                 // Get current window and redirect to main app
                 const currentWindow = BrowserWindow.getFocusedWindow();
                 if (currentWindow) {
                     await currentWindow.loadURL('http://localhost:3000/');
                     console.log('Redirected to main app successfully');
                 }
-                
+
                 return { success: true };
             } catch (error) {
                 console.error('Window error:', error);

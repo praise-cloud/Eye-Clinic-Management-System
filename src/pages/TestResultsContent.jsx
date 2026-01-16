@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { DeleteIcon, EditIcon, ViewIcon } from '../components/Icons';
 
 const TestResultsContent = ({ clientName, onTestCreate, initialEditTest }) => {

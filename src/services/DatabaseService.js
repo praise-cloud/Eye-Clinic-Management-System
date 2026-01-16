@@ -1,4 +1,4 @@
-const Database = require('../database');
+const Database = require('../../database');
 
 class DatabaseService {
     constructor() {
@@ -64,29 +64,29 @@ class DatabaseService {
     async getMessages(userId, otherUserId = null, search = '', limit = 50, offset = 0) {
         const db = await this.getDatabase();
         let query = `
-            SELECT * FROM chat 
-            WHERE (sender_id = ? AND receiver_id = ?) 
+            SELECT * FROM chat
+            WHERE (sender_id = ? AND receiver_id = ?)
                OR (sender_id = ? AND receiver_id = ?)
         `;
         let params = [userId, otherUserId, otherUserId, userId];
-        
+
         if (search) {
             query += ` AND message_text LIKE ?`;
             params.push(`%${search}%`);
         }
-        
+
         query += ` ORDER BY timestamp ASC`;
-        
+
         if (limit) {
             query += ` LIMIT ?`;
             params.push(limit);
         }
-        
+
         if (offset) {
             query += ` OFFSET ?`;
             params.push(offset);
         }
-        
+
         return await db.all(query, params);
     }
 
@@ -123,13 +123,13 @@ class DatabaseService {
         const db = await this.getDatabase();
         let query = 'SELECT * FROM patients';
         let params = [];
-        
+
         if (filters.search) {
             query += ' WHERE first_name LIKE ? OR last_name LIKE ? OR patient_id LIKE ?';
             const searchTerm = `%${filters.search}%`;
             params = [searchTerm, searchTerm, searchTerm];
         }
-        
+
         query += ' ORDER BY created_at DESC';
         return await db.all(query, params);
     }
@@ -144,12 +144,12 @@ class DatabaseService {
         const db = await this.getDatabase();
         const { patient_id, first_name, last_name, dob, gender, contact } = patientData;
         const id = require('uuid').v4();
-        
+
         const query = `
             INSERT INTO patients (id, patient_id, first_name, last_name, dob, gender, contact, created_at, updated_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         `;
-        
+
         await db.run(query, [id, patient_id, first_name, last_name, dob, gender, contact]);
         return { id, patient_id, first_name, last_name, dob, gender, contact };
     }
@@ -157,13 +157,13 @@ class DatabaseService {
     async updatePatient(id, patientData) {
         const db = await this.getDatabase();
         const { patient_id, first_name, last_name, dob, gender, contact } = patientData;
-        
+
         const query = `
-            UPDATE patients 
+            UPDATE patients
             SET patient_id = ?, first_name = ?, last_name = ?, dob = ?, gender = ?, contact = ?, updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
         `;
-        
+
         await db.run(query, [patient_id, first_name, last_name, dob, gender, contact, id]);
         return { id, patient_id, first_name, last_name, dob, gender, contact };
     }
