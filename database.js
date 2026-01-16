@@ -341,8 +341,62 @@ class Database {
     }
 
     async getAllUsers() {
-        const query = 'SELECT id, first_name, last_name, email, role, phone_number, created_at FROM users ORDER BY created_at DESC';
+        const query = 'SELECT id, first_name, last_name, email, role, phone_number, status, gender, created_at FROM users ORDER BY created_at DESC';
         return await this.all(query);
+    }
+
+    async updateUser(userId, userData) {
+        const { first_name, last_name, email, role, phone_number, gender, password } = userData;
+        
+        let query = `
+            UPDATE users 
+            SET first_name = ?, last_name = ?, email = ?, role = ?, phone_number = ?, gender = ?, updated_at = CURRENT_TIMESTAMP
+        `;
+        let params = [first_name, last_name, email, role, phone_number || null, gender || 'other'];
+
+        if (password) {
+            const saltRounds = 10;
+            const passwordHash = await bcrypt.hash(password, saltRounds);
+            query += `, password_hash = ?`;
+            params.push(passwordHash);
+        }
+
+        query += ` WHERE id = ?`;
+        params.push(userId);
+
+        try {
+            await this.run(query, params);
+            // Return updated user without password
+            return { id: userId, first_name, last_name, email, role, phone_number, gender };
+        } catch (error) {
+            console.error('Error updating user:', error);
+            throw error;
+        }
+    }
+
+    async updateUserStatus(userId, isActive) {
+        const status = isActive ? 'active' : 'inactive';
+        const query = `UPDATE users SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`;
+        
+        try {
+            await this.run(query, [status, userId]);
+            return { id: userId, status };
+        } catch (error) {
+            console.error('Error updating user status:', error);
+            throw error;
+        }
+    }
+
+    async deleteUser(userId) {
+        const query = `DELETE FROM users WHERE id = ?`;
+        
+        try {
+            const result = await this.run(query, [userId]);
+            return { success: result.changes > 0 };
+        } catch (error) {
+            console.error('Error deleting user:', error);
+            throw error;
+        }
     }
 
     // Online Status Management

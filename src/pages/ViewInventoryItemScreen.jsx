@@ -13,7 +13,7 @@ const ViewInventoryItemScreen = () => {
 
   const loadItem = async () => {
     try {
-      const result = await window.electron.invoke('inventory:getById', parseInt(id))
+      const result = await window.electronAPI.getInventoryItem(parseInt(id))
       if (result.success) {
         setItem(result.item)
       }
@@ -28,7 +28,7 @@ const ViewInventoryItemScreen = () => {
     if (!window.confirm('Are you sure you want to delete this item?')) return
 
     try {
-      const result = await window.electron.invoke('inventory:delete', parseInt(id))
+      const result = await window.electronAPI.deleteInventoryItem(parseInt(id))
       if (result.success) {
         navigate('/inventory')
       } else {

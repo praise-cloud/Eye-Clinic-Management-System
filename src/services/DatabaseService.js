@@ -29,6 +29,21 @@ class DatabaseService {
         return await db.getAllUsers();
     }
 
+    async updateUser(userId, userData) {
+        const db = await this.getDatabase();
+        return await db.updateUser(userId, userData);
+    }
+
+    async updateUserStatus(userId, isActive) {
+        const db = await this.getDatabase();
+        return await db.updateUserStatus(userId, isActive);
+    }
+
+    async deleteUser(userId) {
+        const db = await this.getDatabase();
+        return await db.deleteUser(userId);
+    }
+
     async getSetting(key) {
         const db = await this.getDatabase();
         return await db.getSetting(key);
@@ -186,6 +201,10 @@ class DatabaseService {
         const search = `%${filters.patientName}%`;
         params = [search, search];
     }
+    if (filters.patientId) {
+        query += params.length ? ' AND t.patient_id = ?' : ' WHERE t.patient_id = ?';
+        params.push(filters.patientId);
+    }
 
     query += ' ORDER BY t.test_date DESC';
     const rows = await db.all(query, params);
@@ -204,9 +223,34 @@ class DatabaseService {
             ) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         `;
 
+        let patientId = testData.patient_id;
+        if (!patientId && testData.patient_name) {
+            const parts = String(testData.patient_name).trim().split(/\s+/);
+            const firstName = parts[0] || '';
+            const lastName = parts.slice(1).join(' ') || '';
+            const existing = await db.get(
+                'SELECT id FROM patients WHERE first_name = ? AND last_name = ? ORDER BY created_at DESC',
+                [firstName, lastName]
+            );
+            if (existing && existing.id) {
+                patientId = existing.id;
+            } else {
+                const genId = 'P' + Date.now();
+                const created = await this.createPatient({
+                    patient_id: genId,
+                    first_name: firstName,
+                    last_name: lastName,
+                    dob: null,
+                    gender: 'other',
+                    contact: null
+                });
+                patientId = created.id;
+            }
+        }
+
         const params = [
             id,
-            testData.patient_name,
+            patientId,
             testData.machine_type,
             testData.eye || 'both',
             testData.test_date || new Date().toISOString(),
@@ -215,7 +259,7 @@ class DatabaseService {
 
         try {
             await db.run(query, params);
-            return { id, ...testData };
+            return { id, ...testData, patient_id: patientId };
         } catch (error) {
             console.error('Database createTest error:', error);
             throw error;
@@ -321,7 +365,7 @@ class DatabaseService {
     async createInventoryItem(itemData) {
         const db = await this.getDatabase();
         const id = require('uuid').v4();
-        
+
         const query = `
             INSERT INTO inventory (
                 id, item_code, item_name, category, description, manufacturer,
@@ -363,7 +407,7 @@ class DatabaseService {
 
     async updateInventoryItem(id, itemData) {
         const db = await this.getDatabase();
-        
+
         const query = `
             UPDATE inventory
             SET item_name = ?, category = ?, description = ?, manufacturer = ?,
@@ -403,6 +447,18 @@ class DatabaseService {
         return { id, ...itemData };
     }
 
+    async updateInventoryQuantity(id, quantity, userId = null, notes = null) {
+        const db = await this.getDatabase();
+        const query = `
+            UPDATE inventory
+            SET current_quantity = ?, last_updated_by = ?, notes = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        `;
+        const params = [quantity, userId || null, notes || null, id];
+        await db.run(query, params);
+        return await this.getInventoryItemById(id);
+    }
+
     async deleteInventoryItem(id) {
         const db = await this.getDatabase();
         const query = 'DELETE FROM inventory WHERE id = ?';
@@ -438,18 +494,44 @@ class DatabaseService {
         return await db.all(query, params);
     }
 
+    async getDashboardStats() {
+        const db = await this.getDatabase();
+
+        const usersRow = await db.get('SELECT COUNT(*) as count FROM users');
+        const patientsRow = await db.get('SELECT COUNT(*) as count FROM patients');
+        const testsRow = await db.get('SELECT COUNT(*) as count FROM tests');
+        const inventoryRow = await db.get('SELECT COUNT(*) as count FROM inventory');
+
+        const todayAppointmentsRow = await db.get(
+            "SELECT COUNT(*) as count FROM tests WHERE date(test_date) = date('now','localtime')"
+        );
+
+        const pendingTestsRow = await db.get(
+            "SELECT COUNT(*) as count FROM tests WHERE raw_data IS NULL OR TRIM(raw_data) = '' OR TRIM(raw_data) = '{}'"
+        );
+
+        return {
+            totalUsers: usersRow?.count || 0,
+            totalPatients: patientsRow?.count || 0,
+            totalTests: testsRow?.count || 0,
+            totalInventory: inventoryRow?.count || 0,
+            todayAppointments: todayAppointmentsRow?.count || 0,
+            pendingTests: pendingTestsRow?.count || 0
+        };
+    }
+
     // Chat/Message Methods
-    async sendMessage(senderId, receiverId, messageText, attachment = null) {
+    async sendMessage(senderId, receiverId, messageText, attachment = null, replyToId = null) {
         const db = await this.getDatabase();
         const id = require('uuid').v4();
 
         const query = `
-            INSERT INTO chat (id, sender_id, receiver_id, message_text, attachment, timestamp, status)
-            VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, 'unread')
+            INSERT INTO chat (id, sender_id, receiver_id, message_text, attachment, timestamp, status, reply_to_id)
+            VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, 'unread', ?)
         `;
 
-        await db.run(query, [id, senderId, receiverId, messageText, attachment]);
-        return { id, sender_id: senderId, receiver_id: receiverId, message_text: messageText, attachment, timestamp: new Date().toISOString(), status: 'unread' };
+        await db.run(query, [id, senderId, receiverId, messageText, attachment, replyToId]);
+        return { id, sender_id: senderId, receiver_id: receiverId, message_text: messageText, attachment, reply_to_id: replyToId, timestamp: new Date().toISOString(), status: 'unread' };
     }
 }
 

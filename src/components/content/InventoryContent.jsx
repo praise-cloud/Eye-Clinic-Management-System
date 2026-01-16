@@ -8,11 +8,19 @@ const InventoryContent = () => {
 
   useEffect(() => {
     loadInventory()
+    if (window.electronAPI) {
+      const unsubscribe = window.electronAPI.onIpcEvent('data:update', (payload) => {
+        if (payload.table === 'inventory') {
+          loadInventory()
+        }
+      })
+      return unsubscribe
+    }
   }, [])
 
   const loadInventory = async () => {
     try {
-      const result = await window.electron.invoke('inventory:getAll', {})
+      const result = await window.electronAPI.getInventoryItems({})
       if (result.success) {
         setInventory(result.items)
       }
@@ -27,7 +35,7 @@ const InventoryContent = () => {
     if (!window.confirm('Are you sure you want to delete this item?')) return
 
     try {
-      const result = await window.electron.invoke('inventory:delete', id)
+      const result = await window.electronAPI.deleteInventoryItem(id)
       if (result.success) {
         loadInventory()
       } else {

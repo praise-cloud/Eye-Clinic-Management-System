@@ -4,12 +4,35 @@ const OnlineStatusIndicator = () => {
   const [isOnline, setIsOnline] = useState(false)
 
   useEffect(() => {
+    const getNavigatorOnline = () => {
+      if (typeof navigator !== 'undefined' && 'onLine' in navigator) {
+        return navigator.onLine
+      }
+      return null
+    }
+
     const checkStatus = async () => {
+      const fallbackOnline = getNavigatorOnline()
       try {
-        const result = await window.electronAPI?.checkOnlineStatus()
-        setIsOnline(result?.isOnline || false)
+        if (window.electronAPI?.checkOnlineStatus) {
+          const result = await window.electronAPI.checkOnlineStatus()
+          if (result?.success && result.online === true) {
+            setIsOnline(true)
+            return
+          }
+        }
+
+        if (fallbackOnline !== null) {
+          setIsOnline(fallbackOnline)
+        } else {
+          setIsOnline(true)
+        }
       } catch {
-        setIsOnline(false)
+        if (fallbackOnline !== null) {
+          setIsOnline(fallbackOnline)
+        } else {
+          setIsOnline(false)
+        }
       }
     }
 

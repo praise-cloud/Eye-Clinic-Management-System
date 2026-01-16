@@ -113,17 +113,28 @@ const useUser = () => {
 
   // Logout user
   const logout = useCallback(async () => {
-  try {
-    await window.electronAPI.logout();
-    localStorage.removeItem('currentUser');
-    setUser(null);
-  } catch (err) {
-    console.error('Logout failed:', err);
-    // Force clear anyway
-    localStorage.removeItem('currentUser');
-    setUser(null);
-  }
-}, []);
+    try {
+      const current = user || (localStorage.getItem('currentUser') ? JSON.parse(localStorage.getItem('currentUser')) : null);
+
+      if (current?.id && window.electronAPI?.setUserOffline) {
+        try {
+          await window.electronAPI.setUserOffline(current.id);
+        } catch (err) {
+          console.error('Set user offline failed:', err);
+        }
+      }
+
+      if (window.electronAPI?.logout) {
+        await window.electronAPI.logout();
+      }
+    } catch (err) {
+      console.error('Logout failed:', err);
+    } finally {
+      localStorage.removeItem('currentUser');
+      setUser(null);
+      window.location.reload();
+    }
+  }, [user]);
 
   // Create new user
   const createUser = useCallback(async (userData) => {

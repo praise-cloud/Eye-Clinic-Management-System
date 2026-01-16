@@ -13,15 +13,47 @@ const AdminDashboard = () => {
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [configForm, setConfigForm] = useState({});
   const [userSearchTerm, setUserSearchTerm] = useState('');
-  const [users, setUsers] = useState([
-    { id: 1, name: 'Dr. Sarah Johnson', role: 'doctor', email: 'sarah@clinic.com', status: 'active', created: '2024-01-15' },
-    { id: 2, name: 'Mike Assistant', role: 'assistant', email: 'mike@clinic.com', status: 'active', created: '2024-01-14' },
-    { id: 3, name: 'Lisa Admin', role: 'admin', email: 'lisa@clinic.com', status: 'inactive', created: '2024-01-13' }
-  ]);
+  const [users, setUsers] = useState([]);
   const [editingUser, setEditingUser] = useState(null);
   const [showDeleteModal, setShowDeleteModal] = useState(null);
   const [showUserModal, setShowUserModal] = useState(false);
-  const [formData, setFormData] = useState({ name: '', email: '', role: 'doctor' });
+  const [formData, setFormData] = useState({ 
+    firstName: '', 
+    lastName: '', 
+    email: '', 
+    password: '',
+    role: 'doctor',
+    phoneNumber: '',
+    gender: 'other'
+  });
+  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [error, setError] = useState(null);
+
+  // Load users from database
+  const loadUsers = async () => {
+    setLoadingUsers(true);
+    setError(null);
+    try {
+      const response = await window.electronAPI.getAllUsersDetailed();
+      if (response?.success) {
+        setUsers(response.users || []);
+      } else {
+        setError(response?.error || 'Failed to load users');
+      }
+    } catch (err) {
+      console.error('Error loading users:', err);
+      setError('Failed to load users');
+    } finally {
+      setLoadingUsers(false);
+    }
+  };
+
+  // Load users on mount and when activeTab changes to users
+  React.useEffect(() => {
+    if (activeTab === 'users' || activeTab === 'overview') {
+      loadUsers();
+    }
+  }, [activeTab]);
 
   const handleSectionClick = (section) => {
     if (section === 'system-settings') {
@@ -40,53 +72,124 @@ const AdminDashboard = () => {
     pendingTests: 12
   };
 
-  const handleAddUser = () => {
-    const newUser = {
-      id: users.length + 1,
-      ...formData,
-      created: new Date().toISOString().split('T')[0],
-      status: 'active'
-    };
-    setUsers([...users, newUser]);
-    setShowUserModal(false);
-    setFormData({ name: '', email: '', role: 'doctor' });
-    
-    const newLog = {
-      id: systemLogs.length + 1,
-      action: 'User Created',
-      user: user?.name || 'Admin',
-      timestamp: new Date().toLocaleString(),
-      status: 'success'
-    };
-    setSystemLogs(prev => [newLog, ...prev].slice(0, 10));
+  const handleAddUser = async () => {
+    setError(null);
+    try {
+      const userData = {
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        email: formData.email,
+        password: formData.password,
+        role: formData.role,
+        phoneNumber: formData.phoneNumber || null,
+        gender: formData.gender || 'other'
+      };
+
+      const response = await window.electronAPI.createUserAdmin(userData, user?.id);
+      if (response?.success) {
+        await loadUsers(); // Reload users
+        setShowUserModal(false);
+        setFormData({ 
+          firstName: '', 
+          lastName: '', 
+          email: '', 
+          password: '',
+          role: 'doctor',
+          phoneNumber: '',
+          gender: 'other'
+        });
+        
+        const newLog = {
+          id: systemLogs.length + 1,
+          action: 'User Created',
+          user: user?.name || 'Admin',
+          timestamp: new Date().toLocaleString(),
+          status: 'success'
+        };
+        setSystemLogs(prev => [newLog, ...prev].slice(0, 10));
+      } else {
+        setError(response?.error || 'Failed to create user');
+      }
+    } catch (err) {
+      console.error('Error creating user:', err);
+      setError('Failed to create user');
+    }
   };
 
-  const handleEditUser = () => {
-    setUsers(users.map(u => u.id === editingUser.id ? { ...u, ...formData } : u));
-    setEditingUser(null);
-    setShowUserModal(false);
-    setFormData({ name: '', email: '', role: 'doctor' });
+  const handleEditUser = async () => {
+    setError(null);
+    try {
+      const userData = {
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        email: formData.email,
+        role: formData.role,
+        phoneNumber: formData.phoneNumber || null,
+        gender: formData.gender || 'other'
+      };
+
+      // Note: Update functionality needs to be added to backend
+      // For now, we'll show a message
+      alert('User update functionality will be added. Please delete and recreate the user for now.');
+      
+      setEditingUser(null);
+      setShowUserModal(false);
+      setFormData({ 
+        firstName: '', 
+        lastName: '', 
+        email: '', 
+        password: '',
+        role: 'doctor',
+        phoneNumber: '',
+        gender: 'other'
+      });
+    } catch (err) {
+      console.error('Error updating user:', err);
+      setError('Failed to update user');
+    }
   };
 
-  const handleDeleteUser = (userId) => {
-    const deletedUser = users.find(u => u.id === userId);
-    setUsers(users.filter(u => u.id !== userId));
-    setShowDeleteModal(null);
-    
-    const newLog = {
-      id: systemLogs.length + 1,
-      action: 'User Deleted',
-      user: user?.name || 'Admin',
-      timestamp: new Date().toLocaleString(),
-      status: 'success'
-    };
-    setSystemLogs(prev => [newLog, ...prev].slice(0, 10));
+  const handleDeleteUser = async (userId) => {
+    setError(null);
+    try {
+      const response = await window.electronAPI.deleteUser(userId, user?.id);
+      if (response?.success) {
+        await loadUsers(); // Reload users
+        setShowDeleteModal(null);
+        
+        const newLog = {
+          id: systemLogs.length + 1,
+          action: 'User Deleted',
+          user: user?.name || 'Admin',
+          timestamp: new Date().toLocaleString(),
+          status: 'success'
+        };
+        setSystemLogs(prev => [newLog, ...prev].slice(0, 10));
+      } else {
+        setError(response?.error || 'Failed to delete user');
+      }
+    } catch (err) {
+      console.error('Error deleting user:', err);
+      setError('Failed to delete user');
+    }
   };
 
-  const handleToggleStatus = (userId) => {
-    setUsers(users.map(u => 
-      u.id === userId ? { ...u, status: u.status === 'active' ? 'inactive' : 'active' } : u
-    ));
+  const handleToggleStatus = async (userId) => {
+    setError(null);
+    try {
+      const userToUpdate = users.find(u => u.id === userId);
+      const newStatus = userToUpdate.status === 'active' ? false : true;
+      
+      const response = await window.electronAPI.updateUserStatus(userId, newStatus, user?.id);
+      if (response?.success) {
+        await loadUsers(); // Reload users
+      } else {
+        setError(response?.error || 'Failed to update user status');
+      }
+    } catch (err) {
+      console.error('Error updating user status:', err);
+      setError('Failed to update user status');
+    }
   };
 
   const [systemLogs, setSystemLogs] = useState([
@@ -168,22 +271,37 @@ const AdminDashboard = () => {
   );
 
   const renderUserManagement = () => {
-    const filteredUsers = users.filter(u =>
-      userSearchTerm === '' ||
-      u.name.toLowerCase().includes(userSearchTerm.toLowerCase()) ||
-      u.email.toLowerCase().includes(userSearchTerm.toLowerCase()) ||
-      u.role.toLowerCase().includes(userSearchTerm.toLowerCase())
-    );
+    const filteredUsers = users.filter(u => {
+      if (!userSearchTerm) return true;
+      const searchLower = userSearchTerm.toLowerCase();
+      const fullName = `${u.first_name || ''} ${u.last_name || ''}`.toLowerCase();
+      return fullName.includes(searchLower) ||
+             (u.email || '').toLowerCase().includes(searchLower) ||
+             (u.role || '').toLowerCase().includes(searchLower);
+    });
     
     return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
+      {error && (
+        <div className="mx-6 mt-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">
+          <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+        </div>
+      )}
       <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">User Management</h3>
           <button 
             onClick={() => {
               setEditingUser(null);
-              setFormData({ name: '', email: '', role: 'doctor' });
+              setFormData({ 
+                firstName: '', 
+                lastName: '', 
+                email: '', 
+                password: '',
+                role: 'doctor',
+                phoneNumber: '',
+                gender: 'other'
+              });
               setShowUserModal(true);
             }}
             className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
@@ -212,44 +330,64 @@ const AdminDashboard = () => {
             </tr>
           </thead>
           <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-            {filteredUsers.length > 0 ? filteredUsers.map((user) => (
-              <tr key={user.id}>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">{user.name}</td>
+            {loadingUsers ? (
+              <tr>
+                <td colSpan="6" className="px-6 py-8 text-center text-gray-400 dark:text-gray-500">
+                  Loading users...
+                </td>
+              </tr>
+            ) : filteredUsers.length > 0 ? filteredUsers.map((userItem) => (
+              <tr key={userItem.id}>
+                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                  {userItem.first_name} {userItem.last_name}
+                </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <span className="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800 capitalize">
-                    {user.role}
+                    {userItem.role}
                   </span>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{user.email}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{userItem.email}</td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                    user.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                    userItem.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                   }`}>
-                    {user.status}
+                    {userItem.status}
                   </span>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{user.created}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                  {userItem.created_at ? new Date(userItem.created_at).toLocaleDateString() : 'N/A'}
+                </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm">
                   <div className="flex space-x-2">
                     <button 
                       onClick={() => {
-                        setEditingUser(user);
-                        setFormData({ name: user.name, email: user.email, role: user.role });
+                        setEditingUser(userItem);
+                        setFormData({ 
+                          firstName: userItem.first_name,
+                          lastName: userItem.last_name,
+                          email: userItem.email,
+                          password: '',
+                          role: userItem.role,
+                          phoneNumber: userItem.phone_number || '',
+                          gender: userItem.gender || 'other'
+                        });
                         setShowUserModal(true);
                       }}
                       className="text-blue-600 hover:text-blue-900"
                     >
-                      Edit
+                      View
                     </button>
                     <button 
-                      onClick={() => handleToggleStatus(user.id)}
+                      onClick={() => handleToggleStatus(userItem.id)}
                       className="text-yellow-600 hover:text-yellow-900"
                     >
-                      {user.status === 'active' ? 'Deactivate' : 'Activate'}
+                      {userItem.status === 'active' ? 'Deactivate' : 'Activate'}
                     </button>
                     <button 
-                      onClick={() => setShowDeleteModal(user)}
+                      onClick={() => setShowDeleteModal(userItem)}
                       className="text-red-600 hover:text-red-900"
+                      disabled={userItem.id === user?.id}
+                      title={userItem.id === user?.id ? 'Cannot delete your own account' : ''}
                     >
                       Delete
                     </button>
@@ -338,20 +476,11 @@ const AdminDashboard = () => {
           <div className="flex items-center justify-between py-3 border-b border-gray-200 dark:border-gray-700">
             <div>
               <p className="text-sm font-medium text-gray-900 dark:text-white">Two-Factor Authentication</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">Require 2FA for all admin accounts</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">Disabled for now</p>
             </div>
-            <button
-              onClick={() => toggleConfig('twoFactorAuth')}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
-                config.twoFactorAuth ? 'bg-green-600' : 'bg-gray-300 dark:bg-gray-600'
-              }`}
-            >
-              <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                  config.twoFactorAuth ? 'translate-x-6' : 'translate-x-1'
-                }`}
-              />
-            </button>
+            <div className="relative inline-flex h-6 w-11 items-center rounded-full bg-gray-300 dark:bg-gray-600">
+              <span className="inline-block h-4 w-4 transform rounded-full bg-white translate-x-1" />
+            </div>
           </div>
         </div>
       </div>
@@ -397,50 +526,129 @@ const AdminDashboard = () => {
       {/* User Modal */}
       {showUserModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md">
-            <h3 className="text-lg font-semibold mb-4 dark:text-white">{editingUser ? 'Edit User' : 'Add New User'}</h3>
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
+            <h3 className="text-lg font-semibold mb-4 dark:text-white">{editingUser ? 'View User' : 'Add New User'}</h3>
+            {editingUser && (
+              <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md">
+                <p className="text-sm text-blue-600 dark:text-blue-400">User editing is view-only. To modify, delete and recreate the account.</p>
+              </div>
+            )}
             <div className="space-y-4">
-              <input
-                type="text"
-                placeholder="Name"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md"
-              />
-              <input
-                type="email"
-                placeholder="Email"
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md"
-              />
-              <select
-                value={formData.role}
-                onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md"
-              >
-                <option value="doctor">Doctor</option>
-                <option value="assistant">Assistant</option>
-                <option value="admin">Admin</option>
-              </select>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">First Name</label>
+                <input
+                  type="text"
+                  placeholder="First Name"
+                  value={formData.firstName}
+                  onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md"
+                  disabled={!!editingUser}
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Last Name</label>
+                <input
+                  type="text"
+                  placeholder="Last Name"
+                  value={formData.lastName}
+                  onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md"
+                  disabled={!!editingUser}
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email</label>
+                <input
+                  type="email"
+                  placeholder="Email"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md"
+                  disabled={!!editingUser}
+                  required
+                />
+              </div>
+              {!editingUser && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Password</label>
+                  <input
+                    type="password"
+                    placeholder="Password"
+                    value={formData.password}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md"
+                    required
+                  />
+                </div>
+              )}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Phone Number</label>
+                <input
+                  type="tel"
+                  placeholder="Phone Number (optional)"
+                  value={formData.phoneNumber}
+                  onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md"
+                  disabled={!!editingUser}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Gender</label>
+                <select
+                  value={formData.gender}
+                  onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md"
+                  disabled={!!editingUser}
+                >
+                  <option value="male">Male</option>
+                  <option value="female">Female</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Role</label>
+                <select
+                  value={formData.role}
+                  onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md"
+                  disabled={!!editingUser}
+                >
+                  <option value="doctor">Doctor</option>
+                  <option value="assistant">Assistant</option>
+                  <option value="admin">Admin</option>
+                </select>
+              </div>
             </div>
             <div className="flex justify-end space-x-2 mt-6">
               <button
                 onClick={() => {
                   setShowUserModal(false);
                   setEditingUser(null);
-                  setFormData({ name: '', email: '', role: 'doctor' });
+                  setFormData({ 
+                    firstName: '', 
+                    lastName: '', 
+                    email: '', 
+                    password: '',
+                    role: 'doctor',
+                    phoneNumber: '',
+                    gender: 'other'
+                  });
                 }}
                 className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-white"
               >
-                Cancel
+                {editingUser ? 'Close' : 'Cancel'}
               </button>
-              <button
-                onClick={editingUser ? handleEditUser : handleAddUser}
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-              >
-                {editingUser ? 'Update' : 'Add'}
-              </button>
+              {!editingUser && (
+                <button
+                  onClick={handleAddUser}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                  disabled={!formData.firstName || !formData.lastName || !formData.email || !formData.password}
+                >
+                  Add User
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -451,7 +659,9 @@ const AdminDashboard = () => {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md">
             <h3 className="text-lg font-semibold mb-4 dark:text-white">Delete User</h3>
-            <p className="text-gray-600 dark:text-gray-300 mb-6">Are you sure you want to delete {showDeleteModal.name}?</p>
+            <p className="text-gray-600 dark:text-gray-300 mb-6">
+              Are you sure you want to delete {showDeleteModal.first_name} {showDeleteModal.last_name}? This action cannot be undone.
+            </p>
             <div className="flex justify-end space-x-2">
               <button
                 onClick={() => setShowDeleteModal(null)}

@@ -37,7 +37,7 @@ const CreateInventoryItemScreen = () => {
 
   const loadItem = async () => {
     try {
-      const result = await window.electron.invoke('inventory:getById', parseInt(id))
+      const result = await window.electronAPI.getInventoryItem(parseInt(id))
       if (result.success) {
         setFormData(result.item)
         if (result.item.image_path) {
@@ -82,9 +82,9 @@ const CreateInventoryItemScreen = () => {
 
       let result
       if (id) {
-        result = await window.electron.invoke('inventory:update', { id: parseInt(id), itemData })
+        result = await window.electronAPI.updateInventoryItem(parseInt(id), itemData)
       } else {
-        result = await window.electron.invoke('inventory:create', itemData)
+        result = await window.electronAPI.createInventoryItem(itemData)
       }
 
       if (result.success) {

@@ -122,31 +122,31 @@ const TestsContent = ({ clientName, additionalTests = [] }) => {
       </div>
       <div>
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200 bg-white border border-gray-200 dark:border-none rounded-md">
-            <thead className="bg-gray-50 dark:bg-gray-800 py-5">
+          <table className="min-w-full divide-y divide-gray-200 bg-white dark:bg-gray-800 border border-gray-200 dark:border-none rounded-md">
+            <thead className="bg-gray-50 dark:bg-gray-700 py-5">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Patient Name</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Test Type</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Result</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Notes</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Patient Name</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Test Type</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Result</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Date</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Notes</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Actions</th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
               {paginatedTests
                 .filter(test => !clientName || test.patientName === clientName)
                 .map((test) => (
                 <tr key={test.id}>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{test.patientName}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{test.testType}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">{test.patientName}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">{test.testType}</td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getResultColor(test.result)}`}>
                       {test.result}
                     </span>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{test.date}</td>
-                  <td className="px-6 py-4 text-sm text-gray-900 max-w-xs truncate">{test.notes}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">{test.date}</td>
+                  <td className="px-6 py-4 text-sm text-gray-900 dark:text-gray-100 max-w-xs truncate">{test.notes}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm">
                     <div className="flex gap-2">
                       <button

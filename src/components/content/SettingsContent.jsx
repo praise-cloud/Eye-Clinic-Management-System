@@ -4,7 +4,7 @@ import useUser from '../../hooks/useUser'
 
 const SettingsContent = () => {
   const { isDark, toggleTheme } = useTheme()
-  const { user } = useUser()
+  const { user, updateProfile } = useUser()
   const [loading, setLoading] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [isChangingPassword, setIsChangingPassword] = useState(false)
@@ -71,7 +71,21 @@ const SettingsContent = () => {
   const handleSaveProfile = async () => {
     setLoading(true)
     try {
-      // Save profile logic here
+      const nameParts = (formData.name || '').trim().split(' ')
+      const first_name = nameParts[0] || ''
+      const last_name = nameParts.slice(1).join(' ') || ''
+      const updates = {
+        first_name,
+        last_name,
+        email: formData.email,
+        phone_number: formData.phone,
+        gender: formData.gender
+      }
+      if (updateProfile) {
+        await updateProfile(updates)
+      } else if (window.electronAPI?.updateUser) {
+        await window.electronAPI.updateUser(user.id, updates, user.id)
+      }
       setIsEditing(false)
       setSuccessMessage('Profile updated successfully')
       setShowSuccess(true)
@@ -114,7 +128,9 @@ const SettingsContent = () => {
     }
     setLoading(true)
     try {
-      // Change password logic here
+      if (window.electronAPI?.updateUser) {
+        await window.electronAPI.updateUser(user.id, { password: formData.newPassword }, user.id)
+      }
       setFormData(prev => ({ ...prev, currentPassword: '', newPassword: '', confirmPassword: '' }))
       setIsChangingPassword(false)
       setSuccessMessage('Password changed successfully')

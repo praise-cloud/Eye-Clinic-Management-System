@@ -64,7 +64,7 @@ class IPCHandlers {
       }
     });
 
-    ipcMain.handle('auth:login', async (event, { email, password }) => {
+    ipcMain.handle('auth:login', async (event, email, password) => {
       try {
         if (!email || !password) {
           return { success: false, error: 'Email and password required' };
@@ -77,6 +77,7 @@ class IPCHandlers {
 
         const userWithName = {
           ...user,
+          role: (user.role || '').toLowerCase(),
           name: `${user.first_name || ''} ${user.last_name || ''}`.trim(),
           phone: user.phone_number
         };
@@ -218,6 +219,15 @@ class IPCHandlers {
         }
 
         const patient = await DatabaseService.createPatient(patientData);
+        if (currentUser?.id) {
+          await DatabaseService.logActivity(
+            currentUser.id,
+            'create',
+            'patient',
+            patient.id,
+            `Patient ${patient.first_name} ${patient.last_name} created`
+          );
+        }
         return { success: true, patient };
       } catch (error) {
         console.error('Create patient error:', error);
@@ -229,6 +239,15 @@ class IPCHandlers {
       try {
         if (!id) return { success: false, error: 'Patient ID required' };
         const patient = await DatabaseService.updatePatient(id, patientData);
+        if (currentUser?.id) {
+          await DatabaseService.logActivity(
+            currentUser.id,
+            'update',
+            'patient',
+            id,
+            `Patient ${patient.first_name} ${patient.last_name} updated`
+          );
+        }
         return { success: true, patient };
       } catch (error) {
         console.error('Update patient error:', error);
@@ -240,6 +259,15 @@ class IPCHandlers {
       try {
         if (!id) return { success: false, error: 'Patient ID required' };
         const result = await DatabaseService.deletePatient(id);
+        if (result.success && currentUser?.id) {
+          await DatabaseService.logActivity(
+            currentUser.id,
+            'delete',
+            'patient',
+            id,
+            `Patient ${id} deleted`
+          );
+        }
         return result;
       } catch (error) {
         console.error('Delete patient error:', error);
@@ -294,6 +322,16 @@ class IPCHandlers {
         }
 
         const test = await DatabaseService.createTest(testData);
+        BrowserWindow.getAllWindows().forEach(w => w.webContents.send('data:update', { table: 'tests', action: 'create', record: test }));
+        if (currentUser?.id) {
+          await DatabaseService.logActivity(
+            currentUser.id,
+            'create',
+            'test',
+            test.id,
+            `Test created for patient ${testData.patient_name}`
+          );
+        }
         return { success: true, test };
       } catch (error) {
         console.error('Create test error:', error);
@@ -305,6 +343,16 @@ class IPCHandlers {
       try {
         if (!id) return { success: false, error: 'Test ID required' };
         const test = await DatabaseService.updateTest(id, testData);
+        BrowserWindow.getAllWindows().forEach(w => w.webContents.send('data:update', { table: 'tests', action: 'update', record: test }));
+        if (currentUser?.id) {
+          await DatabaseService.logActivity(
+            currentUser.id,
+            'update',
+            'test',
+            id,
+            `Test ${id} updated`
+          );
+        }
         return { success: true, test };
       } catch (error) {
         console.error('Update test error:', error);
@@ -316,6 +364,18 @@ class IPCHandlers {
       try {
         if (!id) return { success: false, error: 'Test ID required' };
         const result = await DatabaseService.deleteTest(id);
+        if (result?.success) {
+          BrowserWindow.getAllWindows().forEach(w => w.webContents.send('data:update', { table: 'tests', action: 'delete', recordId: id }));
+          if (currentUser?.id) {
+            await DatabaseService.logActivity(
+              currentUser.id,
+              'delete',
+              'test',
+              id,
+              `Test ${id} deleted`
+            );
+          }
+        }
         return result;
       } catch (error) {
         console.error('Delete test error:', error);
@@ -455,6 +515,16 @@ class IPCHandlers {
     ipcMain.handle('inventory:create', async (event, itemData) => {
       try {
         const item = await DatabaseService.createInventoryItem(itemData);
+        if (currentUser?.id) {
+          await DatabaseService.logActivity(
+            currentUser.id,
+            'create',
+            'inventory',
+            item.id,
+            `Inventory item ${item.item_name} created`
+          );
+        }
+        BrowserWindow.getAllWindows().forEach(w => w.webContents.send('data:update', { table: 'inventory', action: 'create', record: item }));
         return { success: true, item };
       } catch (error) {
         console.error('Create inventory error:', error);
@@ -466,6 +536,16 @@ class IPCHandlers {
       try {
         if (!id) return { success: false, error: 'Item ID required' };
         const item = await DatabaseService.updateInventoryItem(id, itemData);
+        if (currentUser?.id) {
+          await DatabaseService.logActivity(
+            currentUser.id,
+            'update',
+            'inventory',
+            id,
+            `Inventory item ${id} updated`
+          );
+        }
+        BrowserWindow.getAllWindows().forEach(w => w.webContents.send('data:update', { table: 'inventory', action: 'update', record: item }));
         return { success: true, item };
       } catch (error) {
         console.error('Update inventory error:', error);
@@ -476,9 +556,43 @@ class IPCHandlers {
     ipcMain.handle('inventory:delete', async (event, id) => {
       try {
         if (!id) return { success: false, error: 'Item ID required' };
-        return await DatabaseService.deleteInventoryItem(id);
+        const result = await DatabaseService.deleteInventoryItem(id);
+        if (result.success && currentUser?.id) {
+          await DatabaseService.logActivity(
+            currentUser.id,
+            'delete',
+            'inventory',
+            id,
+            `Inventory item ${id} deleted`
+          );
+        }
+        if (result.success) {
+          BrowserWindow.getAllWindows().forEach(w => w.webContents.send('data:update', { table: 'inventory', action: 'delete', recordId: id }));
+        }
+        return result;
       } catch (error) {
         console.error('Delete inventory error:', error);
+        return { success: false, error: error.message };
+      }
+    });
+
+    ipcMain.handle('inventory:updateQuantity', async (event, { id, quantity, userId, notes }) => {
+      try {
+        if (!id || typeof quantity !== 'number') return { success: false, error: 'Item ID and quantity required' };
+        const item = await DatabaseService.updateInventoryQuantity(id, quantity, userId, notes);
+        if (userId) {
+          await DatabaseService.logActivity(
+            userId,
+            'update',
+            'inventory',
+            id,
+            `Inventory quantity updated to ${quantity}`
+          );
+        }
+        BrowserWindow.getAllWindows().forEach(w => w.webContents.send('data:update', { table: 'inventory', action: 'update', record: item }));
+        return { success: true, item };
+      } catch (error) {
+        console.error('Update inventory quantity error:', error);
         return { success: false, error: error.message };
       }
     });
@@ -495,12 +609,162 @@ class IPCHandlers {
       }
     });
 
-    ipcMain.handle('admin:createUser', async (event, userData) => {
+    ipcMain.handle('admin:createUser', async (event, { userData, createdBy }) => {
       try {
-        const user = await DatabaseService.createUser(userData);
+        const dbUserData = {
+          first_name: userData.firstName,
+          last_name: userData.lastName,
+          email: userData.email,
+          password: userData.password,
+          role: userData.role,
+          phone_number: userData.phoneNumber || null,
+          gender: userData.gender || 'other'
+        };
+
+        const required = ['first_name', 'last_name', 'email', 'password', 'role'];
+        for (const field of required) {
+          if (!dbUserData[field]) {
+            return { success: false, error: `${field} required` };
+          }
+        }
+
+        const user = await DatabaseService.createUser(dbUserData);
+
+        if (createdBy) {
+          await DatabaseService.logActivity(
+            createdBy,
+            'create',
+            'user',
+            user.id,
+            `User ${user.email} created by admin`
+          );
+        }
+
         return { success: true, user };
       } catch (error) {
         console.error('Admin create user error:', error);
+        return { success: false, error: error.message };
+      }
+    });
+
+    ipcMain.handle('admin:updateUserStatus', async (event, { userId, isActive, updatedBy }) => {
+      try {
+        if (!userId) {
+          return { success: false, error: 'User ID required' };
+        }
+
+        const result = await DatabaseService.updateUserStatus(userId, isActive);
+
+        if (updatedBy) {
+          await DatabaseService.logActivity(
+            updatedBy,
+            'update',
+            'user',
+            userId,
+            `User status changed to ${isActive ? 'active' : 'inactive'}`
+          );
+        }
+
+        return { success: true, ...result };
+      } catch (error) {
+        console.error('Admin update user status error:', error);
+        return { success: false, error: error.message };
+      }
+    });
+
+    ipcMain.handle('admin:updateUser', async (event, { userId, userData, updatedBy }) => {
+      try {
+        if (!userId) {
+          return { success: false, error: 'User ID required' };
+        }
+
+        const dbUserData = {
+          first_name: userData.first_name || userData.firstName,
+          last_name: userData.last_name || userData.lastName,
+          email: userData.email,
+          role: userData.role,
+          phone_number: userData.phone_number || userData.phoneNumber,
+          gender: userData.gender,
+          password: userData.password
+        };
+
+        const updatedUser = await DatabaseService.updateUser(userId, dbUserData);
+
+        if (!updatedUser) {
+          return { success: false, error: 'User not found or no changes applied' };
+        }
+
+        if (updatedBy) {
+          await DatabaseService.logActivity(
+            updatedBy,
+            'update',
+            'user',
+            userId,
+            `User ${updatedUser.email} updated by admin`
+          );
+        }
+
+        return { success: true, user: updatedUser };
+      } catch (error) {
+        console.error('Admin update user error:', error);
+        return { success: false, error: error.message };
+      }
+    });
+
+    ipcMain.handle('admin:deleteUser', async (event, { userId, deletedBy }) => {
+      try {
+        if (!userId) {
+          return { success: false, error: 'User ID required' };
+        }
+
+        const result = await DatabaseService.deleteUser(userId);
+
+        if (result.success && deletedBy) {
+          await DatabaseService.logActivity(
+            deletedBy,
+            'delete',
+            'user',
+            userId,
+            `User ${userId} deleted by admin`
+          );
+        }
+
+        return result;
+      } catch (error) {
+        console.error('Admin delete user error:', error);
+        return { success: false, error: error.message };
+      }
+    });
+
+    ipcMain.handle('admin:getActivityLogs', async (event, filters = {}) => {
+      try {
+        const logs = await DatabaseService.getActivityLogs(filters);
+        return { success: true, logs };
+      } catch (error) {
+        console.error('Get activity logs error:', error);
+        return { success: false, error: error.message };
+      }
+    });
+
+    ipcMain.handle('admin:getActivityStats', async () => {
+      try {
+        const stats = await DatabaseService.getDashboardStats();
+        return { success: true, stats };
+      } catch (error) {
+        console.error('Get activity stats error:', error);
+        return { success: false, error: error.message };
+      }
+    });
+
+    ipcMain.handle('admin:logActivity', async (event, { userId, actionType, entityType, entityId, description, ipAddress, userAgent }) => {
+      try {
+        if (!userId || !actionType || !entityType || !description) {
+          return { success: false, error: 'Missing required activity fields' };
+        }
+        const activity = await DatabaseService.logActivity(userId, actionType, entityType, entityId, description, ipAddress, userAgent);
+        return { success: true, activity };
+      } catch (error) {
+        console.error('Log activity error:', error);
         return { success: false, error: error.message };
       }
     });
@@ -518,10 +782,11 @@ class IPCHandlers {
   }
 
   registerChatHandlers() {
-    ipcMain.handle('chat:getMessages', async (event, { userId, otherUserId, limit = 50 }) => {
+    ipcMain.handle('chat:getMessages', async (event, data = {}) => {
       try {
+        const { userId, otherUserId, search = '', limit = 50, offset = 0 } = data || {};
         if (!userId) return { success: false, error: 'User ID required' };
-        const messages = await DatabaseService.getMessages(userId, otherUserId, limit);
+        const messages = await DatabaseService.getMessages(userId, otherUserId, search, limit, offset);
         return { success: true, messages };
       } catch (error) {
         console.error('Get messages error:', error);
@@ -529,14 +794,60 @@ class IPCHandlers {
       }
     });
 
-    ipcMain.handle('chat:sendMessage', async (event, { senderId, receiverId, messageText, attachment }) => {
+    ipcMain.handle('chat:sendMessage', async (event, senderId, receiverId, messageText, attachment, replyToId) => {
       try {
-        const msg = await DatabaseService.sendMessage(senderId, receiverId, messageText, attachment);
-        // Broadcast to all windows
+        const msg = await DatabaseService.sendMessage(senderId, receiverId, messageText, attachment, replyToId);
         BrowserWindow.getAllWindows().forEach(w => w.webContents.send('new-message', msg));
         return { success: true, message: msg };
       } catch (error) {
         console.error('Send message error:', error);
+        return { success: false, error: error.message };
+      }
+    });
+
+    ipcMain.handle('chat:markMessageRead', async (event, data = {}) => {
+      try {
+        const { messageId, userId } = data || {};
+        if (!messageId || !userId) return { success: false, error: 'messageId and userId required' };
+        const res = await DatabaseService.markMessageAsRead(messageId, userId);
+        return res;
+      } catch (error) {
+        console.error('Mark message read error:', error);
+        return { success: false, error: error.message };
+      }
+    });
+
+    ipcMain.handle('chat:markAllAsRead', async (event, data = {}) => {
+      try {
+        const { userId, otherUserId } = data || {};
+        if (!userId || !otherUserId) return { success: false, error: 'userId and otherUserId required' };
+        const res = await DatabaseService.markAllMessagesAsRead(userId, otherUserId);
+        return res;
+      } catch (error) {
+        console.error('Mark all as read error:', error);
+        return { success: false, error: error.message };
+      }
+    });
+
+    ipcMain.handle('chat:getUnreadCount', async (event, userId) => {
+      try {
+        if (!userId) return { success: false, error: 'User ID required' };
+        const count = await DatabaseService.getUnreadMessageCount(userId);
+        return { success: true, count };
+      } catch (error) {
+        console.error('Get unread count error:', error);
+        return { success: false, error: error.message };
+      }
+    });
+
+    ipcMain.handle('chat:deleteMessage', async (event, messageId) => {
+      try {
+        const user = currentUser;
+        if (!messageId || !user?.id) return { success: false, error: 'messageId and current user required' };
+        const res = await DatabaseService.deleteMessage(messageId, user.id);
+        return res;
+      } catch (error) {
+        console.error('Delete message error:', error);
         return { success: false, error: error.message };
       }
     });
@@ -549,6 +860,42 @@ class IPCHandlers {
         return { success: true };
       } catch (error) {
         console.error('Set online error:', error);
+        return { success: false, error: error.message };
+      }
+    });
+    ipcMain.handle('presence:setOffline', async (event, userId) => {
+      try {
+        await DatabaseService.setUserOffline(userId);
+        return { success: true };
+      } catch (error) {
+        console.error('Set offline error:', error);
+        return { success: false, error: error.message };
+      }
+    });
+    ipcMain.handle('presence:getOnlineUsers', async () => {
+      try {
+        const users = await DatabaseService.getOnlineUsers();
+        return { success: true, users };
+      } catch (error) {
+        console.error('Get online users error:', error);
+        return { success: false, error: error.message };
+      }
+    });
+    ipcMain.handle('presence:getUsersWithPresence', async () => {
+      try {
+        const users = await DatabaseService.getUsersWithPresence();
+        return { success: true, users };
+      } catch (error) {
+        console.error('Get users with presence error:', error);
+        return { success: false, error: error.message };
+      }
+    });
+    ipcMain.handle('presence:syncToSupabase', async () => {
+      try {
+        const result = await SyncService.syncAll();
+        return result;
+      } catch (error) {
+        console.error('Sync to Supabase error:', error);
         return { success: false, error: error.message };
       }
     });
@@ -569,6 +916,26 @@ class IPCHandlers {
   registerSystemHandlers() {
     ipcMain.handle('system:healthCheck', async () => {
       return { success: true, status: 'healthy', timestamp: new Date().toISOString() };
+    });
+    ipcMain.handle('system:checkOnline', async () => {
+      try {
+        const db = await DatabaseService.getDatabase();
+        await db.get('SELECT 1 as ok');
+
+        const dns = require('dns');
+        const checkConnection = new Promise(resolve => {
+          dns.lookup('google.com', err => resolve(!err));
+        });
+
+        const timeout = new Promise(resolve => {
+          setTimeout(() => resolve(false), 5000);
+        });
+
+        const online = await Promise.race([checkConnection, timeout]);
+        return { success: true, online, timestamp: new Date().toISOString() };
+      } catch (error) {
+        return { success: false, online: false, error: error.message, timestamp: new Date().toISOString() };
+      }
     });
   }
 

@@ -18,6 +18,15 @@ const AdminDashboard = () => {
   const [showDeleteModal, setShowDeleteModal] = useState(null);
   const [showUserModal, setShowUserModal] = useState(false);
   const [formData, setFormData] = useState({ firstName: '', lastName: '', email: '', password: '', role: 'doctor' });
+  const [stats, setStats] = useState({
+    totalUsers: 0,
+    totalPatients: 0,
+    totalTests: 0,
+    totalInventory: 0,
+    todayAppointments: 0,
+    pendingTests: 0
+  });
+  const [systemLogs, setSystemLogs] = useState([]);
 
   const handleSectionClick = (section) => {
     if (section === 'system-settings') {
@@ -27,13 +36,41 @@ const AdminDashboard = () => {
     }
   };
 
-  const stats = {
-    totalUsers: users.length,
-    totalPatients: 0,
-    totalTests: 0,
-    totalInventory: 0,
-    todayAppointments: 0,
-    pendingTests: 0
+  const loadStats = async () => {
+    if (!window.electronAPI || !window.electronAPI.getActivityStatistics) return;
+    try {
+      const res = await window.electronAPI.getActivityStatistics();
+      if (res?.success && res.stats) {
+        setStats((prev) => ({ ...prev, ...res.stats, totalUsers: users.length || res.stats.totalUsers }));
+      }
+    } catch (error) {
+      console.error('Error loading dashboard stats:', error);
+    }
+  };
+
+  const loadActivityLogs = async () => {
+    if (!window.electronAPI || !window.electronAPI.getActivityLogs) return;
+    try {
+      const res = await window.electronAPI.getActivityLogs({});
+      if (res?.success && Array.isArray(res.logs)) {
+        const mapped = res.logs.slice(0, 10).map((log) => {
+          const name =
+            (log.first_name || log.last_name)
+              ? `${log.first_name || ''} ${log.last_name || ''}`.trim()
+              : '';
+          return {
+            id: log.id,
+            action: log.description || `${log.action_type} ${log.entity_type}`,
+            user: name || log.email || 'Unknown',
+            timestamp: log.timestamp ? new Date(log.timestamp).toLocaleString() : '',
+            status: log.action_type === 'error' ? 'error' : 'success'
+          };
+        });
+        setSystemLogs(mapped);
+      }
+    } catch (error) {
+      console.error('Error loading activity logs:', error);
+    }
   };
 
   const handleAddUser = async () => {
@@ -45,21 +82,15 @@ const AdminDashboard = () => {
         email: formData.email,
         password: formData.password,
         role: formData.role
-      }, user?.id); 
+      }, user?.id);
       console.log('Create user response:', res);
       if (res.success) {
         alert('User created successfully!');
         setShowUserModal(false);
         setFormData({ firstName: '', lastName: '', email: '', password: '', role: 'doctor' });
         fetchUsers();
-        const newLog = {
-          id: systemLogs.length + 1,
-          action: 'User Created',
-          user: user?.name || 'Admin',
-          timestamp: new Date().toLocaleString(),
-          status: 'success'
-        };
-        setSystemLogs(prev => [newLog, ...prev].slice(0, 10));
+        loadStats();
+        loadActivityLogs();
       } else {
         alert(res.error || res.message || 'Failed to add user.');
       }
@@ -88,15 +119,8 @@ const AdminDashboard = () => {
         setEditingUser(null);
         setFormData({ firstName: '', lastName: '', email: '', password: '', role: 'doctor' });
         fetchUsers(); // Re-fetch users to include the updated user
-        // Log activity (optional, could be handled by backend)
-        const newLog = {
-          id: systemLogs.length + 1,
-          action: 'User Updated',
-          user: user?.name || 'Admin',
-          timestamp: new Date().toLocaleString(),
-          status: 'success'
-        };
-        setSystemLogs(prev => [newLog, ...prev].slice(0, 10));
+        loadStats();
+        loadActivityLogs();
       } else {
         alert(res.message || 'Failed to update user.');
       }
@@ -106,19 +130,22 @@ const AdminDashboard = () => {
     }
   };
 
-  const handleDeleteUser = (userId) => {
-    const deletedUser = users.find(u => u.id === userId);
-    setUsers(users.filter(u => u.id !== userId));
-    setShowDeleteModal(null);
-
-    const newLog = {
-      id: systemLogs.length + 1,
-      action: 'User Deleted',
-      user: user?.name || 'Admin',
-      timestamp: new Date().toLocaleString(),
-      status: 'success'
-    };
-    setSystemLogs(prev => [newLog, ...prev].slice(0, 10));
+  const handleDeleteUser = async (userId) => {
+    if (!window.electronAPI) return;
+    try {
+      const res = await window.electronAPI.deleteUser(userId, user?.id);
+      if (res.success) {
+        setUsers(users.filter(u => u.id !== userId));
+        setShowDeleteModal(null);
+        loadStats();
+        loadActivityLogs();
+      } else {
+        alert(res.message || 'Failed to delete user.');
+      }
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      alert('Error deleting user: ' + error.message);
+    }
   };
 
   const handleToggleStatus = async (userId) => {
@@ -131,15 +158,8 @@ const AdminDashboard = () => {
       const res = await window.electronAPI.updateUserStatus(userId, newStatus, user?.id);
       if (res.success) {
         fetchUsers(); // Re-fetch users to reflect the status change
-        // Log activity
-        const newLog = {
-          id: systemLogs.length + 1,
-          action: `User ${newStatus ? 'Activated' : 'Deactivated'}`,
-          user: user?.name || 'Admin',
-          timestamp: new Date().toLocaleString(),
-          status: 'success'
-        };
-        setSystemLogs(prev => [newLog, ...prev].slice(0, 10));
+        loadStats();
+        loadActivityLogs();
       } else {
         alert(res.message || 'Failed to update user status.');
       }
@@ -148,8 +168,6 @@ const AdminDashboard = () => {
       alert('Error toggling user status: ' + error.message);
     }
   };
-
-  const [systemLogs, setSystemLogs] = useState([]); // Keep system logs, but its update mechanism might change
 
   // Fetch users from backend
   const fetchUsers = async () => {
@@ -181,6 +199,8 @@ const AdminDashboard = () => {
   // Initial fetch and real-time listener for users
   React.useEffect(() => {
     fetchUsers();
+    loadStats();
+    loadActivityLogs();
 
     if (window.electronAPI) {
       const unsubscribe = window.electronAPI.onIpcEvent('data:update', (payload) => {
@@ -188,7 +208,6 @@ const AdminDashboard = () => {
           console.log('Realtime user update received:', payload);
           fetchUsers(); // Re-fetch users to reflect changes
         }
-        // Potentially handle system logs here if they are also broadcast
       });
       return unsubscribe;
     }
@@ -424,20 +443,11 @@ const AdminDashboard = () => {
           <div className="flex items-center justify-between py-3 border-b border-gray-200 dark:border-gray-700">
             <div>
               <p className="text-sm font-medium text-gray-900 dark:text-white">Two-Factor Authentication</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">Require 2FA for all admin accounts</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">Disabled for now</p>
             </div>
-            <button
-              onClick={() => toggleConfig('twoFactorAuth')}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
-                config.twoFactorAuth ? 'bg-green-600' : 'bg-gray-300 dark:bg-gray-600'
-              }`}
-            >
-              <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                  config.twoFactorAuth ? 'translate-x-6' : 'translate-x-1'
-                }`}
-              />
-            </button>
+            <div className="relative inline-flex h-6 w-11 items-center rounded-full bg-gray-300 dark:bg-gray-600">
+              <span className="inline-block h-4 w-4 transform rounded-full bg-white translate-x-1" />
+            </div>
           </div>
         </div>
       </div>

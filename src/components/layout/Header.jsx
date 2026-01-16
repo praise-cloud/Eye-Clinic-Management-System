@@ -20,7 +20,6 @@ const Header = ({ activeSection, currentUser, searchTerm, onSearchChange, onSect
   };
 
   const userMenuItems = [
-    { label: 'Profile', id: 'profile' },
     { label: 'Settings', id: 'settings' },
     { label: 'Logout', id: 'logout' }
   ];
@@ -29,7 +28,7 @@ const Header = ({ activeSection, currentUser, searchTerm, onSearchChange, onSect
     setShowUserDropdown(false);
     if (item.id === 'logout') {
       setShowLogoutModal(true);
-    } else if (item.id === 'settings' || item.id === 'profile') {
+    } else if (item.id === 'settings') {
       if (onSectionClick) {
         onSectionClick('settings');
       }
@@ -38,9 +37,9 @@ const Header = ({ activeSection, currentUser, searchTerm, onSearchChange, onSect
 
   return (
     <header className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
-      <div className="w-full px-6 py-4 flex items-center justify-end">
+      <div className="w-full px-6 py-4 flex items-center justify-between">
+        <OnlineStatusIndicator />
 
-        {/* Right: User Info Dropdown */}
         <div className="relative" ref={userRef}>
           <button
             className="flex items-center space-x-2 px-3 py-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700"

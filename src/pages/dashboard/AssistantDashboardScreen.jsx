@@ -25,10 +25,57 @@ const App = () => {
     const [deleteConfirm, setDeleteConfirm] = useState(null);
     const [viewingPatient, setViewingPatient] = useState(null);
     const [selectedClient, setSelectedClient] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState('');
 
-    const handleDelete = (patientIndex) => {
-        setPatients(prev => prev.filter((_, index) => index !== patientIndex));
-        setDeleteConfirm(null);
+    const loadPatients = async () => {
+        try {
+            setLoading(true);
+            const result = await window.electronAPI.getPatients();
+            if (result.success) {
+                const transformed = result.patients.map(patient => ({
+                    id: patient.id,
+                    name: `${patient.first_name} ${patient.last_name}`,
+                    date: patient.dob,
+                    case: patient.reason_for_visit || 'Not specified',
+                    phone: patient.contact || patient.phone_number || '',
+                    email: patient.email || '',
+                    patient_id: patient.patient_id,
+                    first_name: patient.first_name,
+                    last_name: patient.last_name,
+                    gender: patient.gender,
+                    address: patient.address,
+                    reason_for_visit: patient.reason_for_visit
+                }));
+                setPatients(transformed);
+                setError('');
+            } else {
+                setError(result.error || 'Failed to load patients');
+            }
+        } catch (err) {
+            setError('Failed to load patients');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        loadPatients();
+    }, []);
+
+    const handleDelete = async () => {
+        if (!deleteConfirm || !deleteConfirm.patient) return;
+        try {
+            const result = await window.electronAPI.deletePatient(deleteConfirm.patient.id);
+            if (result.success) {
+                await loadPatients();
+                setDeleteConfirm(null);
+            } else {
+                setDeleteConfirm(null);
+            }
+        } catch (err) {
+            setDeleteConfirm(null);
+        }
     };
 
     const handleView = (patient) => {
@@ -39,12 +86,27 @@ const App = () => {
         setSelectedClient(patient);
     };
 
-    const handleClientSave = (updatedClient) => {
-        setPatients(prev => prev.map(patient =>
-            patient.name === selectedClient.name && patient.email === selectedClient.email
-                ? { ...patient, ...updatedClient }
-                : patient
-        ));
+    const handleClientSave = async (updatedClient) => {
+        try {
+            const patientData = {
+                patient_id: updatedClient.patient_id || selectedClient.patient_id,
+                first_name: updatedClient.first_name || selectedClient.first_name,
+                last_name: updatedClient.last_name || selectedClient.last_name,
+                dob: updatedClient.date || selectedClient.date,
+                gender: updatedClient.gender || selectedClient.gender,
+                contact: updatedClient.phone || selectedClient.phone,
+                email: updatedClient.email || selectedClient.email,
+                address: updatedClient.address || selectedClient.address,
+                reason_for_visit: updatedClient.reason_for_visit || selectedClient.reason_for_visit
+            };
+            const result = await window.electronAPI.updatePatient(selectedClient.id, patientData);
+            if (result.success) {
+                await loadPatients();
+                setSelectedClient(null);
+            }
+        } catch (err) {
+            setSelectedClient(null);
+        }
     };
 
     const handleBackToDashboard = () => {
@@ -172,7 +234,7 @@ const App = () => {
                         <p className="text-sm text-gray-500 dark:text-gray-400 mb-6"><strong>{deleteConfirm.patient.name}</strong> - {deleteConfirm.patient.case}</p>
                         <div className="flex gap-3 justify-end">
                             <button onClick={() => setDeleteConfirm(null)} className="px-4 py-2 text-gray-600 border border-gray-300 rounded hover:bg-gray-50">Cancel</button>
-                            <button onClick={() => handleDelete(deleteConfirm.index)} className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">Delete</button>
+                            <button onClick={handleDelete} className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">Delete</button>
                         </div>
                     </div>
                 </div>

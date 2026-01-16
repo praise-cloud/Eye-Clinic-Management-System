@@ -1,6 +1,4 @@
-// src/hooks/useTests.js
-// React hook for test CRUD/search using testService
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import * as testService from '../services/testService';
 
 export default function useTests() {
@@ -64,6 +62,16 @@ export default function useTests() {
       setLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    if (!window.electronAPI || !window.electronAPI.onIpcEvent) return;
+    const unsubscribe = window.electronAPI.onIpcEvent('data:update', (payload) => {
+      if (payload && payload.table === 'tests') {
+        fetchTests();
+      }
+    });
+    return unsubscribe;
+  }, [fetchTests]);
 
   return {
     tests,

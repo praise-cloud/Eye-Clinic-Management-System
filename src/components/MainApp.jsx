@@ -126,7 +126,16 @@ const MainApp = () => {
 
     return (
       <Routes>
-        <Route path="/" element={user?.role === 'doctor' ? <DoctorsDashboard /> : <DashboardContent />} />
+        <Route
+          path="/"
+          element={
+            user?.role === 'doctor'
+              ? <DoctorsDashboard />
+              : user?.role === 'assistant'
+              ? <AssistantDashboardScreen />
+              : <DashboardContent />
+          }
+        />
         <Route path="/messages" element={<MessagesContent />} />
         <Route path="/patients" element={<PatientsContent searchTerm={searchTerm} ref={patientsContentRef} />} />
         <Route path="/tests" element={<TestsContent />} />

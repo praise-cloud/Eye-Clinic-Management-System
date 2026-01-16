@@ -81,7 +81,7 @@ const DoctorsDashboard = ({activeSection}) => {
     try {
       const result = await window.electronAPI.checkOnlineStatus();
       if (result.success) {
-        setSyncStatus(result.isOnline ? 'online' : 'offline');
+        setSyncStatus(result.online ? 'online' : 'offline');
       } else {
         setSyncStatus('offline');
       }
@@ -193,14 +193,14 @@ const DoctorsDashboard = ({activeSection}) => {
                     <span className="text-xl font-semibold text-gray-600 dark:text-gray-300">Patient's of the day</span>
                     {/* Sync Status Indicator */}
                     <div className="flex items-center gap-2">
-                      <div className={`w-3 h-3 rounded-full ${
+                      {/* <div className={`w-3 h-3 rounded-full ${
                         syncStatus === 'online' ? 'bg-green-500' :
                         syncStatus === 'offline' ? 'bg-red-500' :
                         'bg-yellow-500'
-                      }`}></div>
-                      <span className="text-sm text-gray-500 dark:text-gray-400 capitalize">
+                      }`}></div> */}
+                      {/* <span className="text-sm text-gray-500 dark:text-gray-400 capitalize">
                         {syncStatus === 'online' ? 'Synced' : syncStatus === 'offline' ? 'Offline' : 'Checking...'}
-                      </span>
+                      </span> */}
                     </div>
                   </div>
                   <button
