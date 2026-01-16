@@ -11,9 +11,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
         }
         return ipcRenderer.invoke('auth:login', email, password);
     },
+    getCurrentUser: () => ipcRenderer.invoke('auth:getCurrentUser'),
+    isAuthenticated: () => ipcRenderer.invoke('auth:isAuthenticated'),
     logout: () => ipcRenderer.invoke('auth:logout'),
+    
     createUser: (userData) => ipcRenderer.invoke('auth:createUser', userData),
     completeSetup: (clinicData, adminData) => ipcRenderer.invoke('auth:completeSetup', { clinicData, adminData }),
+    restoreSession: () => ipcRenderer.invoke('auth:restoreSession'),
 
     // Window management
     openMainWindow: () => ipcRenderer.invoke('window:openMain'),

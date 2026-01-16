@@ -1,6 +1,3 @@
--- Eye Clinic Management System - Supabase Schema
-
--- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 CREATE TABLE IF NOT EXISTS users (
@@ -247,4 +244,3 @@ INSERT INTO settings (key, value) VALUES
   ('setup_completed', 'false'),
   ('database_version', '1.0')
 ON CONFLICT (key) DO NOTHING;
-  

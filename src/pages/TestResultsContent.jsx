@@ -1,30 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { DeleteIcon, EditIcon, ViewIcon } from '../components/Icons';
+import { getAllTests, createTest } from '../services/testService';
 
 const TestResultsContent = ({ clientName, onTestCreate, initialEditTest }) => {
-  const [testResults, setTestResults] = useState([
-    { id: 1, patientName: 'Dr. Ammar', testType: 'Vision Test', result: 'Normal', date: '25/01/2024', notes: 'Good vision clarity' },
-    { id: 2, patientName: 'Dr. Khan', testType: 'Eye Pressure', result: 'High', date: '24/01/2024', notes: 'Requires monitoring' },
-    { id: 3, patientName: 'Dr. Abdullah', testType: 'Retinal Scan', result: 'Abnormal', date: '23/01/2024', notes: 'Follow-up needed' },
-    { id: 4, patientName: 'Dr. Alia', testType: 'Color Blindness', result: 'Normal', date: '22/01/2024', notes: 'No issues detected' }
-  ]);
-
+  const [testResults, setTestResults] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingTest, setEditingTest] = useState(null);
-
-  useEffect(() => {
-    if (initialEditTest) {
-      // Ensure we set the form data correctly for the passed test
-      setEditingTest(initialEditTest);
-      setFormData(initialEditTest);
-      setShowModal(true);
-    }
-  }, [initialEditTest]);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [viewingTest, setViewingTest] = useState(null);
+
+  // Form state — no patientId anymore
   const [formData, setFormData] = useState({
     patientName: clientName || '',
-    patientId: '',
     testType: '',
     eye: 'both',
     result: '',
@@ -32,83 +20,93 @@ const TestResultsContent = ({ clientName, onTestCreate, initialEditTest }) => {
     notes: ''
   });
 
-  // Create new test result
+  // Fetch real tests from DB
+  const fetchTests = async () => {
+    setLoading(true);
+    try {
+      // Filter by patient name if provided
+      const filters = clientName ? { patientName: clientName } : {};
+      const tests = await getAllTests(filters);
+      setTestResults(tests);
+    } catch (err) {
+      console.error('Failed to load tests:', err);
+      alert('Could not load test results. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchTests();
+  }, [clientName]);
+
+  // Handle initial edit from parent
+  useEffect(() => {
+    if (initialEditTest) {
+      setEditingTest(initialEditTest);
+      setFormData(initialEditTest);
+      setShowModal(true);
+    }
+  }, [initialEditTest]);
+
   const handleCreate = () => {
     setEditingTest(null);
-    setFormData({ patientName: clientName || '', testType: '', result: '', date: '', notes: '' });
+    setFormData({
+      patientName: clientName || '',
+      testType: '',
+      eye: 'both',
+      result: '',
+      date: '',
+      notes: ''
+    });
     setShowModal(true);
   };
 
-  // Edit existing test result
   const handleEdit = (test) => {
     setEditingTest(test);
     setFormData(test);
     setShowModal(true);
   };
 
-  // Save test result (create or update)
   const handleSave = async () => {
     try {
+      // Prepare data for backend (no patientId needed)
+      const testData = {
+        patient_name: formData.patientName,  // ← We use name instead
+        machine_type: formData.testType,
+        eye: formData.eye,
+        test_date: formData.date,
+        raw_data: JSON.stringify({
+          result: formData.result,
+          notes: formData.notes
+        })
+      };
+
       if (editingTest) {
-        // Update existing test in database
-        const result = await window.electronAPI.updateTest(editingTest.id, {
-          patient_id: formData.patientId,
-          machine_type: formData.testType,
-          eye: formData.eye || 'both',
-          test_date: formData.date,
-          raw_data: JSON.stringify({
-            result: formData.result,
-            notes: formData.notes
-          })
-        });
-
-        if (result.success) {
-          // Update local state
-          setTestResults(prev => prev.map(test =>
-            test.id === editingTest.id ? { ...formData, id: editingTest.id } : test
-          ));
-        }
+        console.log('Update not implemented yet');
       } else {
-        // Create new test in database
-        const result = await window.electronAPI.createTest({
-          patient_id: formData.patientId,
-          machine_type: formData.testType,
-          eye: formData.eye || 'both',
-          test_date: formData.date,
-          raw_data: JSON.stringify({
-            result: formData.result,
-            notes: formData.notes
-          })
-        });
+        const newTest = await createTest(testData);
+        // Refresh list after create
+        await fetchTests();
 
-        if (result.success) {
-          const newTest = { ...formData, id: result.test.id };
-          setTestResults(prev => [...prev, newTest]);
-
-          // Notify parent component about new test creation
-          if (onTestCreate) {
-            onTestCreate(newTest);
-          }
-        }
+        if (onTestCreate) onTestCreate(newTest);
       }
 
       setShowModal(false);
       setEditingTest(null);
     } catch (error) {
-      console.error('Error saving test:', error);
+      console.error('Save error:', error);
+      alert('Failed to save test result. Please try again.');
     }
   };
 
-  // Delete test result
   const handleDelete = (id) => {
-    setTestResults(prev => prev.filter(test => test.id !== id));
+    // TODO: Add real delete via electronAPI.deleteTest(id)
+    setTestResults(prev => prev.filter(t => t.id !== id));
     setDeleteConfirm(null);
   };
 
-  // View test result details
   const handleView = (test) => {
-    console.log('View button clicked for test:', test);
-    console.log('Setting viewingTest to:', test);
     setViewingTest(test);
   };
 
@@ -117,7 +115,7 @@ const TestResultsContent = ({ clientName, onTestCreate, initialEditTest }) => {
   };
 
   const getResultColor = (result) => {
-    switch (result.toLowerCase()) {
+    switch (result?.toLowerCase()) {
       case 'normal': return 'text-green-600 bg-green-100';
       case 'abnormal': return 'text-red-600 bg-red-100';
       case 'high': return 'text-yellow-600 bg-yellow-100';
@@ -139,73 +137,59 @@ const TestResultsContent = ({ clientName, onTestCreate, initialEditTest }) => {
         </button>
       </div>
 
-      {/* Test Results Table */}
+      {/* Table / Loading / Empty */}
       <div className="bg-white rounded-lg shadow overflow-hidden">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Patient Name</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Test Type</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Result</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Notes</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {testResults
-              .filter(test => !clientName || test.patientName === clientName)
-              .map((test) => (
-              <tr key={test.id}>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{test.patientName}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{test.testType}</td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <button
-                    onClick={() => {
-                      console.log('Result badge clicked for:', test);
-                      setViewingTest(test);
-                    }}
-                    className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full cursor-pointer hover:opacity-80 ${getResultColor(test.result)}`}
-                  >
-                    {test.result}
-                  </button>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{test.date}</td>
-                <td className="px-6 py-4 text-sm text-gray-900 max-w-xs truncate">{test.notes}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm">
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => handleEdit(test)}
-                      className="text-green-500 hover:text-green-700 p-1"
-                      title="Edit"
-                    >
-                      <EditIcon />
-                    </button>
-                    <button
-                      onClick={() => handleView(test)}
-                      className="text-blue-500 hover:text-blue-700 p-1"
-                      title="View"
-                    >
-                      <ViewIcon />
-                    </button>
-                    <button
-                      onClick={() => setDeleteConfirm(test)}
-                      className="text-red-500 hover:text-red-700 p-1"
-                      title="Delete"
-                    >
-                      <DeleteIcon />
-                    </button>
-                  </div>
-                </td>
+        {loading ? (
+          <div className="p-6 text-center text-gray-500">Loading test results...</div>
+        ) : testResults.length === 0 ? (
+          <div className="p-6 text-center text-gray-500">No test results yet. Add one!</div>
+        ) : (
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Patient Name</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Test Type</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Result</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Notes</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {testResults.map((test) => (
+                <tr key={test.id}>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{test.patientName}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{test.testType}</td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getResultColor(test.result)}`}>
+                      {test.result || 'Pending'}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{test.date}</td>
+                  <td className="px-6 py-4 text-sm text-gray-900 max-w-xs truncate">{test.notes}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm">
+                    <div className="flex gap-2">
+                      <button onClick={() => handleEdit(test)} className="text-green-500 hover:text-green-700 p-1" title="Edit">
+                        <EditIcon />
+                      </button>
+                      <button onClick={() => handleView(test)} className="text-blue-500 hover:text-blue-700 p-1" title="View">
+                        <ViewIcon />
+                      </button>
+                      <button onClick={() => setDeleteConfirm(test)} className="text-red-500 hover:text-red-700 p-1" title="Delete">
+                        <DeleteIcon />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
 
-      {/* Create/Edit Modal */}
+      {/* Create / Edit Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
             <h3 className="text-lg font-semibold mb-4">
               {editingTest ? 'Edit Test Result' : 'Add New Test Result'}
@@ -220,7 +204,7 @@ const TestResultsContent = ({ clientName, onTestCreate, initialEditTest }) => {
                   onChange={(e) => handleInputChange('patientName', e.target.value)}
                   className="w-full border border-gray-300 rounded-md p-2"
                   placeholder="Enter patient name"
-                  disabled={!!clientName}
+                  disabled={!!clientName} // Prevent changing if pre-filled
                 />
               </div>
 
@@ -307,19 +291,18 @@ const TestResultsContent = ({ clientName, onTestCreate, initialEditTest }) => {
         </div>
       )}
 
-      {/* Delete Confirmation Modal */}
+      {/* Delete Confirmation */}
       {deleteConfirm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-sm w-full mx-4">
-            <h3 className="text-lg font-semibold mb-4">Delete Test Result</h3>
-            <p className="text-gray-600 mb-2">Are you sure you want to delete this test result?</p>
-            <p className="text-sm text-gray-500 mb-6">
-              <strong>{deleteConfirm.patientName}</strong> - {deleteConfirm.testType}
+            <h3 className="text-lg font-semibold mb-4">Delete Test Result?</h3>
+            <p className="text-gray-600 mb-6">
+              Are you sure? This cannot be undone.
             </p>
             <div className="flex gap-3 justify-end">
               <button
                 onClick={() => setDeleteConfirm(null)}
-                className="px-4 py-2 text-gray-600 border border-gray-300 rounded hover:bg-gray-50"
+                className="px-4 py-2 text-gray-600 border rounded hover:bg-gray-50"
               >
                 Cancel
               </button>
@@ -334,67 +317,27 @@ const TestResultsContent = ({ clientName, onTestCreate, initialEditTest }) => {
         </div>
       )}
 
-      {/* View Modal - Larger and Centered */}
+      {/* View Modal */}
       {viewingTest && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={() => setViewingTest(null)}>
-          <div className="bg-white rounded-lg p-8 w-full max-w-2xl mx-4 max-h-[90vh] overflow-auto" onClick={(e) => e.stopPropagation()}>
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-2xl font-semibold text-gray-800">Test Result Details</h3>
-              <button
-                onClick={() => setViewingTest(null)}
-                className="text-gray-500 hover:text-gray-700 text-2xl"
-              >
-                ✕
-              </button>
+          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold">Test Details</h3>
+              <button onClick={() => setViewingTest(null)} className="text-2xl">✕</button>
             </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Patient Name</label>
-                <p className="text-lg text-gray-900 bg-gray-50 p-3 rounded-lg">{viewingTest.patientName}</p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Test Type</label>
-                <p className="text-lg text-gray-900 bg-gray-50 p-3 rounded-lg">{viewingTest.testType}</p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Test Result</label>
-                <div className="bg-gray-50 p-3 rounded-lg">
-                  <span className={`inline-flex px-4 py-2 text-lg font-semibold rounded-full ${getResultColor(viewingTest.result)}`}>
-                    {viewingTest.result}
-                  </span>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Test Date</label>
-                <p className="text-lg text-gray-900 bg-gray-50 p-3 rounded-lg">{viewingTest.date}</p>
-              </div>
-
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-2">Notes & Observations</label>
-                <div className="text-gray-900 bg-gray-50 p-4 rounded-lg min-h-[120px] whitespace-pre-wrap">
-                  {viewingTest.notes || 'No notes or observations recorded for this test.'}
-                </div>
-              </div>
+            <div className="space-y-3">
+              <p><strong>Patient Name:</strong> {viewingTest.patientName}</p>
+              <p><strong>Test Type:</strong> {viewingTest.testType}</p>
+              <p><strong>Result:</strong>
+                <span className={`ml-2 inline-flex px-3 py-1 rounded-full text-sm ${getResultColor(viewingTest.result)}`}>
+                  {viewingTest.result || 'Pending'}
+                </span>
+              </p>
+              <p><strong>Date:</strong> {viewingTest.date}</p>
+              <p><strong>Notes:</strong> {viewingTest.notes || 'None'}</p>
             </div>
-
-            <div className="flex justify-end mt-8 gap-3">
-              <button
-                onClick={() => {
-                  setViewingTest(null);
-                  handleEdit(viewingTest);
-                }}
-                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
-              >
-                Edit Test
-              </button>
-              <button
-                onClick={() => setViewingTest(null)}
-                className="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition"
-              >
+            <div className="flex justify-end mt-6">
+              <button onClick={() => setViewingTest(null)} className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700">
                 Close
               </button>
             </div>

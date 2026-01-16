@@ -175,7 +175,282 @@ class DatabaseService {
         return { success: result.changes > 0 };
     }
 
-    // Add more methods as needed...
+
+    async getAllTests(filters = {}) {
+    const db = await this.getDatabase();
+    let query = 'SELECT t.*, p.first_name, p.last_name FROM tests t LEFT JOIN patients p ON t.patient_id = p.id';
+    let params = [];
+
+    if (filters.patientName) {
+        query += ' WHERE p.first_name LIKE ? OR p.last_name LIKE ?';
+        const search = `%${filters.patientName}%`;
+        params = [search, search];
+    }
+
+    query += ' ORDER BY t.test_date DESC';
+    const rows = await db.all(query, params);
+
+    return rows;
+    }
+
+    async createTest(testData) {
+        const db = await this.getDatabase();
+        const id = require('uuid').v4();
+
+        const query = `
+            INSERT INTO tests (
+            id, patient_id, machine_type, eye, test_date, raw_data,
+            created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        `;
+
+        const params = [
+            id,
+            testData.patient_name,
+            testData.machine_type,
+            testData.eye || 'both',
+            testData.test_date || new Date().toISOString(),
+            testData.raw_data || '{}'
+        ];
+
+        try {
+            await db.run(query, params);
+            return { id, ...testData };
+        } catch (error) {
+            console.error('Database createTest error:', error);
+            throw error;
+        }
+    }
+
+    async getTestById(id) {
+        const db = await this.getDatabase();
+        const query = 'SELECT * FROM tests WHERE id = ?';
+        return await db.get(query, [id]);
+    }
+
+    async updateTest(id, testData) {
+        const db = await this.getDatabase();
+        const { machine_type, eye, test_date, raw_data } = testData;
+
+        const query = `
+            UPDATE tests
+            SET machine_type = ?, eye = ?, test_date = ?, raw_data = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        `;
+
+        await db.run(query, [machine_type, eye, test_date, raw_data, id]);
+        return { id, ...testData };
+    }
+
+    async deleteTest(id) {
+        const db = await this.getDatabase();
+        const query = 'DELETE FROM tests WHERE id = ?';
+        const result = await db.run(query, [id]);
+        return { success: result.changes > 0 };
+    }
+
+    // Report Management
+    async getAllReports(filters = {}) {
+        const db = await this.getDatabase();
+        let query = 'SELECT r.*, p.first_name, p.last_name FROM reports r LEFT JOIN patients p ON r.patient_id = p.id';
+        let params = [];
+
+        if (filters.patientId) {
+            query += ' WHERE r.patient_id = ?';
+            params = [filters.patientId];
+        }
+
+        query += ' ORDER BY r.report_date DESC';
+        return await db.all(query, params);
+    }
+
+    async getReportById(id) {
+        const db = await this.getDatabase();
+        const query = 'SELECT * FROM reports WHERE id = ?';
+        return await db.get(query, [id]);
+    }
+
+    async createReport(reportData) {
+        const db = await this.getDatabase();
+        const { patient_id, report_file, report_type, title } = reportData;
+        const id = require('uuid').v4();
+
+        const query = `
+            INSERT INTO reports (id, patient_id, report_type, title, report_file, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        `;
+
+        await db.run(query, [id, patient_id, report_type, title, report_file]);
+        return { id, patient_id, report_type, title, report_file };
+    }
+
+    async deleteReport(id) {
+        const db = await this.getDatabase();
+        const query = 'DELETE FROM reports WHERE id = ?';
+        const result = await db.run(query, [id]);
+        return { success: result.changes > 0 };
+    }
+
+    // Inventory Management
+    async getAllInventoryItems(filters = {}) {
+        const db = await this.getDatabase();
+        let query = 'SELECT * FROM inventory';
+        let params = [];
+
+        if (filters.category) {
+            query += ' WHERE category = ?';
+            params = [filters.category];
+        }
+
+        query += ' ORDER BY item_name ASC';
+        return await db.all(query, params);
+    }
+
+    async getInventoryItemById(id) {
+        const db = await this.getDatabase();
+        const query = 'SELECT * FROM inventory WHERE id = ?';
+        return await db.get(query, [id]);
+    }
+
+    async getInventoryItemByCode(itemCode) {
+        const db = await this.getDatabase();
+        const query = 'SELECT * FROM inventory WHERE item_code = ?';
+        return await db.get(query, [itemCode]);
+    }
+
+    async createInventoryItem(itemData) {
+        const db = await this.getDatabase();
+        const id = require('uuid').v4();
+        
+        const query = `
+            INSERT INTO inventory (
+                id, item_code, item_name, category, description, manufacturer,
+                model_number, serial_number, current_quantity, minimum_quantity,
+                maximum_quantity, unit_of_measure, unit_cost, supplier_name,
+                supplier_contact, purchase_date, expiry_date, location, status,
+                last_updated_by, notes, image_path, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        `;
+
+        const params = [
+            id,
+            itemData.item_code,
+            itemData.item_name,
+            itemData.category,
+            itemData.description || null,
+            itemData.manufacturer || null,
+            itemData.model_number || null,
+            itemData.serial_number || null,
+            itemData.current_quantity || 0,
+            itemData.minimum_quantity || 0,
+            itemData.maximum_quantity || 100,
+            itemData.unit_of_measure || 'pieces',
+            itemData.unit_cost || 0,
+            itemData.supplier_name || null,
+            itemData.supplier_contact || null,
+            itemData.purchase_date || null,
+            itemData.expiry_date || null,
+            itemData.location || null,
+            itemData.status || 'active',
+            itemData.last_updated_by || null,
+            itemData.notes || null,
+            itemData.image_path || null
+        ];
+
+        await db.run(query, params);
+        return { id, ...itemData };
+    }
+
+    async updateInventoryItem(id, itemData) {
+        const db = await this.getDatabase();
+        
+        const query = `
+            UPDATE inventory
+            SET item_name = ?, category = ?, description = ?, manufacturer = ?,
+                model_number = ?, serial_number = ?, current_quantity = ?,
+                minimum_quantity = ?, maximum_quantity = ?, unit_of_measure = ?,
+                unit_cost = ?, supplier_name = ?, supplier_contact = ?,
+                purchase_date = ?, expiry_date = ?, location = ?, status = ?,
+                last_updated_by = ?, notes = ?, image_path = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        `;
+
+        const params = [
+            itemData.item_name,
+            itemData.category,
+            itemData.description,
+            itemData.manufacturer,
+            itemData.model_number,
+            itemData.serial_number,
+            itemData.current_quantity,
+            itemData.minimum_quantity,
+            itemData.maximum_quantity,
+            itemData.unit_of_measure,
+            itemData.unit_cost,
+            itemData.supplier_name,
+            itemData.supplier_contact,
+            itemData.purchase_date,
+            itemData.expiry_date,
+            itemData.location,
+            itemData.status,
+            itemData.last_updated_by,
+            itemData.notes,
+            itemData.image_path,
+            id
+        ];
+
+        await db.run(query, params);
+        return { id, ...itemData };
+    }
+
+    async deleteInventoryItem(id) {
+        const db = await this.getDatabase();
+        const query = 'DELETE FROM inventory WHERE id = ?';
+        const result = await db.run(query, [id]);
+        return { success: result.changes > 0 };
+    }
+
+    // Activity Logging
+    async logActivity(userId, actionType, entityType, entityId, description, ipAddress = null, userAgent = null) {
+        const db = await this.getDatabase();
+        const id = require('uuid').v4();
+
+        const query = `
+            INSERT INTO activity_logs (id, user_id, action_type, entity_type, entity_id, description, ip_address, user_agent, timestamp)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        `;
+
+        await db.run(query, [id, userId, actionType, entityType, entityId, description, ipAddress, userAgent]);
+        return { id, userId, actionType, entityType, entityId, description };
+    }
+
+    async getActivityLogs(filters = {}) {
+        const db = await this.getDatabase();
+        let query = 'SELECT a.*, u.first_name, u.last_name, u.email FROM activity_logs a LEFT JOIN users u ON a.user_id = u.id';
+        let params = [];
+
+        if (filters.userId) {
+            query += ' WHERE a.user_id = ?';
+            params = [filters.userId];
+        }
+
+        query += ' ORDER BY a.timestamp DESC LIMIT 100';
+        return await db.all(query, params);
+    }
+
+    // Chat/Message Methods
+    async sendMessage(senderId, receiverId, messageText, attachment = null) {
+        const db = await this.getDatabase();
+        const id = require('uuid').v4();
+
+        const query = `
+            INSERT INTO chat (id, sender_id, receiver_id, message_text, attachment, timestamp, status)
+            VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, 'unread')
+        `;
+
+        await db.run(query, [id, senderId, receiverId, messageText, attachment]);
+        return { id, sender_id: senderId, receiver_id: receiverId, message_text: messageText, attachment, timestamp: new Date().toISOString(), status: 'unread' };
+    }
 }
 
 module.exports = new DatabaseService();

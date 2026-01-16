@@ -1,9 +1,8 @@
 const { app, BrowserWindow, Menu, ipcMain, dialog } = require('electron');
 const path = require('path');
 const Database = require('./database');
-const IPCHandlers = require('./src/services/IPCHandlers');
+const IPCHandlers = require('./electron/ipc/handlers');
 const SyncService = require('./src/services/SyncService');
-const SupabaseService = require('./src/services/SupabaseService');
 
 // Optional: electron-reload for development
 try {
@@ -18,6 +17,7 @@ let mainWindow = null;
 let authWindow = null;
 let database = null;
 let currentUser = null;
+let syncService = null;
 
 // Initialize database
 async function initializeDatabase() {
@@ -137,8 +137,9 @@ app.whenReady().then(async () => {
   await initializeDatabase();
 
   // Initialize SyncService once
-  SyncService.initialize(database);
-  SyncService.startAutoSync(30); // Every 30 seconds - reliable
+  syncService = new SyncService();
+  await syncService.initialize();
+  syncService.startAutoSync(0.5); // Every 30 seconds
 
   // Register all IPC handlers
   new IPCHandlers();
@@ -158,7 +159,7 @@ app.whenReady().then(async () => {
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     if (database) database.close();
-    SyncService.stop();
+    if (syncService) syncService.stopAutoSync();
     app.quit();
   }
 });
@@ -171,7 +172,7 @@ app.on('activate', () => {
 
 app.on('before-quit', () => {
   if (database) database.close();
-  SyncService.stop();
+  if (syncService) syncService.stopAutoSync();
 });
 
 // Application Menu

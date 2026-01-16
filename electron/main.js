@@ -3,9 +3,9 @@ const { app, BrowserWindow } = require('electron');
 const path = require('path');
 
 // Services
-const Database = require('../database/database.js');                    // ← adjust path if needed
-const IPCHandlers = require('./ipc/handlers.js');     // ← adjust if needed
-const SyncService = require('../src/services/SyncService.js');     // ← adju
+const Database = require('../database/database');                    // ← adjust path if needed
+const IPCHandlers = require('./ipc/handlers');     // ← adjust if needed
+const SyncService = require('../src/services/SyncService');     // ← adju
 let mainWindow = null;
 let dbInstance = null;
 

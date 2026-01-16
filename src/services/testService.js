@@ -1,44 +1,31 @@
-// src/services/TestService.js
-// Abstracts all test-related IPC calls with clean error handling
-
 const electronAPI = window.electronAPI;
 
 export const getAllTests = async (filters = {}) => {
   try {
-    const res = await electronAPI.getTests(filters);
-    if (!res?.success) {
-      console.warn('getAllTests failed:', res?.error);
-      return [];
+    const res = await electronAPI.getTests(filters); // ← matches preload 'tests:getAll'
+    if (res?.success) {
+      return res.tests.map(test => ({
+        id: test.id,
+        patientName: test.first_name && test.last_name
+          ? `${test.first_name} ${test.last_name}`
+          : 'Unknown Patient',
+        patientId: test.patient_id,
+        testType: test.machine_type || 'Unknown',
+        eye: test.eye || 'both',
+        result: (() => {
+          try { return JSON.parse(test.raw_data || '{}').result || 'Pending'; } catch { return 'Pending'; }
+        })(),
+        date: test.test_date
+          ? new Date(test.test_date).toLocaleDateString('en-GB')
+          : 'N/A',
+        notes: (() => {
+          try { return JSON.parse(test.raw_data || '{}').notes || ''; } catch { return ''; }
+        })()
+      }));
     }
-
-    return res.tests.map(test => ({
-      id: test.id,
-      patientName: test.patient?.first_name && test.patient?.last_name
-        ? `${test.patient.first_name} ${test.patient.last_name}`
-        : 'Unknown Patient',
-      patientId: test.patient_id,
-      testType: test.machine_type || 'Unknown',
-      eye: test.eye || 'both',
-      result: (() => {
-        try {
-          return JSON.parse(test.raw_data || '{}').result || 'Pending';
-        } catch {
-          return 'Pending';
-        }
-      })(),
-      date: test.test_date
-        ? new Date(test.test_date).toLocaleDateString('en-GB')
-        : 'N/A',
-      notes: (() => {
-        try {
-          return JSON.parse(test.raw_data || '{}').notes || '';
-        } catch {
-          return '';
-        }
-      })()
-    }));
+    return [];
   } catch (err) {
-    console.error('getAllTests error:', err);
+    console.error('getAllTests failed:', err);
     return [];
   }
 };
@@ -61,7 +48,7 @@ export const createTest = async (testData) => {
     }
     return res.test;
   } catch (err) {
-    console.error('createTest error:', err);
+    console.err('createTest error:', err);
     throw err;
   }
 };
