@@ -3,6 +3,7 @@ import { ArrowLeftIcon } from '../components/Icons';
 import TestResultsContent from './TestResultsContent';
 import TestsContent from './TestsContent';
 import useTests from '../hooks/useTests';
+import { createTest } from '../services/testService';
 
 const ClientDetailContent = ({ client, onBack, onSave, initialEditTest }) => {
   const [editMode, setEditMode] = useState(false);
@@ -67,19 +68,28 @@ const ClientDetailContent = ({ client, onBack, onSave, initialEditTest }) => {
 
   const handleScheduleTest = async () => {
     try {
-      // Here you would typically save the scheduled test to database
-      // For now, we'll just add it to the sharedTests array
+      const testData = {
+        patient_name: formData.name,
+        machine_type: scheduleFormData.testType,
+        eye: 'both',
+        test_date: scheduleFormData.scheduledDate,
+        raw_data: JSON.stringify({
+          result: 'Scheduled',
+          notes: scheduleFormData.notes || ''
+        })
+      };
+      const newTest = await createTest(testData);
       const scheduledTest = {
-        id: Date.now(),
+        id: newTest.id,
         patientName: formData.name,
         testType: scheduleFormData.testType,
         result: 'Scheduled',
         date: scheduleFormData.scheduledDate,
-        notes: `Scheduled: ${scheduleFormData.notes || 'No notes'}`,
-        status: 'Scheduled'
+        notes: scheduleFormData.notes || ''
       };
 
       setSharedTests(prev => [...prev, scheduledTest]);
+      fetchTests();
       setShowScheduleModal(false);
       setScheduleFormData({ testType: '', scheduledDate: '', notes: '' });
     } catch (error) {
@@ -309,8 +319,8 @@ const ClientDetailContent = ({ client, onBack, onSave, initialEditTest }) => {
             onTestCreate={(newTest) => {
               const scheduledTest = {
                 id: Date.now(),
-                patient: newTest.patientName,
-                type: newTest.testType,
+                patientName: newTest.patientName,
+                testType: newTest.testType,
                 date: newTest.date,
                 status: 'Completed'
               };
