@@ -781,6 +781,9 @@ class IPCHandlers {
     });
     ipcMain.handle('file:importDb', async (event, dbPath) => {
       try {
+        if (!currentUser || String(currentUser.role || '').toLowerCase() !== 'admin') {
+          return { success: false, error: 'Only admin can import databases' };
+        }
         if (!dbPath || typeof dbPath !== 'string') {
           return { success: false, error: 'Database file path required' };
         }
@@ -942,6 +945,9 @@ class IPCHandlers {
     });
     ipcMain.handle('system:setNetworkDbPath', async (event, payload) => {
       try {
+        if (!currentUser || String(currentUser.role || '').toLowerCase() !== 'admin') {
+          return { success: false, error: 'Only admin can change network database path' };
+        }
         const dir = app.getPath('userData');
         const cfgPath = path.join(dir, 'config.json');
         let existing = {};
@@ -966,6 +972,28 @@ class IPCHandlers {
         return { success: true, path: data.network_db_path || null };
       } catch (error) {
         return { success: false, error: error.message, path: null };
+      }
+    });
+    ipcMain.handle('db:delete', async () => {
+      try {
+        if (!currentUser || String(currentUser.role || '').toLowerCase() !== 'admin') {
+          return { success: false, error: 'Only admin can delete database' };
+        }
+        const res = await DatabaseService.deleteDatabase();
+        return res;
+      } catch (error) {
+        return { success: false, error: error.message };
+      }
+    });
+    ipcMain.handle('db:update', async (event, updates = {}) => {
+      try {
+        if (!currentUser || String(currentUser.role || '').toLowerCase() !== 'admin') {
+          return { success: false, error: 'Only admin can update database' };
+        }
+        const res = await DatabaseService.updateDatabase(updates);
+        return res;
+      } catch (error) {
+        return { success: false, error: error.message };
       }
     });
   }

@@ -573,6 +573,209 @@ class DatabaseService {
             if (!fs.existsSync(externalPath)) {
                 return { success: false, error: 'File not found' };
             }
+            const ext = String(path.extname(externalPath) || '').toLowerCase();
+            if (ext === '.csv' || ext === '.json') {
+                const appDb = await this.getDatabase();
+                await appDb.run('BEGIN');
+                try {
+                    let rows = [];
+                    if (ext === '.csv') {
+                        const text = fs.readFileSync(externalPath, 'utf-8');
+                        const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
+                        if (lines.length < 2) {
+                            await appDb.run('ROLLBACK');
+                            return { success: false, error: 'CSV has no data' };
+                        }
+                        const headerLine = lines[0];
+                        const headers = headerLine.split(',').map(h => h.trim());
+                        for (let i = 1; i < lines.length; i++) {
+                            const parts = lines[i].split(',').map(p => p.trim());
+                            const obj = {};
+                            for (let j = 0; j < headers.length; j++) {
+                                obj[headers[j]] = parts[j] ?? '';
+                            }
+                            rows.push(obj);
+                        }
+                    } else {
+                        const text = fs.readFileSync(externalPath, 'utf-8');
+                        const data = JSON.parse(text);
+                        if (Array.isArray(data)) {
+                            rows = data;
+                        } else if (data && typeof data === 'object') {
+                            const keys = Object.keys(data);
+                            for (const k of keys) {
+                                if (Array.isArray(data[k])) rows = rows.concat(data[k]);
+                            }
+                        }
+                    }
+                    if (!rows.length) {
+                        await appDb.run('ROLLBACK');
+                        return { success: false, error: 'No rows to import' };
+                    }
+                    const headers = new Set(Object.keys(rows[0] || {}));
+                    const score = (need) => need.reduce((s, k) => s + (headers.has(k) ? 1 : 0), 0);
+                    let target = 'patients';
+                    const candidates = [
+                        { table: 'users', keys: ['email', 'first_name', 'last_name'] },
+                        { table: 'patients', keys: ['patient_id', 'first_name', 'last_name'] },
+                        { table: 'tests', keys: ['patient_id', 'raw_data'] },
+                        { table: 'inventory', keys: ['item_code', 'item_name'] },
+                        { table: 'chat', keys: ['message_text', 'sender_id', 'receiver_id'] },
+                    ];
+                    let best = { table: 'patients', score: 0 };
+                    for (const c of candidates) {
+                        const sc = score(c.keys);
+                        if (sc > best.score) best = { table: c.table, score: sc };
+                    }
+                    target = best.table;
+                    const imported = { users: 0, patients: 0, tests: 0, inventory: 0, chat: 0 };
+                    if (target === 'users') {
+                        for (const u of rows) {
+                            const email = String(u.email || '').toLowerCase();
+                            if (!email) continue;
+                            const exists = await appDb.get('SELECT id FROM users WHERE email = ?', [email]);
+                            if (exists?.id) continue;
+                            let hash = u.password_hash;
+                            if (!hash && u.password) {
+                                hash = await bcrypt.hash(String(u.password), 10);
+                            }
+                            if (!hash || typeof hash !== 'string' || hash.length < 20) {
+                                hash = await bcrypt.hash('Temp123!', 10);
+                            }
+                            const id = require('uuid').v4();
+                            await appDb.run(
+                                `INSERT INTO users (id, first_name, last_name, email, password_hash, gender, role, phone_number, status, created_at, updated_at)
+                                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+                                [
+                                    id,
+                                    u.first_name || u.firstname || u.name || '',
+                                    u.last_name || u.lastname || '',
+                                    email,
+                                    hash,
+                                    u.gender || 'other',
+                                    (u.role || 'assistant'),
+                                    u.phone_number || u.phone || null
+                                ]
+                            );
+                            imported.users += 1;
+                        }
+                    } else if (target === 'patients') {
+                        for (const p of rows) {
+                            const pid = p.patient_id || p.patientId || p.code || `P${Date.now()}${Math.floor(Math.random()*1000)}`;
+                            const exists = await appDb.get('SELECT id FROM patients WHERE patient_id = ?', [pid]);
+                            if (exists?.id) continue;
+                            const id = require('uuid').v4();
+                            await appDb.run(
+                                `INSERT INTO patients (id, patient_id, first_name, last_name, dob, gender, contact, created_at, updated_at)
+                                 VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+                                [
+                                    id,
+                                    pid,
+                                    p.first_name || p.firstname || p.name || '',
+                                    p.last_name || p.lastname || '',
+                                    p.dob || p.birth_date || null,
+                                    p.gender || 'other',
+                                    p.contact || p.phone || null
+                                ]
+                            );
+                            imported.patients += 1;
+                        }
+                    } else if (target === 'tests') {
+                        for (const t of rows) {
+                            let patientId = t.patient_id || t.patientId || null;
+                            if (!patientId && (t.patient_name || t.name)) {
+                                const parts = String(t.patient_name || t.name).trim().split(/\s+/);
+                                const firstName = parts[0] || '';
+                                const lastName = parts.slice(1).join(' ') || '';
+                                const found = await appDb.get('SELECT id FROM patients WHERE first_name = ? AND last_name = ? ORDER BY created_at DESC', [firstName, lastName]);
+                                if (found?.id) patientId = found.id;
+                            }
+                            if (!patientId) continue;
+                            const id = require('uuid').v4();
+                            await appDb.run(
+                                `INSERT INTO tests (id, patient_id, machine_type, eye, test_date, raw_data, created_at, updated_at)
+                                 VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+                                [
+                                    id,
+                                    patientId,
+                                    t.machine_type || t.machine || null,
+                                    t.eye || 'both',
+                                    t.test_date || t.date || new Date().toISOString(),
+                                    typeof t.raw_data === 'string' ? t.raw_data : JSON.stringify(t.raw_data || {})
+                                ]
+                            );
+                            imported.tests += 1;
+                        }
+                    } else if (target === 'inventory') {
+                        for (const it of rows) {
+                            const code = it.item_code || it.code || null;
+                            if (code) {
+                                const exists = await appDb.get('SELECT id FROM inventory WHERE item_code = ?', [code]);
+                                if (exists?.id) continue;
+                            }
+                            const id = require('uuid').v4();
+                            await appDb.run(
+                                `INSERT INTO inventory (id, item_code, item_name, category, description, manufacturer, model_number, serial_number,
+                                 current_quantity, minimum_quantity, maximum_quantity, unit_of_measure, unit_cost, supplier_name, supplier_contact,
+                                 purchase_date, expiry_date, location, status, last_updated_by, notes, image_path, created_at, updated_at)
+                                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+                                [
+                                    id,
+                                    code,
+                                    it.item_name || it.name || '',
+                                    it.category || 'other',
+                                    it.description || null,
+                                    it.manufacturer || null,
+                                    it.model_number || null,
+                                    it.serial_number || null,
+                                    it.current_quantity || it.quantity || 0,
+                                    it.minimum_quantity || 0,
+                                    it.maximum_quantity || 100,
+                                    it.unit_of_measure || 'pieces',
+                                    it.unit_cost || 0,
+                                    it.supplier_name || null,
+                                    it.supplier_contact || null,
+                                    it.purchase_date || null,
+                                    it.expiry_date || null,
+                                    it.location || null,
+                                    it.status || 'active',
+                                    null,
+                                    it.notes || null,
+                                    it.image_path || null
+                                ]
+                            );
+                            imported.inventory += 1;
+                        }
+                    } else if (target === 'chat') {
+                        for (const m of rows) {
+                            const id = require('uuid').v4();
+                            await appDb.run(
+                                `INSERT INTO chat (id, sender_id, receiver_id, message_text, attachment, timestamp, status, reply_to_id)
+                                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                                [
+                                    id,
+                                    m.sender_id || m.sender || null,
+                                    m.receiver_id || m.receiver || null,
+                                    m.message_text || m.text || '',
+                                    m.attachment || null,
+                                    m.timestamp || new Date().toISOString(),
+                                    m.status || 'unread',
+                                    m.reply_to_id || null
+                                ]
+                            );
+                            imported.chat += 1;
+                        }
+                    }
+                    await appDb.run('COMMIT');
+                    return { success: true, mode: 'import', imported, target };
+                } catch (e) {
+                    try {
+                        const db = await this.getDatabase();
+                        await db.run('ROLLBACK');
+                    } catch {}
+                    return { success: false, error: e.message };
+                }
+            }
             const extDb = await new Promise((resolve, reject) => {
                 const db = new sqlite3.Database(externalPath, (err) => {
                     if (err) reject(err);
@@ -799,6 +1002,34 @@ class DatabaseService {
                 const db = await this.getDatabase();
                 await db.run('ROLLBACK');
             } catch {}
+            return { success: false, error: error.message };
+        }
+    }
+
+    async deleteDatabase() {
+        const db = await this.getDatabase();
+        const dbPath = db.dbPath;
+        db.close();
+        this.database = null;
+        if (fs.existsSync(dbPath)) {
+            try {
+                fs.unlinkSync(dbPath);
+                return { success: true, path: dbPath };
+            } catch (error) {
+                return { success: false, error: error.message };
+            }
+        }
+        return { success: true, path: dbPath };
+    }
+
+    async updateDatabase(updates = {}) {
+        const db = await this.getDatabase();
+        try {
+            await db.run('PRAGMA journal_mode=WAL');
+            await db.run('VACUUM');
+            await db.run('PRAGMA optimize');
+            return { success: true };
+        } catch (error) {
             return { success: false, error: error.message };
         }
     }

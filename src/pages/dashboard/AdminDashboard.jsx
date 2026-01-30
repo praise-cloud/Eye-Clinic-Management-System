@@ -27,6 +27,9 @@ const AdminDashboard = () => {
     pendingTests: 0
   });
   const [systemLogs, setSystemLogs] = useState([]);
+  const [networkDbPath, setNetworkDbPath] = useState('');
+  const [adminLoading, setAdminLoading] = useState(false);
+  const [adminMessage, setAdminMessage] = useState(null);
 
   const handleSectionClick = (section) => {
     if (section === 'system-settings') {
@@ -212,6 +215,108 @@ const AdminDashboard = () => {
       return unsubscribe;
     }
   }, []);
+
+  React.useEffect(() => {
+    const loadDbPath = async () => {
+      try {
+        if (!window.electronAPI?.getNetworkDbPath) return;
+        const res = await window.electronAPI.getNetworkDbPath();
+        if (res?.success && res.path) setNetworkDbPath(res.path);
+      } catch {}
+    };
+    loadDbPath();
+  }, []);
+
+  const handleAdminImportDb = async () => {
+    try {
+      if (!window.electronAPI?.selectFile || !window.electronAPI?.importDb) return;
+      setAdminLoading(true);
+      const result = await window.electronAPI.selectFile({
+        title: 'Choose database or data file',
+        filters: [{ name: 'Data Files', extensions: ['db', 'sqlite', 'csv', 'json'] }]
+      });
+      const chosen = result?.filePath || result?.path || result?.file || null;
+      if (!chosen) {
+        setAdminLoading(false);
+        return;
+      }
+      const res = await window.electronAPI.importDb(chosen);
+      if (res?.success) {
+        if (res.mode === 'switch') {
+          setNetworkDbPath(res.path);
+          setAdminMessage('Now using selected database via LAN. Restart app on all computers.');
+        } else {
+          const counts = res.imported || {};
+          setAdminMessage(`Imported: users ${counts.users || 0}, patients ${counts.patients || 0}, tests ${counts.tests || 0}, inventory ${counts.inventory || 0}, chat ${counts.chat || 0}`);
+        }
+      } else {
+        setAdminMessage(res?.error || 'Import failed');
+      }
+    } catch (err) {
+      console.error('Admin import error:', err);
+      setAdminMessage('Failed to import database');
+    } finally {
+      setAdminLoading(false);
+      setTimeout(() => setAdminMessage(null), 5000);
+    }
+  };
+
+  const handleAdminSaveNetworkPath = async () => {
+    try {
+      if (!window.electronAPI?.setNetworkDbPath) return;
+      setAdminLoading(true);
+      const res = await window.electronAPI.setNetworkDbPath(networkDbPath || '');
+      if (res?.success) {
+        setAdminMessage('Network database path saved. Restart app on all computers.');
+      } else {
+        setAdminMessage(res?.error || 'Failed to save network path');
+      }
+    } catch (err) {
+      console.error('Admin save network path error:', err);
+      setAdminMessage('Failed to save network path');
+    } finally {
+      setAdminLoading(false);
+      setTimeout(() => setAdminMessage(null), 5000);
+    }
+  };
+
+  const handleAdminDeleteDb = async () => {
+    try {
+      if (!window.electronAPI?.deleteDb) return;
+      setAdminLoading(true);
+      const res = await window.electronAPI.deleteDb();
+      if (res?.success) {
+        setAdminMessage('Database deleted. Restart the app to recreate a fresh database.');
+      } else {
+        setAdminMessage(res?.error || 'Failed to delete database');
+      }
+    } catch (err) {
+      console.error('Admin delete database error:', err);
+      setAdminMessage('Failed to delete database');
+    } finally {
+      setAdminLoading(false);
+      setTimeout(() => setAdminMessage(null), 5000);
+    }
+  };
+
+  const handleAdminUpdateDb = async () => {
+    try {
+      if (!window.electronAPI?.updateDb) return;
+      setAdminLoading(true);
+      const res = await window.electronAPI.updateDb({});
+      if (res?.success) {
+        setAdminMessage('Database updated and optimized.');
+      } else {
+        setAdminMessage(res?.error || 'Failed to update database');
+      }
+    } catch (err) {
+      console.error('Admin update database error:', err);
+      setAdminMessage('Failed to update database');
+    } finally {
+      setAdminLoading(false);
+      setTimeout(() => setAdminMessage(null), 5000);
+    }
+  };
 
 
 
@@ -422,36 +527,65 @@ const AdminDashboard = () => {
               />
             </button>
           </div>
-          <div className="flex items-center justify-between py-3 border-b border-gray-200 dark:border-gray-700">
-            <div>
-              <p className="text-sm font-medium text-gray-900 dark:text-white">Email Notifications</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">Send notifications for important events</p>
-            </div>
-            <button
-              onClick={() => toggleConfig('emailNotifications')}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
-                config.emailNotifications ? 'bg-green-600' : 'bg-gray-300 dark:bg-gray-600'
-              }`}
-            >
-              <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                  config.emailNotifications ? 'translate-x-6' : 'translate-x-1'
-                }`}
-              />
-            </button>
-          </div>
-          <div className="flex items-center justify-between py-3 border-b border-gray-200 dark:border-gray-700">
-            <div>
-              <p className="text-sm font-medium text-gray-900 dark:text-white">Two-Factor Authentication</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">Disabled for now</p>
-            </div>
-            <div className="relative inline-flex h-6 w-11 items-center rounded-full bg-gray-300 dark:bg-gray-600">
-              <span className="inline-block h-4 w-4 transform rounded-full bg-white translate-x-1" />
-            </div>
-          </div>
+
         </div>
       </div>
 
+      {String(user?.role || '').toLowerCase() === 'admin' && (
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Database Administration</h3>
+          {adminMessage && (
+            <div className="mb-4 p-3 rounded bg-blue-50 dark:bg-gray-900 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-gray-700">
+              {adminMessage}
+            </div>
+          )}
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Shared database path (UNC or mapped drive)</label>
+              <input
+                type="text"
+                value={networkDbPath}
+                onChange={(e) => setNetworkDbPath(e.target.value)}
+                placeholder="e.g. \\ClinicServer\\EyeClinic\\data\\eye_clinic.db"
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md"
+              />
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleAdminImportDb}
+                disabled={adminLoading}
+                className="px-4 py-2 border-2 border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-white"
+              >
+                {adminLoading ? 'Working...' : 'Import Local Database'}
+              </button>
+              <button
+                onClick={handleAdminSaveNetworkPath}
+                disabled={adminLoading}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+              >
+                Save Network Path
+              </button>
+              <button
+                onClick={handleAdminDeleteDb}
+                disabled={adminLoading}
+                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
+              >
+                Delete Current Database
+              </button>
+              <button
+                onClick={handleAdminUpdateDb}
+                disabled={adminLoading}
+                className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700"
+              >
+                Update Database
+              </button>
+            </div>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              After saving, restart the app on all computers so they use the same DB via the router.
+            </p>
+          </div>
+        </div>
+      )}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Clinic Information</h3>
         <button

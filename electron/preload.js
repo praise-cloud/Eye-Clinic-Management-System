@@ -83,6 +83,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     selectFile: (options) => ipcRenderer.invoke('file:select', options),
     saveFile: (options) => ipcRenderer.invoke('file:save', options),
     importDb: (path) => ipcRenderer.invoke('file:importDb', path),
+    deleteDb: () => ipcRenderer.invoke('db:delete'),
+    updateDb: (updates) => ipcRenderer.invoke('db:update', updates),
 
     // Utility APIs
     getCurrentUser: () => ipcRenderer.invoke('auth:getCurrentUser'),

@@ -528,6 +528,13 @@ const SettingsContent = () => {
           </p>
         </div>
       </div>
+      {user?.role !== 'admin' && (
+        <div className="bg-yellow-50 dark:bg-gray-900 border border-yellow-300 dark:border-gray-700 rounded-lg p-4">
+          <p className="text-sm text-yellow-700 dark:text-yellow-300">
+            Only admin can import databases or change the network database path.
+          </p>
+        </div>
+      )}
 
 
 
