@@ -1,6 +1,7 @@
 // electron/ipc/handlers.js
-const { ipcMain, BrowserWindow } = require('electron');
+const { ipcMain, BrowserWindow, app } = require('electron');
 const path = require('path');
+const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
 const DatabaseService = require('../../src/services/DatabaseService');
 const FileService = require('../../src/services/FileService');
@@ -778,6 +779,18 @@ class IPCHandlers {
         return { success: false, error: error.message };
       }
     });
+    ipcMain.handle('file:importDb', async (event, dbPath) => {
+      try {
+        if (!dbPath || typeof dbPath !== 'string') {
+          return { success: false, error: 'Database file path required' };
+        }
+        const result = await DatabaseService.importExternalDatabase(dbPath);
+        return result;
+      } catch (error) {
+        console.error('Database import error:', error);
+        return { success: false, error: error.message };
+      }
+    });
   }
 
   registerChatHandlers() {
@@ -889,15 +902,6 @@ class IPCHandlers {
         return { success: false, error: error.message };
       }
     });
-    ipcMain.handle('presence:syncToSupabase', async () => {
-      try {
-        const result = await SyncService.syncAll();
-        return result;
-      } catch (error) {
-        console.error('Sync to Supabase error:', error);
-        return { success: false, error: error.message };
-      }
-    });
   }
 
   registerSettingsHandlers() {
@@ -934,6 +938,34 @@ class IPCHandlers {
         return { success: true, online, timestamp: new Date().toISOString() };
       } catch (error) {
         return { success: false, online: false, error: error.message, timestamp: new Date().toISOString() };
+      }
+    });
+    ipcMain.handle('system:setNetworkDbPath', async (event, payload) => {
+      try {
+        const dir = app.getPath('userData');
+        const cfgPath = path.join(dir, 'config.json');
+        let existing = {};
+        if (fs.existsSync(cfgPath)) {
+          try {
+            existing = JSON.parse(fs.readFileSync(cfgPath, 'utf-8'));
+          } catch {}
+        }
+        const data = { ...existing, network_db_path: payload?.path || '' };
+        fs.writeFileSync(cfgPath, JSON.stringify(data));
+        return { success: true, path: data.network_db_path };
+      } catch (error) {
+        return { success: false, error: error.message };
+      }
+    });
+    ipcMain.handle('system:getNetworkDbPath', async () => {
+      try {
+        const dir = app.getPath('userData');
+        const cfgPath = path.join(dir, 'config.json');
+        if (!fs.existsSync(cfgPath)) return { success: true, path: null };
+        const data = JSON.parse(fs.readFileSync(cfgPath, 'utf-8'));
+        return { success: true, path: data.network_db_path || null };
+      } catch (error) {
+        return { success: false, error: error.message, path: null };
       }
     });
   }

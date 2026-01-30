@@ -11,7 +11,7 @@ const useUser = () => {
     setLoading(true);
     try {
       // 1. Get user from main process (most authoritative)
-      const result = await window.electronAPI.getCurrentUser();
+      const result = await (window.electronAPI?.getCurrentUser?.() ?? null);
       if (result?.success && result.user) {
         const userData = result.user;
         setUser(userData);
@@ -25,7 +25,7 @@ const useUser = () => {
       if (stored) {
         const parsed = JSON.parse(stored);
         // Quick validation with main process
-        const check = await window.electronAPI.isAuthenticated();
+        const check = await (window.electronAPI?.isAuthenticated?.() ?? false);
         if (check) {
           setUser(parsed);
         } else {

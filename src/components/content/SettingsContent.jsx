@@ -26,7 +26,8 @@ const SettingsContent = () => {
   const [settings, setSettings] = useState({
     notifications: true,
     autoBackup: true,
-    emailAlerts: true
+    emailAlerts: true,
+    dbPath: ''
   })
 
   useEffect(() => {
@@ -41,6 +42,15 @@ const SettingsContent = () => {
         confirmPassword: ''
       })
     }
+    const loadDbPath = async () => {
+      try {
+        const result = await (window.electronAPI?.getNetworkDbPath?.() ?? null)
+        if (result?.success && result.path) {
+          setSettings(prev => ({ ...prev, dbPath: result.path }))
+        }
+      } catch {}
+    }
+    loadDbPath()
   }, [user])
 
   const handleInputChange = (field, value) => {
@@ -49,6 +59,23 @@ const SettingsContent = () => {
 
   const handleSettingToggle = (field) => {
     setSettings(prev => ({ ...prev, [field]: !prev[field] }))
+  }
+
+  const handleDbPathChange = (value) => {
+    setSettings(prev => ({ ...prev, dbPath: value }))
+  }
+
+  const handleSaveDbPath = async () => {
+    try {
+      if (!window.electronAPI?.setNetworkDbPath) return
+      await window.electronAPI.setNetworkDbPath(settings.dbPath || '')
+      setSuccessMessage('Network database path saved. Restart application to apply.')
+      setShowSuccess(true)
+      setTimeout(() => setShowSuccess(false), 3000)
+    } catch (error) {
+      console.error('Error saving DB path:', error)
+      alert('Failed to save network database path')
+    }
   }
 
   const handleImageSelect = () => {
@@ -428,6 +455,78 @@ const SettingsContent = () => {
             </div>
           </div>
         )}
+      </div>
+
+      {/* Network Database Section */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
+        <div className="flex justify-between items-center mb-4">
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Network Database</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              Set the shared database file path on your clinic router or server.
+            </p>
+          </div>
+        </div>
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-semibold text-gray-600 dark:text-gray-400 mb-2">
+              Shared database path (UNC or mapped drive)
+            </label>
+            <input
+              type="text"
+              value={settings.dbPath}
+              onChange={(e) => handleDbPathChange(e.target.value)}
+              placeholder="e.g. \\ClinicServer\EyeClinic\data\eye_clinic.db"
+              className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-900 dark:text-white"
+            />
+          </div>
+          <div className="flex justify-between">
+            <button
+              onClick={async () => {
+                try {
+                  if (!window.electronAPI?.selectFile) return;
+                  const result = await window.electronAPI.selectFile({
+                    title: 'Choose SQLite database',
+                    filters: [{ name: 'SQLite', extensions: ['db', 'sqlite'] }]
+                  });
+                  const chosen = result?.filePath || result?.path || result?.file || null;
+                  if (!chosen) return;
+                  if (!window.electronAPI?.importDb) return;
+                  const res = await window.electronAPI.importDb(chosen);
+                  if (res?.success) {
+                    if (res.mode === 'switch') {
+                      setSettings(prev => ({ ...prev, dbPath: res.path }));
+                      setSuccessMessage('Using selected database for LAN. Restart application to apply.');
+                    } else {
+                      const counts = res.imported || {};
+                      setSuccessMessage(`Imported: users ${counts.users || 0}, patients ${counts.patients || 0}, tests ${counts.tests || 0}, inventory ${counts.inventory || 0}, chat ${counts.chat || 0}`);
+                    }
+                    setShowSuccess(true);
+                    setTimeout(() => setShowSuccess(false), 4000);
+                  } else {
+                    alert(res?.error || 'Import failed');
+                  }
+                } catch (err) {
+                  console.error('Import error:', err);
+                  alert('Failed to import database');
+                }
+              }}
+              className="px-6 py-2.5 border-2 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 font-medium transition-all"
+            >
+              Import Local Database
+            </button>
+            <button
+              onClick={handleSaveDbPath}
+              className="px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium shadow-md hover:shadow-lg transition-all"
+            >
+              Save Network Path
+            </button>
+          </div>
+          <p className="text-xs text-gray-500 dark:text-gray-500">
+            After saving, close the app on all computers and open it again so all
+            systems use the same database file through the router.
+          </p>
+        </div>
       </div>
 
 

@@ -1,4 +1,9 @@
 const Database = require('../../database');
+const sqlite3 = require('sqlite3').verbose();
+const fs = require('fs');
+const path = require('path');
+const bcrypt = require('bcryptjs');
+const { app } = require('electron');
 
 class DatabaseService {
     constructor() {
@@ -558,6 +563,244 @@ class DatabaseService {
 
         await db.run(query, [id, senderId, receiverId, messageText, attachment, replyToId]);
         return { id, sender_id: senderId, receiver_id: receiverId, message_text: messageText, attachment, reply_to_id: replyToId, timestamp: new Date().toISOString(), status: 'unread' };
+    }
+
+    async importExternalDatabase(externalPath) {
+        try {
+            if (!externalPath || typeof externalPath !== 'string') {
+                return { success: false, error: 'Invalid database path' };
+            }
+            if (!fs.existsSync(externalPath)) {
+                return { success: false, error: 'File not found' };
+            }
+            const extDb = await new Promise((resolve, reject) => {
+                const db = new sqlite3.Database(externalPath, (err) => {
+                    if (err) reject(err);
+                    else resolve(db);
+                });
+            });
+
+            const getAll = (sql, params = []) => new Promise((resolve, reject) => {
+                extDb.all(sql, params, (err, rows) => {
+                    if (err) reject(err);
+                    else resolve(rows || []);
+                });
+            });
+            const getOne = (sql, params = []) => new Promise((resolve, reject) => {
+                extDb.get(sql, params, (err, row) => {
+                    if (err) reject(err);
+                    else resolve(row);
+                });
+            });
+
+            const tables = await getAll("SELECT name FROM sqlite_master WHERE type='table'");
+            const tableNames = new Set(tables.map(t => String(t.name).toLowerCase()));
+
+            const hasUsers = tableNames.has('users');
+            const hasPatients = tableNames.has('patients') || tableNames.has('clients') || tableNames.has('customer') || tableNames.has('client');
+            const hasTests = tableNames.has('tests') || tableNames.has('exams') || tableNames.has('examinations');
+            const hasInventory = tableNames.has('inventory') || tableNames.has('items') || tableNames.has('stock');
+            const hasChat = tableNames.has('chat') || tableNames.has('messages');
+
+            let schemaCompatible = false;
+            if (hasUsers && hasPatients && hasTests) {
+                const usersCols = await getAll("PRAGMA table_info(users)");
+                const patientsCols = await getAll(`PRAGMA table_info(${hasPatients ? (tableNames.has('patients') ? 'patients' : (tableNames.has('clients') ? 'clients' : (tableNames.has('client') ? 'client' : 'customer'))) : 'patients'})`);
+                const testsCols = await getAll(`PRAGMA table_info(${tableNames.has('tests') ? 'tests' : (tableNames.has('exams') ? 'exams' : 'examinations')})`);
+                const colSet = cols => new Set(cols.map(c => c.name));
+                const u = colSet(usersCols);
+                const p = colSet(patientsCols);
+                const t = colSet(testsCols);
+                schemaCompatible = u.has('password_hash') && u.has('first_name') && u.has('last_name') && u.has('email')
+                    && p.has('patient_id') && p.has('first_name') && p.has('last_name')
+                    && t.has('patient_id') && t.has('raw_data');
+            }
+
+            if (schemaCompatible) {
+                const dir = app.getPath('userData');
+                const cfgPath = path.join(dir, 'config.json');
+                let existing = {};
+                if (fs.existsSync(cfgPath)) {
+                    try {
+                        existing = JSON.parse(fs.readFileSync(cfgPath, 'utf-8'));
+                    } catch {}
+                }
+                const data = { ...existing, network_db_path: externalPath };
+                fs.writeFileSync(cfgPath, JSON.stringify(data));
+                try { extDb.close(); } catch {}
+                return { success: true, mode: 'switch', path: externalPath };
+            }
+
+            const appDb = await this.getDatabase();
+            await appDb.run('BEGIN');
+
+            let imported = { users: 0, patients: 0, tests: 0, inventory: 0, chat: 0, reports: 0 };
+
+            if (hasUsers) {
+                const users = await getAll('SELECT * FROM users');
+                for (const u of users) {
+                    const email = String(u.email || '').toLowerCase();
+                    if (!email) continue;
+                    const exists = await appDb.get('SELECT id FROM users WHERE email = ?', [email]);
+                    if (exists?.id) continue;
+                    let hash = u.password_hash;
+                    if (!hash && u.password) {
+                        hash = await bcrypt.hash(String(u.password), 10);
+                    }
+                    if (!hash || typeof hash !== 'string' || hash.length < 20) {
+                        hash = await bcrypt.hash('Temp123!', 10);
+                    }
+                    const id = require('uuid').v4();
+                    await appDb.run(
+                        `INSERT INTO users (id, first_name, last_name, email, password_hash, gender, role, phone_number, status, created_at, updated_at)
+                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+                        [
+                            id,
+                            u.first_name || u.firstname || u.name || '',
+                            u.last_name || u.lastname || '',
+                            email,
+                            hash,
+                            u.gender || 'other',
+                            (u.role || 'assistant'),
+                            u.phone_number || u.phone || null
+                        ]
+                    );
+                    imported.users += 1;
+                }
+            }
+
+            if (hasPatients) {
+                const pTable = tableNames.has('patients') ? 'patients' : (tableNames.has('clients') ? 'clients' : (tableNames.has('client') ? 'client' : 'customer'));
+                const patients = await getAll(`SELECT * FROM ${pTable}`);
+                for (const p of patients) {
+                    const pid = p.patient_id || p.patientId || p.code || `P${Date.now()}${Math.floor(Math.random()*1000)}`;
+                    const exists = await appDb.get('SELECT id FROM patients WHERE patient_id = ?', [pid]);
+                    if (exists?.id) continue;
+                    const id = require('uuid').v4();
+                    await appDb.run(
+                        `INSERT INTO patients (id, patient_id, first_name, last_name, dob, gender, contact, created_at, updated_at)
+                         VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+                        [
+                            id,
+                            pid,
+                            p.first_name || p.firstname || p.name || '',
+                            p.last_name || p.lastname || '',
+                            p.dob || p.birth_date || null,
+                            p.gender || 'other',
+                            p.contact || p.phone || null
+                        ]
+                    );
+                    imported.patients += 1;
+                }
+            }
+
+            if (hasTests) {
+                const tTable = tableNames.has('tests') ? 'tests' : (tableNames.has('exams') ? 'exams' : 'examinations');
+                const tests = await getAll(`SELECT * FROM ${tTable}`);
+                for (const t of tests) {
+                    let patientId = t.patient_id || t.patientId || null;
+                    if (!patientId && (t.patient_name || t.name)) {
+                        const parts = String(t.patient_name || t.name).trim().split(/\s+/);
+                        const firstName = parts[0] || '';
+                        const lastName = parts.slice(1).join(' ') || '';
+                        const found = await appDb.get('SELECT id FROM patients WHERE first_name = ? AND last_name = ? ORDER BY created_at DESC', [firstName, lastName]);
+                        if (found?.id) patientId = found.id;
+                    }
+                    if (!patientId) continue;
+                    const id = require('uuid').v4();
+                    await appDb.run(
+                        `INSERT INTO tests (id, patient_id, machine_type, eye, test_date, raw_data, created_at, updated_at)
+                         VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+                        [
+                            id,
+                            patientId,
+                            t.machine_type || t.machine || null,
+                            t.eye || 'both',
+                            t.test_date || t.date || new Date().toISOString(),
+                            typeof t.raw_data === 'string' ? t.raw_data : JSON.stringify(t.raw_data || {})
+                        ]
+                    );
+                    imported.tests += 1;
+                }
+            }
+
+            if (hasInventory) {
+                const iTable = tableNames.has('inventory') ? 'inventory' : (tableNames.has('items') ? 'items' : 'stock');
+                const items = await getAll(`SELECT * FROM ${iTable}`);
+                for (const it of items) {
+                    const code = it.item_code || it.code || null;
+                    if (code) {
+                        const exists = await appDb.get('SELECT id FROM inventory WHERE item_code = ?', [code]);
+                        if (exists?.id) continue;
+                    }
+                    const id = require('uuid').v4();
+                    await appDb.run(
+                        `INSERT INTO inventory (id, item_code, item_name, category, description, manufacturer, model_number, serial_number,
+                         current_quantity, minimum_quantity, maximum_quantity, unit_of_measure, unit_cost, supplier_name, supplier_contact,
+                         purchase_date, expiry_date, location, status, last_updated_by, notes, image_path, created_at, updated_at)
+                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+                        [
+                            id,
+                            code,
+                            it.item_name || it.name || '',
+                            it.category || 'other',
+                            it.description || null,
+                            it.manufacturer || null,
+                            it.model_number || null,
+                            it.serial_number || null,
+                            it.current_quantity || it.quantity || 0,
+                            it.minimum_quantity || 0,
+                            it.maximum_quantity || 100,
+                            it.unit_of_measure || 'pieces',
+                            it.unit_cost || 0,
+                            it.supplier_name || null,
+                            it.supplier_contact || null,
+                            it.purchase_date || null,
+                            it.expiry_date || null,
+                            it.location || null,
+                            it.status || 'active',
+                            null,
+                            it.notes || null,
+                            it.image_path || null
+                        ]
+                    );
+                    imported.inventory += 1;
+                }
+            }
+
+            if (hasChat) {
+                const cTable = tableNames.has('chat') ? 'chat' : 'messages';
+                const msgs = await getAll(`SELECT * FROM ${cTable}`);
+                for (const m of msgs) {
+                    const id = require('uuid').v4();
+                    await appDb.run(
+                        `INSERT INTO chat (id, sender_id, receiver_id, message_text, attachment, timestamp, status, reply_to_id)
+                         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                        [
+                            id,
+                            m.sender_id || m.sender || null,
+                            m.receiver_id || m.receiver || null,
+                            m.message_text || m.text || '',
+                            m.attachment || null,
+                            m.timestamp || new Date().toISOString(),
+                            m.status || 'unread',
+                            m.reply_to_id || null
+                        ]
+                    );
+                    imported.chat += 1;
+                }
+            }
+
+            await appDb.run('COMMIT');
+            try { extDb.close(); } catch {}
+            return { success: true, mode: 'import', imported };
+        } catch (error) {
+            try {
+                const db = await this.getDatabase();
+                await db.run('ROLLBACK');
+            } catch {}
+            return { success: false, error: error.message };
+        }
     }
 }
 

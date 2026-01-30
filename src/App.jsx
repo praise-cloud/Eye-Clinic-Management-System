@@ -38,13 +38,26 @@ const App = () => {
   const handleSetupComplete = async (clinicData, adminData) => {
     try {
       adminData.role = selectedRole;
-      const result = await window.electronAPI.completeSetup(clinicData, adminData);
-      if (result?.success) {
-        // User will be set by useUser hook automatically
-        navigate('/');
-      } else {
+      let result = null;
+      if (window.electronAPI?.completeSetup) {
+        result = await window.electronAPI.completeSetup(clinicData, adminData);
+        if (result?.success) {
+          navigate('/');
+          return;
+        }
         throw new Error(result?.error || 'Setup failed');
       }
+      const userData = {
+        firstName: adminData.firstName,
+        lastName: adminData.lastName,
+        email: adminData.email,
+        password: adminData.password,
+        role: selectedRole?.toLowerCase().replace('clinic assistant', 'assistant'),
+        phoneNumber: adminData.phoneNumber || null,
+        gender: adminData.gender || 'other'
+      };
+      await createUser(userData);
+      navigate('/');
     } catch (error) {
       console.error('Setup error:', error);
       alert(error.message || 'Setup failed. Please try again.');

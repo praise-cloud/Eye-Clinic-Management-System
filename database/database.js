@@ -9,7 +9,15 @@ const bcrypt = require('bcryptjs');  // ← Critical for login
 class Database {
   constructor() {
     const userDataPath = app.getPath('userData');
-    const envPath = process.env.EYE_CLINIC_DB_PATH || process.env.NETWORK_DB_PATH;
+    let configPathValue = null;
+    try {
+      const cfgFile = path.join(userDataPath, 'config.json');
+      if (fs.existsSync(cfgFile)) {
+        const cfg = JSON.parse(fs.readFileSync(cfgFile, 'utf-8'));
+        if (cfg && cfg.network_db_path) configPathValue = String(cfg.network_db_path);
+      }
+    } catch {}
+    const envPath = process.env.EYE_CLINIC_DB_PATH || process.env.NETWORK_DB_PATH || configPathValue;
     this.dbPath = envPath && String(envPath).trim().length > 0
       ? String(envPath).trim()
       : path.join(userDataPath, 'eye_clinic.db');

@@ -82,11 +82,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // File APIs
     selectFile: (options) => ipcRenderer.invoke('file:select', options),
     saveFile: (options) => ipcRenderer.invoke('file:save', options),
+    importDb: (path) => ipcRenderer.invoke('file:importDb', path),
 
     // Utility APIs
     getCurrentUser: () => ipcRenderer.invoke('auth:getCurrentUser'),
     checkUpdate: () => ipcRenderer.invoke('app:checkUpdate'),
     checkOnlineStatus: () => ipcRenderer.invoke('system:checkOnline'),
+    setNetworkDbPath: (path) => ipcRenderer.invoke('system:setNetworkDbPath', { path }),
+    getNetworkDbPath: () => ipcRenderer.invoke('system:getNetworkDbPath'),
 
     // Generic IPC event listeners
     onIpcEvent: (channel, callback) => {
