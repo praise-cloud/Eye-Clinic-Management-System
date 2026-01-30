@@ -11,12 +11,12 @@ const getStatClasses = (color) => {
 };
 
 const App = () => {
-    const statsData = [
+    const [statsData, setStatsData] = useState([
         { label: 'Total Patients', number: '0', icon: 'fas fa-users', color: 'text-blue-500' },
         { label: "Today's Appointments", number: '0', icon: 'fas fa-calendar-check', color: 'text-green-500' },
         { label: 'Pending Appointments', number: '0', icon: 'fas fa-clock', color: 'text-yellow-500' },
         { label: 'Monthly Revenue', number: '₦0', icon: 'fa-solid fa-coins', color: 'text-red-500' },
-    ];
+    ]);
 
     const [patients, setPatients] = useState([]);
     const [searchTerm, setSearchTerm] = useState('');
@@ -27,6 +27,14 @@ const App = () => {
     const [selectedClient, setSelectedClient] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+    const [showAddModal, setShowAddModal] = useState(false);
+    const [newPatient, setNewPatient] = useState({
+        first_name: '',
+        last_name: '',
+        dob: '',
+        gender: 'other',
+        contact: ''
+    });
 
     const loadPatients = async () => {
         try {
@@ -61,6 +69,36 @@ const App = () => {
 
     useEffect(() => {
         loadPatients();
+    }, []);
+
+    useEffect(() => {
+        const fetchStats = async () => {
+            try {
+                if (!window.electronAPI || !window.electronAPI.getDashboardStats) return;
+                const result = await window.electronAPI.getDashboardStats();
+                if (result?.success && result.stats) {
+                    const stats = result.stats;
+                    const currency = new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN', minimumFractionDigits: 0 });
+                    setStatsData([
+                        { label: 'Total Patients', number: String(stats.totalPatients || 0), icon: 'fas fa-users', color: 'text-blue-500' },
+                        { label: "Today's Appointments", number: String(stats.todayAppointments || 0), icon: 'fas fa-calendar-check', color: 'text-green-500' },
+                        { label: 'Pending Appointments', number: String(stats.pendingTests || stats.pendingAppointments || 0), icon: 'fas fa-clock', color: 'text-yellow-500' },
+                        { label: 'Monthly Revenue', number: currency.format(Number(stats.monthlyRevenue || 0)), icon: 'fa-solid fa-coins', color: 'text-red-500' },
+                    ]);
+                }
+            } catch (error) {
+                console.error('Failed to load dashboard stats:', error);
+            }
+        };
+        fetchStats();
+        if (window.electronAPI && window.electronAPI.onIpcEvent) {
+            const unsubscribe = window.electronAPI.onIpcEvent('data:update', () => {
+                fetchStats();
+            });
+            return () => {
+                if (unsubscribe) unsubscribe();
+            };
+        }
     }, []);
 
     const handleDelete = async () => {
@@ -157,7 +195,16 @@ const App = () => {
 
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
                 <div className="mb-4 pb-4 border-b-2 border-gray-200 dark:border-gray-700">
-                    <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Patient's of the day</h3>
+                    <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-xl font-bold text-gray-900 dark:text-white">Patient's of the day</h3>
+                        <button
+                            onClick={() => setShowAddModal(true)}
+                            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                            title="Add Patient"
+                        >
+                            Add Patient
+                        </button>
+                    </div>
                     <input
                         type="text"
                         value={searchTerm}
@@ -272,6 +319,108 @@ const App = () => {
                         </div>
                         <div className="flex justify-end mt-6">
                             <button onClick={() => setViewingPatient(null)} className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700">Close</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Add Patient Modal */}
+            {showAddModal && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => setShowAddModal(false)}>
+                    <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-lg font-semibold dark:text-white">Add Patient</h3>
+                            <button onClick={() => setShowAddModal(false)} className="text-gray-500 hover:text-gray-700 text-xl">✕</button>
+                        </div>
+                        <div className="space-y-3">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">First Name</label>
+                                <input
+                                    className="w-full px-3 py-2 border rounded dark:bg-gray-700 dark:text-white dark:border-gray-600"
+                                    value={newPatient.first_name}
+                                    onChange={(e) => setNewPatient(p => ({ ...p, first_name: e.target.value }))}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Last Name</label>
+                                <input
+                                    className="w-full px-3 py-2 border rounded dark:bg-gray-700 dark:text-white dark:border-gray-600"
+                                    value={newPatient.last_name}
+                                    onChange={(e) => setNewPatient(p => ({ ...p, last_name: e.target.value }))}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Date of Birth</label>
+                                <input
+                                    type="date"
+                                    className="w-full px-3 py-2 border rounded dark:bg-gray-700 dark:text-white dark:border-gray-600"
+                                    value={newPatient.dob}
+                                    onChange={(e) => setNewPatient(p => ({ ...p, dob: e.target.value }))}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Gender</label>
+                                <select
+                                    className="w-full px-3 py-2 border rounded dark:bg-gray-700 dark:text-white dark:border-gray-600"
+                                    value={newPatient.gender}
+                                    onChange={(e) => setNewPatient(p => ({ ...p, gender: e.target.value }))}
+                                >
+                                    <option value="male">Male</option>
+                                    <option value="female">Female</option>
+                                    <option value="other">Other</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Contact</label>
+                                <input
+                                    className="w-full px-3 py-2 border rounded dark:bg-gray-700 dark:text-white dark:border-gray-600"
+                                    value={newPatient.contact}
+                                    onChange={(e) => setNewPatient(p => ({ ...p, contact: e.target.value }))}
+                                />
+                            </div>
+                        </div>
+                        <div className="flex justify-end mt-6 gap-3">
+                            <button onClick={() => setShowAddModal(false)} className="px-4 py-2 text-gray-600 border border-gray-300 rounded hover:bg-gray-50">Cancel</button>
+                            <button
+                                onClick={async () => {
+                                    try {
+                                        if (!newPatient.first_name || !newPatient.last_name || !newPatient.dob || !newPatient.gender) {
+                                            alert('Please fill first name, last name, date of birth, and gender.');
+                                            return;
+                                        }
+                                        const pid = 'P' + Date.now();
+                                        const payload = {
+                                            patient_id: pid,
+                                            first_name: newPatient.first_name.trim(),
+                                            last_name: newPatient.last_name.trim(),
+                                            dob: newPatient.dob,
+                                            gender: newPatient.gender,
+                                            contact: newPatient.contact.trim() || null
+                                        };
+                                        const res = await window.electronAPI.createPatient(payload);
+                                        if (res?.success || res?.id) {
+                                            setShowAddModal(false);
+                                            setNewPatient({ first_name: '', last_name: '', dob: '', gender: 'other', contact: '' });
+                                            await loadPatients();
+                                            try {
+                                                if (window.electronAPI?.syncToSupabase) {
+                                                    await window.electronAPI.syncToSupabase();
+                                                }
+                                            } catch (syncErr) {
+                                                console.warn('Sync error:', syncErr);
+                                            }
+                                        } else {
+                                            alert(res?.error || 'Failed to create patient');
+                                        }
+                                    } catch (err) {
+                                        console.error('Create patient error:', err);
+                                        alert('Error creating patient: ' + err.message);
+                                    }
+                                }}
+                                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                            >
+                                Save
+                            </button>
                         </div>
                     </div>
                 </div>

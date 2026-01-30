@@ -37,18 +37,12 @@ const MessagesContent = () => {
         // Set current user online
         await electronAPI.setUserOnline(currentUser.id);
 
-        // Trigger sync to Supabase
-        try {
-          await electronAPI.syncToSupabase();
-          console.log('Data synced to Supabase');
-        } catch (syncError) {
-          console.warn('Sync failed:', syncError);
-        }
+        // LAN-only mode: no cloud sync
 
         // Get users with presence status
         const res = await electronAPI.getUsersWithPresence();
         if (res?.success) {
-          const others = res.users.filter(u => u.id !== currentUser.id);
+          const others = res.users.filter(u => u.id !== currentUser.id && String(u.role).toLowerCase() !== 'admin');
           setAvailableUsers(others);
 
           // calculate unread count per user

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { DeleteIcon, EditIcon, ViewIcon } from '../components/Icons';
 import useTests from '../hooks/useTests';
 
-const TestsContent = ({ clientName, additionalTests = [] }) => {
+const TestsContent = ({ clientName, clientId, additionalTests = [] }) => {
   const navigate = useNavigate()
   const [tests, setTests] = useState([])
   const [currentPage, setCurrentPage] = useState(1);
@@ -17,15 +17,26 @@ const TestsContent = ({ clientName, additionalTests = [] }) => {
     fetchTests();
   }, [fetchTests]);
 
-  const mappedDbTests = useMemo(() => dbTests.map(test => ({
-    id: test.id,
-    patientId: test.patient_id,
-    patientName: `${test.first_name} ${test.last_name}`,
-    testType: test.machine_type || 'Unknown',
-    result: 'Completed',
-    date: test.test_date ? new Date(test.test_date).toLocaleDateString() : '',
-    notes: `${test.eye} eye test`
-  })), [dbTests]);
+  const mappedDbTests = useMemo(() => dbTests.map(test => {
+    let parsed = {};
+    try { parsed = JSON.parse(test.raw_data || '{}'); } catch {}
+    const res = parsed.result || parsed.status || 'Completed';
+    const eyeLabel = test.eye || parsed.eye || 'both';
+    const notesVal = parsed.notes || (eyeLabel ? `${eyeLabel} eye test` : '');
+    const nameJoin = (test.first_name || test.last_name) ? `${test.first_name || ''} ${test.last_name || ''}`.trim() : '';
+    const name = nameJoin || clientName || test.patientName || 'Unknown Patient';
+    const testTypeVal = test.machine_type || parsed.testType || 'Unknown';
+    const dateVal = test.test_date ? new Date(test.test_date).toLocaleDateString() : (parsed.date || '');
+    return {
+      id: test.id,
+      patientId: test.patient_id,
+      patientName: name,
+      testType: testTypeVal,
+      result: res,
+      date: dateVal,
+      notes: notesVal
+    };
+  }), [dbTests, clientName]);
 
   const totalPages = Math.ceil(tests.length / rowsPerPage);
   const paginatedTests = tests.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage);
@@ -135,7 +146,11 @@ const TestsContent = ({ clientName, additionalTests = [] }) => {
             </thead>
             <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
               {paginatedTests
-                .filter(test => !clientName || test.patientName === clientName)
+                .filter(test => {
+                  if (clientId) return test.patientId === clientId;
+                  if (clientName) return test.patientName === clientName;
+                  return true;
+                })
                 .map((test) => (
                 <tr key={test.id}>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">{test.patientName}</td>

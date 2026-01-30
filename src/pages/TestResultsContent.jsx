@@ -90,7 +90,14 @@ const TestResultsContent = ({ clientName, onTestCreate, initialEditTest }) => {
         // Refresh list after create
         await fetchTests();
 
-        if (onTestCreate) onTestCreate(newTest);
+        if (onTestCreate) onTestCreate({
+          id: newTest.id,
+          patientName: formData.patientName,
+          testType: formData.testType,
+          date: formData.date,
+          result: formData.result,
+          notes: formData.notes
+        });
       }
 
       setShowModal(false);

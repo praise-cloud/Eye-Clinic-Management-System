@@ -510,13 +510,39 @@ class DatabaseService {
             "SELECT COUNT(*) as count FROM tests WHERE raw_data IS NULL OR TRIM(raw_data) = '' OR TRIM(raw_data) = '{}'"
         );
 
+        const monthTests = await db.all(
+            "SELECT test_date, raw_data FROM tests WHERE strftime('%Y-%m', test_date) = strftime('%Y-%m','now','localtime')"
+        );
+        let monthlyRevenue = 0;
+        for (const t of monthTests) {
+            try {
+                const data = JSON.parse(t.raw_data || '{}');
+                const amount = Number(data.amount || data.fee || 0);
+                if (!isNaN(amount)) monthlyRevenue += amount;
+            } catch {}
+        }
+
+        const upcomingTests = await db.all(
+            "SELECT test_date, raw_data FROM tests WHERE date(test_date) >= date('now','localtime')"
+        );
+        let pendingAppointments = 0;
+        for (const t of upcomingTests) {
+            try {
+                const data = JSON.parse(t.raw_data || '{}');
+                const status = String(data.result || '').toLowerCase();
+                if (status === 'scheduled') pendingAppointments += 1;
+            } catch {}
+        }
+
         return {
             totalUsers: usersRow?.count || 0,
             totalPatients: patientsRow?.count || 0,
             totalTests: testsRow?.count || 0,
             totalInventory: inventoryRow?.count || 0,
             todayAppointments: todayAppointmentsRow?.count || 0,
-            pendingTests: pendingTestsRow?.count || 0
+            pendingTests: pendingTestsRow?.count || 0,
+            pendingAppointments,
+            monthlyRevenue
         };
     }
 

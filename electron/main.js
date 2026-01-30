@@ -3,9 +3,8 @@ const { app, BrowserWindow } = require('electron');
 const path = require('path');
 
 // Services
-const Database = require('../database/database');                    // ← adjust path if needed
-const IPCHandlers = require('./ipc/handlers');     // ← adjust if needed
-const SyncService = require('../src/services/SyncService');     // ← adju
+const Database = require('../database/database');
+const IPCHandlers = require('./ipc/handlers');
 let mainWindow = null;
 let dbInstance = null;
 
@@ -61,13 +60,10 @@ app.whenReady().then(async () => {
     await dbInstance.initialize();
     console.log('Database ready');
 
-    // 2. SyncService — inject the ready DB
-    SyncService.initialize(dbInstance);
-
-    // 3. IPC Handlers (login, chat, patients, etc.)
+    // 2. IPC Handlers (login, chat, patients, etc.)
     new IPCHandlers();
 
-    // 4. Open window
+    // 3. Open window
     createWindow();
 
     console.log('APP FULLY STARTED — Login + Chat = 100% WORKING');

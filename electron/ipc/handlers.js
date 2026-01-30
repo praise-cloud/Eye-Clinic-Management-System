@@ -4,8 +4,6 @@ const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 const DatabaseService = require('../../src/services/DatabaseService');
 const FileService = require('../../src/services/FileService');
-const SyncService = require('../../src/services/SyncService');
-const { supabase, isSupabaseConfigured } = require('../../src/lib/supabase');
 
 let currentUser = null; // Centralized user state in main process
 
@@ -23,6 +21,7 @@ class IPCHandlers {
     this.registerSettingsHandlers();
     this.registerSystemHandlers();
     this.registerWindowHandlers();
+    this.registerDashboardHandlers();
     console.log('IPC handlers registered successfully');
   }
 
@@ -954,6 +953,18 @@ class IPCHandlers {
         return { success: true };
       } catch (error) {
         console.error('Open main window error:', error);
+        return { success: false, error: error.message };
+      }
+    });
+  }
+
+  registerDashboardHandlers() {
+    ipcMain.handle('dashboard:getStats', async () => {
+      try {
+        const stats = await DatabaseService.getDashboardStats();
+        return { success: true, stats };
+      } catch (error) {
+        console.error('Get dashboard stats error:', error);
         return { success: false, error: error.message };
       }
     });

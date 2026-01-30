@@ -14,7 +14,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getCurrentUser: () => ipcRenderer.invoke('auth:getCurrentUser'),
     isAuthenticated: () => ipcRenderer.invoke('auth:isAuthenticated'),
     logout: () => ipcRenderer.invoke('auth:logout'),
-    
+
     createUser: (userData) => ipcRenderer.invoke('auth:createUser', userData),
     completeSetup: (clinicData, adminData) => ipcRenderer.invoke('auth:completeSetup', { clinicData, adminData }),
     restoreSession: () => ipcRenderer.invoke('auth:restoreSession'),
@@ -63,6 +63,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getActivityStatistics: () => ipcRenderer.invoke('admin:getActivityStats'),
     logActivity: (userId, actionType, entityType, entityId, description, ipAddress, userAgent) => ipcRenderer.invoke('admin:logActivity', { userId, actionType, entityType, entityId, description, ipAddress, userAgent }),
     createUserAdmin: (userData, createdBy) => ipcRenderer.invoke('admin:createUser', { userData, createdBy }),
+    getDashboardStats: () => ipcRenderer.invoke('dashboard:getStats'),
 
     // Report APIs
     getReports: (filters) => ipcRenderer.invoke('reports:getAll', filters),
@@ -75,6 +76,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     markMessageRead: (data) => ipcRenderer.invoke('chat:markAsRead', data),
     getUnreadCount: (userId) => ipcRenderer.invoke('chat:getUnreadCount', userId),
     deleteMessage: (data) => ipcRenderer.invoke('chat:deleteMessage', data),
+    onIpcEvent: (channel, callback) => {
+        const subscription = (event, data) => callback(data);
+        ipcRenderer.on(channel, subscription);
+        return () => ipcRenderer.removeListener(channel, subscription);
+    },
+    syncToSupabase: () => ipcRenderer.invoke('presence:syncToSupabase')
 
     // File APIs
     selectFile: (options) => ipcRenderer.invoke('file:select', options),

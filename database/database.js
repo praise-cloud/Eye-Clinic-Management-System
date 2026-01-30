@@ -9,12 +9,23 @@ const bcrypt = require('bcryptjs');  // ← Critical for login
 class Database {
   constructor() {
     const userDataPath = app.getPath('userData');
-    this.dbPath = path.join(userDataPath, 'eye_clinic.db');
+    const envPath = process.env.EYE_CLINIC_DB_PATH || process.env.NETWORK_DB_PATH;
+    this.dbPath = envPath && String(envPath).trim().length > 0
+      ? String(envPath).trim()
+      : path.join(userDataPath, 'eye_clinic.db');
     this.db = null;
   }
 
   async initialize() {
     return new Promise((resolve, reject) => {
+      try {
+        const dir = path.dirname(this.dbPath);
+        if (!fs.existsSync(dir)) {
+          fs.mkdirSync(dir, { recursive: true });
+        }
+      } catch (mkErr) {
+        console.warn('Could not ensure database directory:', mkErr.message);
+      }
       this.db = new sqlite3.Database(this.dbPath, async (err) => {
         if (err) {
           console.error('Cannot open database:', err);
@@ -77,6 +88,13 @@ class Database {
         id TEXT PRIMARY KEY,
         key TEXT UNIQUE NOT NULL,
         value TEXT
+      )`,
+      // User presence (LAN-only)
+      `CREATE TABLE IF NOT EXISTS user_presence (
+        user_id TEXT PRIMARY KEY,
+        session_id TEXT,
+        is_online INTEGER DEFAULT 0,
+        last_seen DATETIME DEFAULT CURRENT_TIMESTAMP
       )`,
       // Tests, Reports, Inventory, Activity Logs (safe to have)
       `CREATE TABLE IF NOT EXISTS tests (
@@ -188,6 +206,51 @@ class Database {
       `INSERT INTO settings (id, key, value) VALUES (?, ?, ?)
        ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
       [uuidv4(), key, value]
+    );
+  }
+
+  // Presence (LAN-local, shared DB)
+  async setUserOnline(userId, sessionId = null) {
+    await this.run(
+      `INSERT INTO user_presence (user_id, session_id, is_online, last_seen)
+       VALUES (?, ?, 1, CURRENT_TIMESTAMP)
+       ON CONFLICT(user_id) DO UPDATE SET
+         session_id = excluded.session_id,
+         is_online = 1,
+         last_seen = CURRENT_TIMESTAMP`,
+      [userId, sessionId]
+    );
+    return { success: true };
+  }
+
+  async setUserOffline(userId) {
+    await this.run(
+      `UPDATE user_presence
+       SET is_online = 0, last_seen = CURRENT_TIMESTAMP
+       WHERE user_id = ?`,
+      [userId]
+    );
+    return { success: true };
+  }
+
+  async getOnlineUsers() {
+    return await this.all(
+      `SELECT u.id, u.first_name, u.last_name, u.email, p.last_seen
+       FROM user_presence p
+       JOIN users u ON u.id = p.user_id
+       WHERE p.is_online = 1
+       ORDER BY p.last_seen DESC`
+    );
+  }
+
+  async getUsersWithPresence() {
+    return await this.all(
+      `SELECT u.id, u.first_name, u.last_name, u.email,
+              COALESCE(p.is_online, 0) AS is_online,
+              p.last_seen
+       FROM users u
+       LEFT JOIN user_presence p ON p.user_id = u.id
+       ORDER BY u.first_name ASC, u.last_name ASC`
     );
   }
 

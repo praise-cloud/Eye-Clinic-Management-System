@@ -89,6 +89,15 @@ const ClientDetailContent = ({ client, onBack, onSave, initialEditTest }) => {
       };
 
       setSharedTests(prev => [...prev, scheduledTest]);
+      setTestHistory(prev => [
+        ...prev,
+        {
+          id: newTest.id,
+          date: newTest.test_date ? new Date(newTest.test_date).toLocaleDateString() : (scheduleFormData.scheduledDate || ''),
+          case: `${scheduleFormData.testType} Test - both eye`,
+          status: 'Scheduled'
+        }
+      ]);
       fetchTests();
       setShowScheduleModal(false);
       setScheduleFormData({ testType: '', scheduledDate: '', notes: '' });
@@ -336,6 +345,7 @@ const ClientDetailContent = ({ client, onBack, onSave, initialEditTest }) => {
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
           <TestsContent
             clientName={formData.name}
+            clientId={client?.id}
             additionalTests={sharedTests}
           />
         </div>

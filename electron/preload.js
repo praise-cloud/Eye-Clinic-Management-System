@@ -62,6 +62,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getActivityStatistics: () => ipcRenderer.invoke('admin:getActivityStats'),
     logActivity: (userId, actionType, entityType, entityId, description, ipAddress, userAgent) => ipcRenderer.invoke('admin:logActivity', { userId, actionType, entityType, entityId, description, ipAddress, userAgent }),
     createUserAdmin: (userData, createdBy) => ipcRenderer.invoke('admin:createUser', { userData, createdBy }),
+    getDashboardStats: () => ipcRenderer.invoke('dashboard:getStats'),
 
     // Report APIs
     getReports: (filters) => ipcRenderer.invoke('reports:getAll', filters),
@@ -77,13 +78,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     deleteMessage: (messageId) => ipcRenderer.invoke('chat:deleteMessage', messageId),
     onNewMessage: (callback) => ipcRenderer.on('new-message', callback),
     removeNewMessageListener: (callback) => ipcRenderer.removeListener('new-message', callback),
-
-    // Presence APIs
-    setUserOnline: (userId, sessionId) => ipcRenderer.invoke('presence:setOnline', { userId, sessionId }),
-    setUserOffline: (userId) => ipcRenderer.invoke('presence:setOffline', userId),
-    getOnlineUsers: () => ipcRenderer.invoke('presence:getOnlineUsers'),
-    getUsersWithPresence: () => ipcRenderer.invoke('presence:getUsersWithPresence'),
-    syncToSupabase: () => ipcRenderer.invoke('presence:syncToSupabase'),
 
     // File APIs
     selectFile: (options) => ipcRenderer.invoke('file:select', options),
