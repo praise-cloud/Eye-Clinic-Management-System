@@ -155,46 +155,53 @@ const SignupScreen = ({ selectedRole, onComplete, onBack, onBackToWelcome }) => 
 
   // Role selected, show form
   return (
-    <div className="flex items-center justify-center min-h-screen p-6 bg-gray-50 dark:bg-gray-900">
-      <div className="w-full max-w-3xl">
+    <div className="flex items-center justify-center min-h-screen p-6 bg-slate-50 dark:bg-slate-950 overflow-hidden relative">
+      <div className="absolute top-0 left-0 w-full h-full overflow-hidden z-0 pointer-events-none">
+        <div className="absolute top-[-10%] right-[-10%] w-[40%] h-[40%] bg-indigo-500/5 blur-[120px] rounded-full" />
+        <div className="absolute bottom-[-10%] left-[-10%] w-[40%] h-[40%] bg-violet-500/5 blur-[120px] rounded-full" />
+      </div>
+
+      <div className="w-full max-w-2xl relative z-10">
         {/* Header */}
-        <div className="text-center mb-8 animate-fade-in">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-            Add {normalizedRole || 'User'}
+        <div className="text-center mb-10 animate-premium-fade">
+          <h1 className="text-4xl font-black text-slate-900 dark:text-white mb-3 tracking-tight">
+            Account <span className="text-gradient">Provisioning</span>
           </h1>
-          <p className="text-gray-600 dark:text-gray-400">Create a new {normalizedRole} account</p>
+          <p className="text-sm text-slate-500 font-medium tracking-wide first-letter:uppercase">Registering new {normalizedRole} identity in the clinical system</p>
         </div>
 
         {/* Form Card */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-100 dark:border-gray-700 p-8 animate-fade-in">
+        <div className="card-premium p-10 animate-premium-fade" style={{ animationDelay: '0.1s' }}>
           {error && (
-            <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">
-              <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+            <div className="mb-8 p-4 bg-rose-50 dark:bg-rose-900/10 border-l-4 border-rose-500 rounded-r-xl flex items-center gap-3 animate-premium-slide">
+              <svg className="w-5 h-5 text-rose-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+              <p className="text-sm font-bold text-rose-700 dark:text-rose-400">{error}</p>
             </div>
           )}
-          <form onSubmit={handleSubmit} className="space-y-6">
+
+          <form onSubmit={handleSubmit} className="space-y-8">
             {renderFormFields()}
 
             <div className="flex gap-4 pt-4">
               <button
                 type="button"
                 onClick={() => setLocalSelectedRole(null)}
-                className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                className="flex-1 px-6 py-3.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-black tracking-widest uppercase hover:bg-slate-200 dark:hover:bg-slate-700 transition-all"
               >
                 Back
               </button>
               <button
                 type="submit"
                 disabled={isLoading}
-                className={`flex-1 px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                className="flex-1 btn btn-primary py-3.5 text-xs font-black tracking-widest uppercase shadow-xl shadow-indigo-200 dark:shadow-none transition-all hover:scale-[1.02] active:scale-95 group"
               >
                 {isLoading ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2 inline-block"></div>
-                    Creating Account...
-                  </>
+                  <div className="flex items-center justify-center gap-3">
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <span>Processing...</span>
+                  </div>
                 ) : (
-                  'Continue'
+                  'Create Account'
                 )}
               </button>
             </div>
@@ -202,16 +209,14 @@ const SignupScreen = ({ selectedRole, onComplete, onBack, onBackToWelcome }) => 
         </div>
 
         {/* Back to Login */}
-        <div className="text-center mt-6 animate-fade-in" style={{ animationDelay: '0.2s' }}>
+        <div className="text-center mt-12 animate-premium-fade" style={{ animationDelay: '0.2s' }}>
           <button
             type="button"
-            onClick={() => {
-              console.log('Back to Login clicked');
-              handleBackToWelcome();
-            }}
-            className="text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 text-sm font-medium"
+            onClick={handleBackToWelcome}
+            className="inline-flex items-center gap-2 text-xs font-black text-slate-400 hover:text-indigo-500 uppercase tracking-widest transition-colors"
           >
-            ← I have an account, Login
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14" /></svg>
+            Existing Identity? Sign In
           </button>
         </div>
       </div>

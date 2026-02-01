@@ -7,7 +7,7 @@ const Layout = ({ children, activeSection, onSectionClick, searchTerm, onSearchC
   const { user: currentUser } = useUser()
 
   return (
-    <div className="flex h-screen bg-gray-50 dark:bg-gray-900">
+    <div className="flex h-screen bg-slate-50 dark:bg-slate-950">
       <Sidebar
         activeSection={activeSection}
         onSectionClick={onSectionClick}
@@ -22,20 +22,21 @@ const Layout = ({ children, activeSection, onSectionClick, searchTerm, onSearchC
           onSearchChange={onSearchChange}
           onSectionClick={onSectionClick}
         />
-        <main className="flex-1 overflow-auto p-6">
+        <main className="flex-1 overflow-auto p-8 animate-premium-fade">
           {['dashboard', 'tests', 'settings', 'inventory'].includes(activeSection) && (
-            <div className="flex flex-col gap-2 mb-2">
-              <span className="text-2xl font-medium text-gray-900 dark:text-white">
-                {activeSection === 'dashboard' && 'Good day'}
-                {activeSection === 'tests' && 'Tests'}
-                {activeSection === 'settings' && 'Settings'}
-                {activeSection === 'inventory' && 'Inventory'}
+            <div className="flex flex-col gap-1 mb-10">
+              <span className="text-[10px] font-black text-indigo-500 uppercase tracking-[0.3em] mb-1">
+                {activeSection === 'dashboard' ? 'Overview' : activeSection}
               </span>
-              {activeSection === 'dashboard' ? (
-                <span className="text-sm text-gray-400">{currentUser?.name || 'John Doe'}</span>
-              ) : (
-                currentUser?.name ? <span className="text-sm text-gray-400">{currentUser.name}</span> : null
-              )}
+              <h1 className="text-4xl font-extrabold text-slate-900 dark:text-white tracking-tight">
+                {activeSection === 'dashboard' && 'Welcome back'}
+                {activeSection === 'tests' && 'Clinical Tests'}
+                {activeSection === 'settings' && 'System Settings'}
+                {activeSection === 'inventory' && 'Medical Inventory'}
+              </h1>
+              <p className="text-sm text-slate-500 font-medium">
+                Manage your clinic operations with precision and ease.
+              </p>
             </div>
           )}
           {children}

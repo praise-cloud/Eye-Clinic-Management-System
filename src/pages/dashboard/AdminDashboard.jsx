@@ -4,6 +4,9 @@ import Layout from '../../components/layout/Layout';
 import useUser from '../../hooks/useUser';
 import { useTheme } from '../../context/ThemeContext';
 import { useSystemConfig } from '../../context/SystemConfigContext';
+import * as patientService from '../../services/patientService';
+import * as inventoryService from '../../services/inventoryService';
+import * as testService from '../../services/testService';
 
 const AdminDashboard = () => {
   const { user, logout } = useUser();
@@ -40,11 +43,36 @@ const AdminDashboard = () => {
   };
 
   const loadStats = async () => {
-    if (!window.electronAPI || !window.electronAPI.getActivityStatistics) return;
     try {
-      const res = await window.electronAPI.getActivityStatistics();
-      if (res?.success && res.stats) {
-        setStats((prev) => ({ ...prev, ...res.stats, totalUsers: users.length || res.stats.totalUsers }));
+      if (!window.electronAPI) return;
+
+      const [patients, inventory, tests, activityStats] = await Promise.all([
+        patientService.getAllPatients().catch(() => []),
+        inventoryService.getInventoryItems().catch(() => []),
+        testService.getAllTests().catch(() => []),
+        window.electronAPI.getActivityStatistics().catch(() => ({ success: false }))
+      ]);
+
+      const pendingTestsCount = tests.filter(t => t.result === 'Pending' || !t.result).length;
+
+      if (activityStats.success && activityStats.stats) {
+        setStats({
+          ...activityStats.stats,
+          totalPatients: patients.length,
+          totalTests: tests.length,
+          totalInventory: inventory.length,
+          pendingTests: pendingTestsCount
+        });
+      } else {
+        // Fallback to manual counts if backend stats fail
+        setStats(prev => ({
+          ...prev,
+          totalUsers: users.length,
+          totalPatients: patients.length,
+          totalTests: tests.length,
+          totalInventory: inventory.length,
+          pendingTests: pendingTestsCount
+        }));
       }
     } catch (error) {
       console.error('Error loading dashboard stats:', error);
@@ -56,7 +84,7 @@ const AdminDashboard = () => {
     try {
       const res = await window.electronAPI.getActivityLogs({});
       if (res?.success && Array.isArray(res.logs)) {
-        const mapped = res.logs.slice(0, 10).map((log) => {
+        const mapped = res.logs.slice(0, 50).map((log) => {
           const name =
             (log.first_name || log.last_name)
               ? `${log.first_name || ''} ${log.last_name || ''}`.trim()
@@ -207,10 +235,9 @@ const AdminDashboard = () => {
 
     if (window.electronAPI) {
       const unsubscribe = window.electronAPI.onIpcEvent('data:update', (payload) => {
-        if (payload.table === 'users') {
-          console.log('Realtime user update received:', payload);
-          fetchUsers(); // Re-fetch users to reflect changes
-        }
+        fetchUsers();
+        loadStats();
+        loadActivityLogs();
       });
       return unsubscribe;
     }
@@ -222,7 +249,7 @@ const AdminDashboard = () => {
         if (!window.electronAPI?.getNetworkDbPath) return;
         const res = await window.electronAPI.getNetworkDbPath();
         if (res?.success && res.path) setNetworkDbPath(res.path);
-      } catch {}
+      } catch { }
     };
     loadDbPath();
   }, []);
@@ -233,7 +260,7 @@ const AdminDashboard = () => {
       setAdminLoading(true);
       const result = await window.electronAPI.selectFile({
         title: 'Choose database or data file',
-        filters: [{ name: 'Data Files', extensions: ['db', 'sqlite', 'csv', 'json'] }]
+        filters: [{ name: 'Data Files', extensions: ['db', 'sqlite', 'csv', 'json', 'bat'] }]
       });
       const chosen = result?.filePath || result?.path || result?.file || null;
       if (!chosen) {
@@ -380,232 +407,277 @@ const AdminDashboard = () => {
     );
 
     return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
-      <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">User Management</h3>
-          <button
-            onClick={() => {
-              setEditingUser(null);
-              setFormData({ name: '', email: '', role: 'doctor' });
-              setShowUserModal(true);
-            }}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-          >
-            Add New User
-          </button>
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
+        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">User Management</h3>
+            <button
+              onClick={() => {
+                setEditingUser(null);
+                setFormData({ name: '', email: '', role: 'doctor' });
+                setShowUserModal(true);
+              }}
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+            >
+              Add New User
+            </button>
+          </div>
+          <input
+            type="text"
+            value={userSearchTerm}
+            onChange={(e) => setUserSearchTerm(e.target.value)}
+            placeholder="Search by name, email, or role..."
+            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
         </div>
-        <input
-          type="text"
-          value={userSearchTerm}
-          onChange={(e) => setUserSearchTerm(e.target.value)}
-          placeholder="Search by name, email, or role..."
-          className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
-      </div>
-      <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-          <thead className="bg-gray-50 dark:bg-gray-700">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Name</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Role</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Email</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Status</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Created</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-            {filteredUsers.length > 0 ? filteredUsers.map((user) => (
-              <tr key={user.id}>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">{user.name}</td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <span className="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800 capitalize">
-                    {user.role}
-                  </span>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{user.email}</td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                    user.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                  }`}>
-                    {user.status}
-                  </span>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{user.created}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm">
-                  <div className="flex space-x-2">
-                    <button
-                      onClick={() => {
-                        setEditingUser(user);
-                        setFormData({
-                          firstName: user.first_name,
-                          lastName: user.last_name,
-                          email: user.email,
-                          role: user.role,
-                          password: '' // Password should not be pre-filled for security
-                        });
-                        setShowUserModal(true);
-                      }}
-                      className="text-blue-600 hover:text-blue-900"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => handleToggleStatus(user.id)}
-                      className="text-yellow-600 hover:text-yellow-900"
-                    >
-                      {user.status === 'active' ? 'Deactivate' : 'Activate'}
-                    </button>
-                    <button
-                      onClick={() => setShowDeleteModal(user)}
-                      className="text-red-600 hover:text-red-900"
-                    >
-                      Delete
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            )) : (
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+            <thead className="bg-gray-50 dark:bg-gray-700">
               <tr>
-                <td colSpan="6" className="px-6 py-8 text-center text-gray-400 dark:text-gray-500">
-                  {userSearchTerm ? 'No matching users found' : 'No users available'}
-                </td>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Name</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Role</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Email</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Status</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Created</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Actions</th>
               </tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+              {filteredUsers.length > 0 ? filteredUsers.map((user) => (
+                <tr key={user.id}>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">{user.name}</td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800 capitalize">
+                      {user.role}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{user.email}</td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className={`px-2 py-1 text-xs font-medium rounded-full ${user.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                      }`}>
+                      {user.status}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{user.created}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm">
+                    <div className="flex space-x-2">
+                      <button
+                        onClick={() => {
+                          setEditingUser(user);
+                          setFormData({
+                            firstName: user.first_name,
+                            lastName: user.last_name,
+                            email: user.email,
+                            role: user.role,
+                            password: '' // Password should not be pre-filled for security
+                          });
+                          setShowUserModal(true);
+                        }}
+                        className="text-blue-600 hover:text-blue-900"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleToggleStatus(user.id)}
+                        className="text-yellow-600 hover:text-yellow-900"
+                      >
+                        {user.status === 'active' ? 'Deactivate' : 'Activate'}
+                      </button>
+                      <button
+                        onClick={() => setShowDeleteModal(user)}
+                        className="text-red-600 hover:text-red-900"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              )) : (
+                <tr>
+                  <td colSpan="6" className="px-6 py-8 text-center text-gray-400 dark:text-gray-500">
+                    {userSearchTerm ? 'No matching users found' : 'No users available'}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
-    </div>
     );
   };
 
   const renderSystemSettings = () => (
-    <div className="space-y-6">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Appearance</h3>
-        <div className="space-y-4">
-          <div className="flex items-center justify-between py-3 border-b border-gray-200 dark:border-gray-700">
-            <div>
-              <p className="text-sm font-medium text-gray-900 dark:text-white">Dark Mode</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">Switch between light and dark theme</p>
-            </div>
-            <button
-              onClick={toggleTheme}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
-                isDark ? 'bg-blue-600' : 'bg-gray-300'
-              }`}
-            >
-              <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                  isDark ? 'translate-x-6' : 'translate-x-1'
-                }`}
-              />
-            </button>
-          </div>
+    <div className="space-y-10 max-w-5xl mx-auto pb-10">
+      <div className="flex items-center justify-between mb-2">
+        <div>
+          <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">System Configuration</h2>
+          <p className="text-sm text-slate-500 dark:text-slate-400 font-medium">Manage clinical identity, network connectivity, and display preferences</p>
         </div>
       </div>
 
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">System Configuration</h3>
-        <div className="space-y-4">
-          <div className="flex items-center justify-between py-3 border-b border-gray-200 dark:border-gray-700">
-            <div>
-              <p className="text-sm font-medium text-gray-900 dark:text-white">Automatic Backups</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">Daily system backups at 2:00 AM</p>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* Clinical Profile Card */}
+        <div className="card-premium overflow-hidden group">
+          <div className="p-1 bg-gradient-to-r from-indigo-500 to-purple-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+          <div className="p-8">
+            <div className="flex items-center gap-4 mb-6">
+              <div className="p-3 bg-indigo-50 dark:bg-indigo-900/30 rounded-2xl text-indigo-600 dark:text-indigo-400">
+                <AdminIcon className="w-6 h-6" />
+              </div>
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white">Clinical Profile</h3>
+            </div>
+            <div className="space-y-4 mb-8">
+              <div className="flex justify-between items-center py-2 border-b border-slate-100 dark:border-slate-800">
+                <span className="text-sm font-semibold text-slate-500">Clinic Name</span>
+                <span className="text-sm font-bold text-slate-900 dark:text-white">{config.clinicName}</span>
+              </div>
+              <div className="flex justify-between items-center py-2 border-b border-slate-100 dark:border-slate-800">
+                <span className="text-sm font-semibold text-slate-500">Primary Email</span>
+                <span className="text-sm font-bold text-slate-900 dark:text-white">{config.clinicEmail}</span>
+              </div>
+              <div className="flex justify-between items-center py-2 border-b border-slate-100 dark:border-slate-800">
+                <span className="text-sm font-semibold text-slate-500">Public Phone</span>
+                <span className="text-sm font-bold text-slate-900 dark:text-white">{config.clinicPhone}</span>
+              </div>
             </div>
             <button
-              onClick={() => toggleConfig('autoBackups')}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
-                config.autoBackups ? 'bg-green-600' : 'bg-gray-300 dark:bg-gray-600'
-              }`}
+              onClick={() => {
+                setConfigForm({ ...config });
+                setShowConfigModal(true);
+              }}
+              className="w-full btn btn-primary py-3 text-xs font-black tracking-widest uppercase shadow-lg shadow-indigo-200 dark:shadow-none transition-all hover:scale-[1.02] active:scale-95"
             >
-              <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                  config.autoBackups ? 'translate-x-6' : 'translate-x-1'
-                }`}
-              />
+              Update Clinical Identity
             </button>
           </div>
-
         </div>
-      </div>
 
-      {String(user?.role || '').toLowerCase() === 'admin' && (
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Database Administration</h3>
-          {adminMessage && (
-            <div className="mb-4 p-3 rounded bg-blue-50 dark:bg-gray-900 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-gray-700">
-              {adminMessage}
+        {/* Display & Experience Card */}
+        <div className="card-premium border-slate-200 dark:border-slate-800">
+          <div className="p-8">
+            <div className="flex items-center gap-4 mb-6">
+              <div className="p-3 bg-amber-50 dark:bg-amber-900/30 rounded-2xl text-amber-600 dark:text-amber-400">
+                <ChartIcon className="w-6 h-6" />
+              </div>
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white">Display & UI</h3>
             </div>
-          )}
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Shared database path (UNC or mapped drive)</label>
-              <input
-                type="text"
-                value={networkDbPath}
-                onChange={(e) => setNetworkDbPath(e.target.value)}
-                placeholder="e.g. \\ClinicServer\\EyeClinic\\data\\eye_clinic.db"
-                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md"
-              />
+            <div className="space-y-6">
+              <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-slate-800">
+                <div>
+                  <p className="text-sm font-bold text-slate-900 dark:text-white">Dark Mode</p>
+                  <p className="text-xs text-slate-500 font-medium">Optimum for low-light clinical environments</p>
+                </div>
+                <button
+                  onClick={toggleTheme}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-all duration-300 focus:outline-none ${isDark ? 'bg-indigo-600' : 'bg-slate-200'}`}
+                >
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform duration-300 ${isDark ? 'translate-x-6' : 'translate-x-1'}`} />
+                </button>
+              </div>
+
+              <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-slate-800">
+                <div>
+                  <p className="text-sm font-bold text-slate-900 dark:text-white">Live Data Updates</p>
+                  <p className="text-xs text-slate-500 font-medium">Refresh dashboard stats automatically</p>
+                </div>
+                <button
+                  onClick={() => toggleConfig('autoRefresh')}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-all duration-300 focus:outline-none ${config.autoRefresh !== false ? 'bg-green-500' : 'bg-slate-200'}`}
+                >
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform duration-300 ${config.autoRefresh !== false ? 'translate-x-6' : 'translate-x-1'}`} />
+                </button>
+              </div>
             </div>
-            <div className="flex items-center gap-3">
-              <button
-                onClick={handleAdminImportDb}
-                disabled={adminLoading}
-                className="px-4 py-2 border-2 border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-white"
-              >
-                {adminLoading ? 'Working...' : 'Import Local Database'}
-              </button>
-              <button
-                onClick={handleAdminSaveNetworkPath}
-                disabled={adminLoading}
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-              >
-                Save Network Path
-              </button>
-              <button
-                onClick={handleAdminDeleteDb}
-                disabled={adminLoading}
-                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
-              >
-                Delete Current Database
-              </button>
-              <button
-                onClick={handleAdminUpdateDb}
-                disabled={adminLoading}
-                className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700"
-              >
-                Update Database
-              </button>
-            </div>
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              After saving, restart the app on all computers so they use the same DB via the router.
-            </p>
           </div>
         </div>
-      )}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Clinic Information</h3>
-        <button
-          onClick={() => {
-            setConfigForm({
-              clinicName: config.clinicName,
-              clinicEmail: config.clinicEmail,
-              clinicPhone: config.clinicPhone,
-              clinicAddress: config.clinicAddress,
-              appointmentDuration: config.appointmentDuration,
-              workingHoursStart: config.workingHoursStart,
-              workingHoursEnd: config.workingHoursEnd
-            });
-            setShowConfigModal(true);
-          }}
-          className="w-full p-4 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 text-left"
-        >
-          <p className="font-medium text-gray-900 dark:text-white">Configure Clinic Settings</p>
-          <p className="text-sm text-gray-500 dark:text-gray-400">Update clinic information and working hours</p>
-        </button>
+
+        {/* Network & Infrastructure Card */}
+        {String(user?.role || '').toLowerCase() === 'admin' && (
+          <div className="card-premium lg:col-span-2 border-slate-200 dark:border-slate-800 overflow-hidden">
+            <div className="p-8">
+              <div className="flex items-center gap-4 mb-8">
+                <div className="p-3 bg-emerald-50 dark:bg-emerald-900/30 rounded-2xl text-emerald-600 dark:text-emerald-400">
+                  <DocumentIcon className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-white">Network & Database Architecture</h3>
+                  <p className="text-xs text-slate-500 font-medium mt-0.5">Configure shared clinical data across your local area network (LAN)</p>
+                </div>
+              </div>
+
+              {adminMessage && (
+                <div className="mb-8 p-4 bg-indigo-50 dark:bg-indigo-900/10 border-l-4 border-indigo-500 rounded-r-2xl flex items-center gap-3 animate-premium-slide">
+                  <div className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
+                  <p className="text-sm font-bold text-indigo-700 dark:text-indigo-400">{adminMessage}</p>
+                </div>
+              )}
+
+              <div className="space-y-8">
+                <div className="bg-slate-50 dark:bg-slate-900/50 p-6 rounded-2xl border border-slate-100 dark:border-slate-800">
+                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-3">Authorize Network DB Path (UNC/Mapped Drive)</label>
+                  <div className="flex gap-3">
+                    <input
+                      type="text"
+                      value={networkDbPath}
+                      onChange={(e) => setNetworkDbPath(e.target.value)}
+                      placeholder="e.g. \\ClinicServer\EyeClinic\data\eye_clinic.db"
+                      className="flex-1 px-5 py-3.5 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all placeholder:text-slate-300 dark:placeholder:text-slate-700"
+                    />
+                    <button
+                      onClick={handleAdminSaveNetworkPath}
+                      disabled={adminLoading}
+                      className="px-8 py-3.5 bg-indigo-600 hover:bg-slate-900 text-white rounded-xl text-xs font-black tracking-widest uppercase transition-all shadow-lg shadow-indigo-200 dark:shadow-none"
+                    >
+                      Initialize Link
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider mt-4 flex items-center gap-2">
+                    <svg className="w-3 h-3 text-indigo-500" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" /></svg>
+                    All units must restart after link initialization for multi-terminal synchronization.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <button
+                    onClick={handleAdminImportDb}
+                    disabled={adminLoading}
+                    className="p-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-left hover:border-indigo-500 hover:shadow-xl hover:shadow-indigo-500/5 transition-all group"
+                  >
+                    <div className="p-2 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg text-indigo-600 dark:text-indigo-400 w-fit mb-4">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                    </div>
+                    <p className="text-sm font-bold text-slate-900 dark:text-white leading-tight">Import External Intelligence</p>
+                    <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest mt-1">Legacy CSV/JSON/SQL Migration</p>
+                  </button>
+
+                  <button
+                    onClick={handleAdminUpdateDb}
+                    disabled={adminLoading}
+                    className="p-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-left hover:border-emerald-500 hover:shadow-xl hover:shadow-emerald-500/5 transition-all group"
+                  >
+                    <div className="p-2 bg-emerald-50 dark:bg-emerald-900/30 rounded-lg text-emerald-600 dark:text-emerald-400 w-fit mb-4">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A 8.001 8.001 0 0 0 4.582 9m0 0H9m11 11v-5h-.581m0 0a 8.003 8.003 0 0 1-15.357-2m15.357 2H15" /></svg>
+                    </div>
+                    <p className="text-sm font-bold text-slate-900 dark:text-white leading-tight">Optimize Clinical Tables</p>
+                    <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest mt-1">Maintenance & WAL Vacuuming</p>
+                  </button>
+
+                  <button
+                    onClick={handleAdminDeleteDb}
+                    disabled={adminLoading}
+                    className="p-6 bg-rose-50/30 dark:bg-rose-950/10 border border-rose-100 dark:border-rose-900/30 rounded-2xl text-left hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-all group"
+                  >
+                    <div className="p-2 bg-rose-100 dark:bg-rose-900/30 rounded-lg text-rose-600 dark:text-rose-400 w-fit mb-4">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A 2 2 0 0 1 16.138 21H7.862a 2 2 0 0 1-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a 1 1 0 0 0-1-1h-4a 1 1 0 0 0-1 1v3M4 7h16" /></svg>
+                    </div>
+                    <p className="text-sm font-bold text-rose-700 dark:text-rose-400 leading-tight">Purge System Instance</p>
+                    <p className="text-[10px] text-rose-400 dark:text-slate-500 font-bold uppercase tracking-widest mt-1">Hard reset current deployment</p>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -615,8 +687,8 @@ const AdminDashboard = () => {
       activeSection={activeTab}
       onSectionClick={handleSectionClick}
       searchTerm=""
-      onSearchChange={() => {}}
-      onActionClick={() => {}}
+      onSearchChange={() => { }}
+      onActionClick={() => { }}
     >
       <div>
         {activeTab === 'overview' && renderOverview()}
@@ -716,80 +788,90 @@ const AdminDashboard = () => {
 
       {/* Config Modal */}
       {showConfigModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <h3 className="text-lg font-semibold mb-4 dark:text-white">Clinic Configuration</h3>
-            <div className="space-y-4">
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center z-[100] p-6">
+          <div className="card-premium w-full max-w-2xl bg-white dark:bg-slate-900 animate-premium-slide border-slate-200 dark:border-slate-800">
+            <div className="p-8 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/50">
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Clinic Name</label>
-                <input
-                  type="text"
-                  value={configForm.clinicName}
-                  onChange={(e) => setConfigForm({ ...configForm, clinicName: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md"
-                />
+                <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">Clinical Identity</h3>
+                <p className="text-xs text-slate-500 font-bold uppercase tracking-widest mt-0.5">Global organization configuration</p>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email</label>
-                <input
-                  type="email"
-                  value={configForm.clinicEmail}
-                  onChange={(e) => setConfigForm({ ...configForm, clinicEmail: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Phone</label>
-                <input
-                  type="tel"
-                  value={configForm.clinicPhone}
-                  onChange={(e) => setConfigForm({ ...configForm, clinicPhone: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Address</label>
-                <textarea
-                  value={configForm.clinicAddress}
-                  onChange={(e) => setConfigForm({ ...configForm, clinicAddress: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md"
-                  rows="3"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Working Hours Start</label>
+              <button onClick={() => setShowConfigModal(false)} className="p-2 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-lg transition-colors">
+                <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <div className="p-8 space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="md:col-span-2">
+                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Institution Name</label>
                   <input
-                    type="time"
-                    value={configForm.workingHoursStart}
-                    onChange={(e) => setConfigForm({ ...configForm, workingHoursStart: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md"
+                    type="text"
+                    value={configForm.clinicName}
+                    onChange={(e) => setConfigForm({ ...configForm, clinicName: e.target.value })}
+                    className="w-full px-5 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Working Hours End</label>
+                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Electronic Mail</label>
                   <input
-                    type="time"
-                    value={configForm.workingHoursEnd}
-                    onChange={(e) => setConfigForm({ ...configForm, workingHoursEnd: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md"
+                    type="email"
+                    value={configForm.clinicEmail}
+                    onChange={(e) => setConfigForm({ ...configForm, clinicEmail: e.target.value })}
+                    className="w-full px-5 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all"
                   />
                 </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Appointment Duration (minutes)</label>
-                <input
-                  type="number"
-                  value={configForm.appointmentDuration}
-                  onChange={(e) => setConfigForm({ ...configForm, appointmentDuration: parseInt(e.target.value) })}
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md"
-                />
+                <div>
+                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Phone System</label>
+                  <input
+                    type="tel"
+                    value={configForm.clinicPhone}
+                    onChange={(e) => setConfigForm({ ...configForm, clinicPhone: e.target.value })}
+                    className="w-full px-5 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all"
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Physical Address</label>
+                  <textarea
+                    value={configForm.clinicAddress}
+                    onChange={(e) => setConfigForm({ ...configForm, clinicAddress: e.target.value })}
+                    className="w-full px-5 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all resize-none"
+                    rows="3"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Slot Duration (Min)</label>
+                  <input
+                    type="number"
+                    value={configForm.appointmentDuration}
+                    onChange={(e) => setConfigForm({ ...configForm, appointmentDuration: parseInt(e.target.value) })}
+                    className="w-full px-5 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all"
+                  />
+                </div>
+                <div className="flex gap-3 items-end">
+                  <div className="flex-1">
+                    <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Clinical Shift</label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="time"
+                        value={configForm.workingHoursStart}
+                        onChange={(e) => setConfigForm({ ...configForm, workingHoursStart: e.target.value })}
+                        className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-bold"
+                      />
+                      <span className="text-slate-400 text-xs font-black">TO</span>
+                      <input
+                        type="time"
+                        value={configForm.workingHoursEnd}
+                        onChange={(e) => setConfigForm({ ...configForm, workingHoursEnd: e.target.value })}
+                        className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-bold"
+                      />
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
-            <div className="flex justify-end space-x-2 mt-6">
+            <div className="p-8 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex gap-4">
               <button
                 onClick={() => setShowConfigModal(false)}
-                className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-white"
+                className="flex-1 px-6 py-4 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-xl text-xs font-black tracking-widest uppercase hover:bg-slate-100 dark:hover:bg-slate-700 transition-all border border-slate-200 dark:border-slate-700"
               >
                 Cancel
               </button>
@@ -798,9 +880,9 @@ const AdminDashboard = () => {
                   updateMultipleConfig(configForm);
                   setShowConfigModal(false);
                 }}
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                className="flex-1 btn btn-primary py-4 text-xs font-black tracking-widest uppercase shadow-xl shadow-indigo-200 dark:shadow-none"
               >
-                Save Changes
+                Commit Changes
               </button>
             </div>
           </div>

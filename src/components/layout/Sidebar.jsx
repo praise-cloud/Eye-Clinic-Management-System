@@ -1,10 +1,12 @@
 import React, { useState } from 'react'
-import { Logo, ChartIcon, ChatIcon, UsersIcon, DocumentIcon, InventoryIcon, LogoutIcon} from '../Icons'
+import { Logo, ChartIcon, ChatIcon, UsersIcon, DocumentIcon, InventoryIcon, LogoutIcon } from '../Icons'
 import useUser from '../../hooks/useUser'
+import { useSystemConfig } from '../../context/SystemConfigContext'
 import LogoutModal from '../modals/LogoutModal'
 
 const Sidebar = ({ activeSection, onSectionClick, currentUser }) => {
   const { user, logout, loading } = useUser();
+  const { config } = useSystemConfig();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   const handleLogout = async () => {
@@ -40,17 +42,18 @@ const Sidebar = ({ activeSection, onSectionClick, currentUser }) => {
   )
 
   return (
-    <div className="flex flex-col w-64 bg-white dark:bg-gray-800 shadow-lg h-screen">
+    <div className="flex flex-col w-[280px] bg-slate-900 shadow-2xl h-screen z-20">
       {/* Logo */}
-      <div className="flex items-center justify-center h-20 px-4 py-5 ">
-        <div className="flex items-center">
-          <Logo className="w-24" />
-          <span className="text-sm font-bold text-gray-900 dark:text-white">KORENE EYE CLINIC NIG. LTD.</span>
+      <div className="flex items-center px-6 py-10">
+        <div className="flex flex-col">
+          <Logo className="w-16 mb-2" />
+          <span className="text-xs font-black text-indigo-400 uppercase tracking-[0.2em] line-clamp-2">{config.clinicName || 'Korene Eye Clinic'}</span>
+          <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">Management System</span>
         </div>
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 px-2 py-4 space-y-1">
+      <nav className="flex-1 px-4 space-y-2 overflow-y-auto">
         {sidebarItems.map((item) => (
           <button
             key={item.id}
@@ -61,17 +64,31 @@ const Sidebar = ({ activeSection, onSectionClick, currentUser }) => {
                 onSectionClick(item.id);
               }
             }}
-            className={`${
-              activeSection === item.id
-                ? 'bg-blue-100 dark:bg-blue-900 border-r-2 border-blue-600 text-blue-700 dark:text-blue-300'
-                : 'text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white'
-            } group flex items-center px-4 py-2 text-sm font-medium rounded-md w-full text-left transition-colors duration-200`}
+            className={`${activeSection === item.id
+              ? 'sidebar-item sidebar-item-active'
+              : 'sidebar-item text-slate-400 hover:text-white hover:bg-slate-800'
+              } group`}
           >
-            {item.icon}
-            <span className="ml-3">{item.name}</span>
+            <span className={`${activeSection === item.id ? 'text-white' : 'text-slate-500 group-hover:text-indigo-400'} transition-colors`}>
+              {item.icon}
+            </span>
+            <span className="text-sm font-semibold tracking-wide">{item.name}</span>
           </button>
         ))}
       </nav>
+
+      {/* Bottom Profile/Status (Optional placeholder if needed) */}
+      <div className="p-6 border-t border-slate-800">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-indigo-500 flex items-center justify-center text-white font-bold shadow-lg shadow-indigo-500/20">
+            {user?.first_name?.[0]}{user?.last_name?.[0]}
+          </div>
+          <div className="flex flex-col overflow-hidden">
+            <span className="text-sm font-bold text-white truncate">{user?.first_name} {user?.last_name}</span>
+            <span className="text-[10px] text-slate-500 uppercase font-black tracking-tighter">{user?.role}</span>
+          </div>
+        </div>
+      </div>
 
       <LogoutModal
         isOpen={showLogoutModal}

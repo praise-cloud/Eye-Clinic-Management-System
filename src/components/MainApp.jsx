@@ -19,6 +19,7 @@ import AssistantDashboardScreen from '../pages/dashboard/AssistantDashboardScree
 import AdminDashboard from '../pages/dashboard/AdminDashboard'
 import CreateInventoryItemScreen from '../pages/CreateInventoryItemScreen'
 import ViewInventoryItemScreen from '../pages/ViewInventoryItemScreen'
+import PatientDetailsPage from '../pages/PatientDetailsPage'
 
 
 const MainApp = () => {
@@ -132,8 +133,8 @@ const MainApp = () => {
             user?.role === 'doctor'
               ? <DoctorsDashboard />
               : user?.role === 'assistant'
-              ? <AssistantDashboardScreen />
-              : <DashboardContent />
+                ? <AssistantDashboardScreen />
+                : <DashboardContent />
           }
         />
         <Route path="/messages" element={<MessagesContent />} />
@@ -144,6 +145,7 @@ const MainApp = () => {
         <Route path="/inventory/create" element={<CreateInventoryItemScreen />} />
         <Route path="/inventory/edit/:id" element={<CreateInventoryItemScreen />} />
         <Route path="/inventory/view/:id" element={<ViewInventoryItemScreen />} />
+        <Route path="/patients/:id" element={<PatientDetailsPage />} />
         <Route path="/settings" element={<SettingsContent />} />
       </Routes>
     );

@@ -88,40 +88,40 @@ const MessagesContent = () => {
 
   // Real-time messages
   useEffect(() => {
-  if (!electronAPI || !currentUser) return;
+    if (!electronAPI || !currentUser) return;
 
-  const handler = (msg) => {
-    // Only process if it's for this chat
-    const inThisChat =
-      (msg.sender_id === currentUser.id && msg.receiver_id === otherUser?.id) ||
-      (msg.sender_id === otherUser?.id && msg.receiver_id === currentUser.id);
+    const handler = (msg) => {
+      // Only process if it's for this chat
+      const inThisChat =
+        (msg.sender_id === currentUser.id && msg.receiver_id === otherUser?.id) ||
+        (msg.sender_id === otherUser?.id && msg.receiver_id === currentUser.id);
 
-    if (!inThisChat) {
-      // For other chats → only update unread count
+      if (!inThisChat) {
+        // For other chats → only update unread count
+        if (msg.receiver_id === currentUser.id && msg.status !== 'read') {
+          setUnreadCounts(p => ({ ...p, [msg.sender_id]: (p[msg.sender_id] || 0) + 1 }));
+        }
+        return;
+      }
+
+      // Prevent duplicate: check if message ID already exists
+      setMessages(prev => {
+        if (prev.some(existing => existing.id === msg.id)) {
+          console.log('Duplicate prevented:', msg.id);
+          return prev;
+        }
+        return [...prev, msg];
+      });
+
+      // Mark as read if it's for us
       if (msg.receiver_id === currentUser.id && msg.status !== 'read') {
-        setUnreadCounts(p => ({ ...p, [msg.sender_id]: (p[msg.sender_id] || 0) + 1 }));
+        electronAPI.markMessageRead({ messageId: msg.id, userId: currentUser.id });
       }
-      return;
-    }
+    };
 
-    // Prevent duplicate: check if message ID already exists
-    setMessages(prev => {
-      if (prev.some(existing => existing.id === msg.id)) {
-        console.log('Duplicate prevented:', msg.id);
-        return prev;
-      }
-      return [...prev, msg];
-    });
-
-    // Mark as read if it's for us
-    if (msg.receiver_id === currentUser.id && msg.status !== 'read') {
-      electronAPI.markMessageRead({ messageId: msg.id, userId: currentUser.id });
-    }
-  };
-
-  const off = electronAPI.onIpcEvent('new-message', handler);
-  return () => off && off();
-}, [currentUser?.id, otherUser?.id, electronAPI]);
+    const off = electronAPI.onIpcEvent('new-message', handler);
+    return () => off && off();
+  }, [currentUser?.id, otherUser?.id, electronAPI]);
 
   // Load messages when chat selected
   const loadMessages = useCallback(async () => {
@@ -197,7 +197,7 @@ const MessagesContent = () => {
     if (isAtBottom || messages.length <= 1) { // also scroll on very first message
       chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-}, [messages]);
+  }, [messages]);
 
   // Close modal on escape key
   useEffect(() => {
@@ -269,29 +269,29 @@ const MessagesContent = () => {
     }
   };
 
-const sendMessage = async (attachment = null) => {
-  try {
-    const attachmentData = attachment ? JSON.stringify(attachment) : null;
-    const messageText = input.trim() || (attachment ? 'File attachment' : '');
-    const replyToId = replyTo ? replyTo.id : null;
+  const sendMessage = async (attachment = null) => {
+    try {
+      const attachmentData = attachment ? JSON.stringify(attachment) : null;
+      const messageText = input.trim() || (attachment ? 'File attachment' : '');
+      const replyToId = replyTo ? replyTo.id : null;
 
-    const res = await electronAPI.sendMessage(
-      currentUser.id,
-      otherUser.id,
-      messageText,
-      attachmentData,
-      replyToId
-    );
+      const res = await electronAPI.sendMessage(
+        currentUser.id,
+        otherUser.id,
+        messageText,
+        attachmentData,
+        replyToId
+      );
 
-    if (res && res.success) {
-      setReplyTo(null);
-      setInput('');
-      // console.log('Message sent — waiting for real-time broadcast');
+      if (res && res.success) {
+        setReplyTo(null);
+        setInput('');
+        // console.log('Message sent — waiting for real-time broadcast');
+      }
+    } catch (err) {
+      console.error('Send message error:', err);
     }
-  } catch (err) {
-    console.error('Send message error:', err);
-  }
-};
+  };
   // Fetch messages with optional search
   const fetchMessages = useCallback(async (searchTerm = '') => {
     if (!otherUser) return;
@@ -335,377 +335,315 @@ const sendMessage = async (attachment = null) => {
   };
 
   return (
-    <div className="flex h-full">
+    <div className="flex h-[calc(100vh-140px)] gap-6 animate-premium-fade">
       {/* User List Sidebar */}
-      <div className="w-80 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col rounded-lg">
-        <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Messages</h3>
+      <div className="w-80 card-premium flex flex-col overflow-hidden">
+        <div className="p-6 border-b border-slate-100 dark:border-slate-800">
+          <h3 className="text-lg font-black text-slate-900 dark:text-white tracking-tight">Clinical Staff</h3>
+          <p className="text-xs text-slate-500 font-medium mt-1">Direct secure messaging</p>
         </div>
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto p-3 space-y-1">
           {availableUsers.map(user => {
-            const userName = user.name || `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'User';
+            const userName = user.name || `${user.first_name || ''} ${user.last_name || ''} `.trim() || 'Staff';
             const isOnline = user.is_online;
             const unreadCount = unreadCounts[user.id] || 0;
             const isSelected = otherUser?.id === user.id;
 
             return (
-              <div
+              <button
                 key={user.id}
                 onClick={() => setOtherUser(user)}
-                className={`p-4 border-b border-gray-100 dark:border-gray-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 ${
-                  isSelected ? 'bg-blue-50 dark:bg-blue-900' : ''
-                }`}
+                className={`w - full text - left p - 4 rounded - 2xl flex items - center gap - 4 transition - all ${isSelected
+                  ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200 dark:shadow-none'
+                  : 'hover:bg-slate-50/80 dark:hover:bg-slate-800/40 text-slate-700 dark:text-slate-300'
+                  } `}
               >
-                <div className="flex items-center gap-3">
-                  <div className="relative">
-                    <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 text-gray-700 font-bold text-sm dark:bg-gray-600 dark:text-gray-200">
-                      {userName.split(' ').map(n => n[0]).join('')}
-                    </span>
-                    <span className={`absolute bottom-0 right-0 block h-3 w-3 rounded-full ring-2 ring-white ${
-                      isOnline ? 'bg-green-400' : 'bg-gray-400'
-                    }`} title={isOnline ? 'Online' : 'Offline'}></span>
+                <div className="relative">
+                  <div className={`w - 11 h - 11 rounded - xl flex items - center justify - center font - black text - xs ${isSelected ? 'bg-white/20 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'
+                    } `}>
+                    {userName.split(' ').map(n => n[0]).join('')}
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between">
-                      <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{userName}</p>
-                      {unreadCount > 0 && (
-                        <span className="inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white bg-red-600 rounded-full">
-                          {unreadCount}
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">{user.role}</p>
-                    <p className="text-xs text-gray-400 dark:text-gray-500">
-                      {isOnline ? 'Online' : user.last_seen ? `Last seen ${new Date(user.last_seen).toLocaleString()}` : 'Offline'}
-                    </p>
-                  </div>
+                  <div className={`absolute - bottom - 1 - right - 1 w - 3.5 h - 3.5 rounded - full border - 2 ${isSelected ? 'border-indigo-600' : 'border-white dark:border-slate-900'
+                    } ${isOnline ? 'bg-emerald-500' : 'bg-slate-300'} `}></div>
                 </div>
-              </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-bold truncate">{userName}</span>
+                    {unreadCount > 0 && (
+                      <span className="w-5 h-5 rounded-full bg-rose-500 text-white text-[10px] font-black flex items-center justify-center">
+                        {unreadCount}
+                      </span>
+                    )}
+                  </div>
+                  <p className={`text - [10px] font - black uppercase tracking - widest mt - 1 opacity - 70`}>{user.role}</p>
+                </div>
+              </button>
             );
           })}
         </div>
       </div>
 
       {/* Chat Area */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 card-premium flex flex-col overflow-hidden relative">
         {!otherUser ? (
-          <div className="flex-1 flex items-center justify-center text-gray-500 dark:text-gray-400">
-            <div className="text-center">
-              <p className="text-lg mb-2">Select a user to start messaging</p>
-              <p className="text-sm">Choose someone from the list to begin a conversation</p>
+          <div className="flex-1 flex flex-col items-center justify-center p-12 text-center">
+            <div className="w-24 h-24 rounded-[2rem] bg-indigo-50 dark:bg-indigo-900/20 flex items-center justify-center text-indigo-500 mb-6">
+              <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
             </div>
+            <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">Staff Communications</h3>
+            <p className="text-sm text-slate-500 font-medium mt-2 max-w-sm">Select a clinical colleague from the roster to begin a secure real-time consult.</p>
           </div>
         ) : (
           <>
-    <div className="flex flex-col h-full p-6">
-      <div className="flex flex-col">
-      <form onSubmit={handleSearch} className="flex items-center gap-2 mb-2">
-        <input
-          type="text"
-          className="flex-1 border rounded px-3 py-2 focus:outline-none focus:ring focus:border-blue-300 dark:bg-gray-700 dark:border-gray-600 dark:text-white dark:placeholder-gray-400"
-          placeholder="Search messages..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-        <button
-          type="submit"
-          className="bg-gray-200 text-gray-700 px-4 py-2 rounded hover:bg-gray-300 transition dark:bg-gray-600 dark:text-gray-200 dark:hover:bg-gray-500"
-        >
-          Search
-        </button>
-      </form>
-        <div className="flex items-center gap-6 p-6 bg-white rounded-lg shadow mb-5 w-full dark:bg-gray-800">
-          {/* Current user avatar and status */}
-          <div className="flex items-center gap-2">
-            <div className="relative">
-              <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-blue-100 text-blue-700 font-bold text-lg">
-                {currentUserName.split(' ').map(n => n[0]).join('')}
-              </span>
-              <span className="absolute bottom-0 right-0 block h-3 w-3 rounded-full ring-2 ring-white bg-green-400" title="Online"></span>
-            </div>
-            <div className="flex flex-col">
-              <span className="font-medium text-gray-900 dark:text-gray-100">{currentUserName}</span>
-              <span className="text-xs text-green-500">Online</span>
-            </div>
-          </div>
-          <span className="text-gray-300 text-2xl dark:text-gray-600">|</span>
-          {/* Other user avatar and status */}
-          <div className="flex items-center gap-2">
-            <div className="relative">
-              <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-pink-100 text-pink-700 font-bold text-lg">
-                {otherUserName.split(' ').map(n => n[0]).join('')}
-              </span>
-              <span className={`absolute bottom-0 right-0 block h-3 w-3 rounded-full ring-2 ring-white ${
-                otherUser?.is_online ? 'bg-green-400' : 'bg-gray-400'
-              }`} title={otherUser?.is_online ? 'Online' : 'Offline'}></span>
-            </div>
-            <div className="flex flex-col">
-              <span className="font-medium text-gray-900 dark:text-gray-100">{otherUserName}</span>
-              <span className={`text-xs ${
-                otherUser?.is_online ? 'text-green-500' : 'text-gray-500'
-              }`}>{otherUser?.is_online ? 'Online' : 'Offline'}</span>
-            </div>
-          </div>
-          <div className="flex-1 flex justify-center">
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Chat with {otherUserName}</h2>
-          </div>
-        </div>
-      </div>
-      {/* Search bar */}
-      <div className="flex-1 overflow-y-auto mb-4 px-2" ref={messagesContainerRef}>
-        {notification && (
-          <div className="text-center text-green-600 font-semibold mb-2">{notification}</div>
-        )}
-        {loading ? (
-          <div className="text-center text-gray-400 dark:text-gray-500">Loading messages...</div>
-        ) : messages.length === 0 ? (
-          <div className="text-center text-gray-400 dark:text-gray-500">No messages yet.</div>
-        ) : (
-          messages.map((msg, index) => (
-            <div
-              key={`${msg.id}-${index}`}
-              className={`flex mb-2 ${msg.sender_id === currentUser.id ? 'justify-end' : 'justify-start'}`}
-            >
-              <div
-                className={`max-w-xs px-4 py-2 rounded-lg shadow text-sm relative ${
-                  msg.sender_id === currentUser.id
-                    ? 'bg-blue-600 text-white dark:bg-blue-500'
-                    : 'bg-gray-100 text-gray-900 dark:bg-gray-700 dark:text-gray-100'
-                }`}
-              >
-                <span className="block font-bold mb-1">
-                  {msg.sender_id === currentUser.id ? (currentUser?.name || 'Me') : (otherUser?.name || 'Staff')}
-                </span>
-                {(() => {
-                  // Check backend reply field or client-side tracking
-                  const replyId = msg.reply_to_id || msg.replyToId || clientReplies[msg.id];
-                  if (replyId) {
-                    const referencedMsg = messages.find(m => m.id === replyId);
-                    if (referencedMsg) {
-                      return (
-                        <div className={`mb-2 p-2 rounded border-l-2 text-xs ${
-                          msg.sender_id === currentUser.id
-                            ? 'bg-blue-500 border-blue-300 text-blue-100 dark:bg-blue-600 dark:border-blue-400'
-                            : 'bg-gray-200 border-gray-400 text-gray-600 dark:bg-gray-600 dark:border-gray-500 dark:text-gray-300'
-                        }`}>
-                          <div className="font-medium">
-                            Replying to {referencedMsg.sender_id === currentUser.id ? (currentUser?.name || 'Me') : (otherUser?.name || 'Staff')}
-                          </div>
-                          <div className="truncate">
-                            {referencedMsg.message_text || 'File attachment'}
-                          </div>
-                        </div>
-                      );
-                    }
-                  }
-                  return null;
-                })()}
-                {msg.message_text && msg.message_text !== 'File attachment' && (
-                  <span>{msg.message_text}</span>
-                )}
-                {msg.attachment && (
-                  <div className="mt-2">
-                    {(() => {
-                      try {
-                        const attachment = typeof msg.attachment === 'string' ? JSON.parse(msg.attachment) : msg.attachment;
-                        const isImage = attachment.type && attachment.type.startsWith('image/');
-
-                        if (isImage) {
-                          return (
-                            <div>
-                              <img
-                                src={attachment.data}
-                                alt={attachment.name}
-                                className="max-w-48 max-h-32 rounded cursor-pointer hover:opacity-80"
-                                onClick={() => setModalContent({type: 'image', data: attachment.data, name: attachment.name})}
-                              />
-                              <div className="text-xs text-blue-300 mt-1 dark:text-blue-200">
-                                🖼️ {attachment.name}
-                              </div>
-                            </div>
-                          );
-                        } else {
-                          return (
-                            <div
-                              className="text-xs text-blue-300 bg-blue-900 p-2 rounded cursor-pointer hover:bg-blue-800 inline-block dark:bg-blue-800 dark:hover:bg-blue-700"
-                              onClick={() => setModalContent({type: 'file', data: attachment.data, name: attachment.name})}
-                            >
-                              📄 {attachment.name}
-                            </div>
-                          );
-                        }
-                      } catch (e) {
-                        return (
-                          <div className="text-xs text-blue-300 bg-blue-900 p-1 rounded dark:bg-blue-800">
-                            📎 File (error)
-                          </div>
-                        );
-                      }
-                    })()}
+            {/* Chat Header */}
+            <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-white dark:bg-slate-900/50 backdrop-blur-md z-10 sticky top-0">
+              <div className="flex items-center gap-4">
+                <div className="relative">
+                  <div className="w-12 h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-600 font-black text-sm">
+                    {otherUserName.split(' ').map(n => n[0]).join('')}
                   </div>
-                )}
-                <span className="block text-xs text-right mt-1 opacity-70">
-                  {msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true}) : ''}
-                  {msg.sender_id === currentUser.id && (
-                    <span className="ml-2">
-                      {msg.status === 'read' ? (
-                        <span className="text-white">✓✓</span>
-                      ) : (
-                        <span className="text-gray-300">✓</span>
-                      )}
+                  <div className={`absolute - bottom - 1 - right - 1 w - 4 h - 4 rounded - full border - 2 border - white dark: border - slate - 900 ${otherUser?.is_online ? 'bg-emerald-500' : 'bg-slate-300'} `}></div>
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">{otherUserName}</h3>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className={`text - [10px] font - black uppercase tracking - widest ${otherUser?.is_online ? 'text-emerald-500' : 'text-slate-400'} `}>
+                      {otherUser?.is_online ? 'Active Now' : 'Disconnected'}
                     </span>
-                  )}
-                  {msg.status === 'unread' && msg.receiver_id === currentUser.id && (
-                    <span className="ml-2 text-red-500">● Unread</span>
-                  )}
-                </span>
-                {/* Options menu for all messages */}
-                <div className="absolute top-1 right-1">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setActiveMenu(activeMenu === msg.id ? null : msg.id);
-                    }}
-                    className={`text-xs p-1 ${
-                      msg.sender_id === currentUser.id
-                        ? 'text-white hover:text-gray-300 dark:hover:text-gray-400'
-                        : 'text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'
-                    }`}
-                    title="Message options"
-                  >
-                    ⋯
-                  </button>
-                  {activeMenu === msg.id && (
-                    <div className="absolute right-0 top-6 bg-white border rounded shadow-lg py-1 z-10 dark:bg-gray-800 dark:border-gray-600">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setReplyTo(msg);
-                          setActiveMenu(null);
-                        }}
-                        className="block w-full text-left px-3 py-1 text-sm text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-gray-700"
-                      >
-                        Reply
-                      </button>
-                      {msg.sender_id === currentUser.id && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setDeleteConfirm(msg);
-                            setActiveMenu(null);
-                          }}
-                          className="block w-full text-left px-3 py-1 text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-gray-700"
-                        >
-                          Delete
-                        </button>
-                      )}
-                    </div>
-                  )}
+                    <span className="text-slate-200">|</span>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{otherUser?.role}</span>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))
-        )}
-        <div ref={chatEndRef} />
-      </div>
-      {replyTo && (
-        <div className="mb-2 p-2 bg-yellow-50 border border-yellow-200 rounded dark:bg-yellow-900 dark:border-yellow-700">
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-xs text-yellow-700 font-medium dark:text-yellow-300">Replying to {replyTo.sender_id === currentUser.id ? (currentUser?.name || 'Me') : (otherUser?.name || 'Staff')}</span>
-            <button onClick={() => setReplyTo(null)} className="text-yellow-600 hover:text-yellow-800 text-sm dark:text-yellow-400 dark:hover:text-yellow-200">✕</button>
-          </div>
-          <div className="text-sm text-gray-600 truncate dark:text-gray-300">{replyTo.message_text || 'File attachment'}</div>
-        </div>
-      )}
-      {file && (
-        <div className="mb-2 p-2 bg-blue-50 border border-blue-200 rounded flex items-center justify-between dark:bg-blue-900 dark:border-blue-700">
-          <span className="text-sm text-blue-700 dark:text-blue-300">📎 {file.name}</span>
-          <button
-            onClick={() => setFile(null)}
-            className="text-red-500 hover:text-red-700 text-sm dark:text-red-400 dark:hover:text-red-300"
-          >
-            ✕
-          </button>
-        </div>
-      )}
-      <form onSubmit={handleSend} className="flex items-center gap-2">
-        <input
-          type="text"
-          className="flex-1 border rounded px-3 py-2 focus:outline-none focus:ring focus:border-blue-300 dark:bg-gray-700 dark:border-gray-600 dark:text-white dark:placeholder-gray-400"
-          placeholder={replyTo ? "Reply to message..." : file ? "Add a message (optional)..." : "Type your message..."}
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-        />
-        <input
-          type="file"
-          className="hidden"
-          id="chat-file-upload"
-          onChange={(e) => handleFileChange(e, false)}
-        />
-        <input
-          type="file"
-          className="hidden"
-          id="chat-image-upload"
-          accept="image/*"
-          onChange={(e) => handleFileChange(e, true)}
-        />
-        <ChatInputActions
-          onFileSelect={() => document.getElementById('chat-file-upload').click()}
-          onImageSelect={() => document.getElementById('chat-image-upload').click()}
-          onSend={handleSend}
-          disabled={!input.trim() && !file}
-        />
-      </form>
-      {modalContent && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={() => setModalContent(null)}>
-          <div className="bg-white rounded-lg p-6 w-[90vw] h-[90vh] flex flex-col resize overflow-hidden dark:bg-gray-800" onClick={(e) => e.stopPropagation()} style={{minWidth: '600px', minHeight: '400px'}}>
-            <div className="flex justify-between items-center mb-4 flex-shrink-0">
-              <h3 className="text-xl font-semibold truncate dark:text-gray-100">{modalContent.name}</h3>
-              <button onClick={() => setModalContent(null)} className="text-gray-500 hover:text-gray-700 text-2xl ml-4 dark:text-gray-400 dark:hover:text-gray-200">✕</button>
-            </div>
-            <div className="flex-1 flex items-center justify-center" style={{minHeight: '300px'}}>
-              {modalContent.type === 'image' ? (
-                <img
-                  src={modalContent.data}
-                  alt={modalContent.name}
-                  className="max-w-full max-h-full object-contain"
-                  onError={(e) => console.error('Image load error:', e)}
-                  onLoad={() => console.log('Image loaded successfully')}
+
+              <form onSubmit={handleSearch} className="relative hidden md:block">
+                <input
+                  type="text"
+                  placeholder="Find in consult..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="input-premium py-2 px-10 text-xs w-48 focus:w-64 transition-all"
                 />
+                <svg className="w-3.5 h-3.5 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+              </form>
+            </div>
+
+            {/* Messages Area */}
+            <div className="flex-1 overflow-y-auto p-8 space-y-6" ref={messagesContainerRef}>
+              {messages.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-20 text-center opacity-40">
+                  <svg className="w-12 h-12 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z" /></svg>
+                  <p className="text-sm font-bold tracking-widest uppercase">Encryption established</p>
+                  <p className="text-xs mt-1">Start your clinical consultation with {otherUserName}</p>
+                </div>
               ) : (
-                <iframe src={modalContent.data} className="w-full h-full border-0" title={modalContent.name} />
+                messages.map((msg, index) => {
+                  const isMe = msg.sender_id === currentUser.id;
+                  return (
+                    <div key={`${msg.id} -${index} `} className={`flex ${isMe ? 'justify-end' : 'justify-start'} `}>
+                      <div className={`max - w - [80 %] flex flex - col ${isMe ? 'items-end' : 'items-start'} `}>
+                        <div className={`p - 4 rounded - [1.5rem] shadow - sm text - sm relative group ${isMe
+                          ? 'bg-indigo-600 text-white rounded-tr-none'
+                          : 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-100 rounded-tl-none'
+                          } `}>
+                          {/* Reply Context */}
+                          {(() => {
+                            const replyId = msg.reply_to_id || clientReplies[msg.id];
+                            const refMsg = messages.find(m => m.id === replyId);
+                            if (refMsg) {
+                              return (
+                                <div className={`mb - 3 p - 2 rounded - xl border - l - 4 text - [10px] ${isMe ? 'bg-indigo-700/50 border-white/40' : 'bg-slate-200/50 dark:bg-slate-700 border-slate-300'
+                                  } `}>
+                                  <div className="font-black uppercase tracking-widest opacity-60 mb-1">REFERENCE</div>
+                                  <div className="truncate font-medium">{refMsg.message_text || 'Asset Attachment'}</div>
+                                </div>
+                              );
+                            }
+                            return null;
+                          })()}
+
+                          {msg.message_text && msg.message_text !== 'File attachment' && (
+                            <p className="leading-relaxed font-medium">{msg.message_text}</p>
+                          )}
+
+                          {msg.attachment && (
+                            <div className="mt-3">
+                              {(() => {
+                                try {
+                                  const att = typeof msg.attachment === 'string' ? JSON.parse(msg.attachment) : msg.attachment;
+                                  if (att.type?.startsWith('image/')) {
+                                    return (
+                                      <img
+                                        src={att.data}
+                                        alt={att.name}
+                                        className="max-w-64 rounded-2xl cursor-pointer ring-1 ring-white/20 shadow-lg hover:scale-[1.02] transition-transform"
+                                        onClick={() => setModalContent({ type: 'image', data: att.data, name: att.name })}
+                                      />
+                                    );
+                                  }
+                                  return (
+                                    <button
+                                      onClick={() => setModalContent({ type: 'file', data: att.data, name: att.name })}
+                                      className={`flex items - center gap - 3 p - 3 rounded - xl ${isMe ? 'bg-white/10' : 'bg-slate-200 dark:bg-slate-700'} `}
+                                    >
+                                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                                      <div className="text-left">
+                                        <p className="text-xs font-bold truncate max-w-[150px]">{att.name}</p>
+                                        <p className="text-[10px] opacity-60">Asset Transfer</p>
+                                      </div>
+                                    </button>
+                                  );
+                                } catch (e) { return null; }
+                              })()}
+                            </div>
+                          )}
+
+                          {/* Message Actions (Floating) */}
+                          <div className={`absolute top - 0 ${isMe ? '-left-10' : '-right-10'} opacity - 0 group - hover: opacity - 100 transition - opacity flex flex - col gap - 1`}>
+                            <button
+                              onClick={() => setReplyTo(msg)}
+                              className="w-8 h-8 rounded-full bg-white dark:bg-slate-900 shadow-sm border border-slate-100 dark:border-slate-800 flex items-center justify-center text-slate-400 hover:text-indigo-600 transition-colors"
+                            >
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>
+                            </button>
+                            {isMe && (
+                              <button
+                                onClick={() => setDeleteConfirm(msg)}
+                                className="w-8 h-8 rounded-full bg-white dark:bg-slate-900 shadow-sm border border-slate-100 dark:border-slate-800 flex items-center justify-center text-slate-400 hover:text-rose-600 transition-colors"
+                              >
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                        <div className="mt-1 flex items-center gap-2 px-1">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">
+                            {msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                          </span>
+                          {isMe && (
+                            <span className={msg.status === 'read' ? 'text-indigo-400' : 'text-slate-300'}>
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+              <div ref={chatEndRef} />
+            </div>
+
+            {/* Input Overlay Zone */}
+            <div className="p-6 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30 backdrop-blur-sm">
+              <div className="max-w-4xl mx-auto space-y-4">
+                {replyTo && (
+                  <div className="flex items-center justify-between p-3 bg-indigo-50 dark:bg-indigo-900/40 border border-indigo-100 dark:border-indigo-800 rounded-2xl animate-premium-fade">
+                    <div className="flex items-center gap-3">
+                      <div className="w-1.5 h-8 rounded-full bg-indigo-500"></div>
+                      <div>
+                        <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest leading-none mb-1">Replying To Context</p>
+                        <p className="text-xs font-bold text-slate-700 dark:text-slate-300 truncate max-w-sm">{replyTo.message_text || 'Asset Attachment'}</p>
+                      </div>
+                    </div>
+                    <button onClick={() => setReplyTo(null)} className="w-8 h-8 rounded-xl hover:bg-white dark:hover:bg-slate-800 flex items-center justify-center text-slate-400 transition-colors">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
+                  </div>
+                )}
+
+                {file && (
+                  <div className="flex items-center justify-between p-3 bg-amber-50 dark:bg-amber-900/40 border border-amber-100 dark:border-amber-800 rounded-2xl animate-premium-fade">
+                    <div className="flex items-center gap-3">
+                      <svg className="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
+                      <div>
+                        <p className="text-[10px] font-black text-amber-600 uppercase tracking-widest leading-none mb-1">Staged Attachment</p>
+                        <p className="text-xs font-bold text-slate-700 dark:text-slate-300">{file.name}</p>
+                      </div>
+                    </div>
+                    <button onClick={() => setFile(null)} className="w-8 h-8 rounded-xl hover:bg-white dark:hover:bg-slate-800 flex items-center justify-center text-rose-500 transition-colors">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                    </button>
+                  </div>
+                )}
+
+                <form onSubmit={handleSend} className="relative flex items-center gap-3">
+                  <div className="relative flex-1 group">
+                    <input
+                      type="text"
+                      className="w-full input-premium py-4 pl-6 pr-32 text-sm font-medium h-[60px]"
+                      placeholder={replyTo ? "Confirm consult reply..." : "Draft clinical message..."}
+                      value={input}
+                      onChange={(e) => setInput(e.target.value)}
+                    />
+                    <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
+                      <input type="file" className="hidden" id="chat-file-upload" onChange={(e) => handleFileChange(e, false)} />
+                      <input type="file" className="hidden" id="chat-image-upload" accept="image/*" onChange={(e) => handleFileChange(e, true)} />
+
+                      <button type="button" onClick={() => document.getElementById('chat-image-upload').click()} className="w-10 h-10 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center text-slate-400 hover:text-indigo-600 transition-all" title="Capture/Upload Image">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                      </button>
+                      <button type="button" onClick={() => document.getElementById('chat-file-upload').click()} className="w-10 h-10 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center text-slate-400 hover:text-indigo-600 transition-all" title="Attach Document/Data">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
+                      </button>
+                    </div>
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={(!input.trim() && !file) || loading}
+                    className="w-[60px] h-[60px] rounded-[1.75rem] bg-indigo-600 dark:bg-indigo-500 text-white shadow-lg shadow-indigo-200 dark:shadow-none hover:scale-105 active:scale-95 disabled:opacity-50 disabled:grayscale transition-all flex items-center justify-center"
+                  >
+                    <svg className="w-6 h-6 rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
+                  </button>
+                </form>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Asset Preview Modal */}
+      {modalContent && (
+        <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-xl z-[100] flex items-center justify-center p-12" onClick={() => setModalContent(null)}>
+          <div className="max-w-6xl w-full h-full flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-6 text-white">
+              <div>
+                <h3 className="text-xl font-black tracking-tight">{modalContent.name}</h3>
+                <p className="text-sm opacity-60">Verified Clinical Asset</p>
+              </div>
+              <button onClick={() => setModalContent(null)} className="w-12 h-12 rounded-2xl bg-white/10 hover:bg-white/20 flex items-center justify-center shadow-xl transition-colors">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <div className="flex-1 bg-white dark:bg-slate-900 rounded-[3rem] overflow-hidden shadow-2xl flex items-center justify-center border border-white/10">
+              {modalContent.type === 'image' ? (
+                <img src={modalContent.data} className="max-w-full max-h-full object-contain" />
+              ) : (
+                <iframe src={modalContent.data} className="w-full h-full" title={modalContent.name} />
               )}
             </div>
           </div>
         </div>
       )}
+
+      {/* Disposal Confirmation */}
       {deleteConfirm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => setDeleteConfirm(null)}>
-          <div className="bg-white rounded-lg p-6 max-w-sm w-full mx-4 dark:bg-gray-800" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-lg font-semibold mb-4 dark:text-gray-100">Delete Message</h3>
-            <p className="text-gray-600 mb-6 dark:text-gray-300">Are you sure you want to delete this message? This action cannot be undone.</p>
-            <div className="flex gap-3 justify-end">
-              <button
-                onClick={() => setDeleteConfirm(null)}
-                className="px-4 py-2 text-gray-600 border border-gray-300 rounded hover:bg-gray-50 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-700"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => handleDelete(deleteConfirm.id)}
-                className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
-              >
-                Delete
-              </button>
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center" onClick={() => setDeleteConfirm(null)}>
+          <div className="card-premium p-8 max-w-md w-full mx-4 shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="w-16 h-16 rounded-2xl bg-rose-50 dark:bg-rose-900/30 text-rose-600 flex items-center justify-center mb-6">
+              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+            </div>
+            <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">Dispose Consultation?</h3>
+            <p className="text-sm text-slate-500 font-medium mt-2 leading-relaxed">This action will permanently purge the selected message from the clinical record logs. This cannot be reversed.</p>
+            <div className="flex gap-3 justify-end mt-8">
+              <button onClick={() => setDeleteConfirm(null)} className="btn btn-ghost px-6">Keep Record</button>
+              <button onClick={() => handleDelete(deleteConfirm.id)} className="btn btn-primary bg-rose-600 hover:bg-rose-700 px-6">Purge Log</button>
             </div>
           </div>
         </div>
       )}
     </div>
-          </>
-        )}
-      </div>
-    </div>
+
   );
 };
 

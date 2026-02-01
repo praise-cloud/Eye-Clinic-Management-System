@@ -22,49 +22,91 @@ export const useSystemConfig = () => {
         workingHoursStart: '08:00',
         workingHoursEnd: '18:00'
       },
-      updateConfig: () => {},
-      toggleConfig: () => {},
-      updateMultipleConfig: () => {}
+      updateConfig: () => { },
+      toggleConfig: () => { },
+      updateMultipleConfig: () => { }
     };
   }
   return context;
 };
 
 export const SystemConfigProvider = ({ children }) => {
-  const [config, setConfig] = useState(() => {
-    const saved = localStorage.getItem('systemConfig');
-    return saved ? JSON.parse(saved) : {
-      autoBackups: true,
-      emailNotifications: true,
-      twoFactorAuth: false,
-      backupTime: '02:00',
-      sessionTimeout: 30,
-      maxLoginAttempts: 3,
-      clinicName: 'KORENE EYE CLINIC NIG. LTD.',
-      clinicEmail: 'info@koreneclinic.com',
-      clinicPhone: '+234-XXX-XXX-XXXX',
-      clinicAddress: '',
-      appointmentDuration: 30,
-      workingHoursStart: '08:00',
-      workingHoursEnd: '18:00'
-    };
+  const [config, setConfig] = useState({
+    autoBackups: true,
+    emailNotifications: true,
+    twoFactorAuth: false,
+    backupTime: '02:00',
+    sessionTimeout: 30,
+    maxLoginAttempts: 3,
+    clinicName: 'KORENE EYE CLINIC NIG. LTD.',
+    clinicEmail: 'info@koreneclinic.com',
+    clinicPhone: '+234-XXX-XXX-XXXX',
+    clinicAddress: '',
+    appointmentDuration: 30,
+    workingHoursStart: '08:00',
+    workingHoursEnd: '18:00'
   });
 
+  // Load configuration on mount
   useEffect(() => {
-    localStorage.setItem('systemConfig', JSON.stringify(config));
-    window.dispatchEvent(new CustomEvent('systemConfigChanged', { detail: config }));
-  }, [config]);
+    const loadConfig = async () => {
+      try {
+        // 1. Start with localStorage for speed
+        const saved = localStorage.getItem('systemConfig');
+        if (saved) {
+          setConfig(prev => ({ ...prev, ...JSON.parse(saved) }));
+        }
 
-  const updateConfig = (key, value) => {
-    setConfig(prev => ({ ...prev, [key]: value }));
+        // 2. Fetch from DB for authority (especially for network settings)
+        if (window.electronAPI?.getSettings) {
+          const res = await window.electronAPI.getSettings();
+          if (res?.success && res.settings) {
+            // Process settings if they are stored as JSON or individual keys
+            // For now, assume we store a single 'systemConfig' key
+            const dbSetting = res.settings.find(s => s.key === 'systemConfig');
+            if (dbSetting && dbSetting.value) {
+              const parsed = JSON.parse(dbSetting.value);
+              setConfig(prev => ({ ...prev, ...parsed }));
+              localStorage.setItem('systemConfig', dbSetting.value);
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load system config:', err);
+      }
+    };
+    loadConfig();
+  }, []);
+
+  const updateConfig = async (key, value) => {
+    const newConfig = { ...config, [key]: value };
+    setConfig(newConfig);
+    saveConfig(newConfig);
   };
 
-  const updateMultipleConfig = (updates) => {
-    setConfig(prev => ({ ...prev, ...updates }));
+  const updateMultipleConfig = async (updates) => {
+    const newConfig = { ...config, ...updates };
+    setConfig(newConfig);
+    saveConfig(newConfig);
   };
 
-  const toggleConfig = (key) => {
-    setConfig(prev => ({ ...prev, [key]: !prev[key] }));
+  const toggleConfig = async (key) => {
+    const newConfig = { ...config, [key]: !config[key] };
+    setConfig(newConfig);
+    saveConfig(newConfig);
+  };
+
+  const saveConfig = async (newConfig) => {
+    localStorage.setItem('systemConfig', JSON.stringify(newConfig));
+    window.dispatchEvent(new CustomEvent('systemConfigChanged', { detail: newConfig }));
+
+    if (window.electronAPI?.setSetting) {
+      try {
+        await window.electronAPI.setSetting('systemConfig', JSON.stringify(newConfig));
+      } catch (err) {
+        console.error('Failed to save config to DB:', err);
+      }
+    }
   };
 
   return (

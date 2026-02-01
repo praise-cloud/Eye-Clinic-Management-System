@@ -1,6 +1,6 @@
 // src/hooks/usePatients.js
 // React hook for patient CRUD/search using patientService
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import * as patientService from '../services/patientService';
 
 export default function usePatients() {
@@ -79,6 +79,16 @@ export default function usePatients() {
     }
     setLoading(false);
   }, []);
+
+  useEffect(() => {
+    if (!window.electronAPI || !window.electronAPI.onIpcEvent) return;
+    const unsubscribe = window.electronAPI.onIpcEvent('data:update', (payload) => {
+      if (payload && payload.table === 'patients') {
+        fetchPatients();
+      }
+    });
+    return unsubscribe;
+  }, [fetchPatients]);
 
   return {
     patients,

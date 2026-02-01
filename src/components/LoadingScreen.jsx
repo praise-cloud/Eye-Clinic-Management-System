@@ -4,32 +4,37 @@ import logo from '../assets/images/logo.png'
 
 const LoadingScreen = ({ message = 'Loading...' }) => {
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
-      <div className="text-center animate-fade-in">
-        {/* Logo */}
-        <div className="mb-8">
-          <img src={logo} alt="Clinic Logo" className="w-20 h-20 mx-auto" />
-        </div>
+    <div className="flex items-center justify-center min-h-screen bg-slate-50 dark:bg-slate-950 overflow-hidden relative">
+      <div className="absolute top-0 left-0 w-full h-full overflow-hidden z-0 pointer-events-none">
+        <div className="absolute top-[-10%] right-[-10%] w-[40%] h-[40%] bg-indigo-500/5 blur-[120px] rounded-full" />
+        <div className="absolute bottom-[-10%] left-[-10%] w-[40%] h-[40%] bg-violet-500/5 blur-[120px] rounded-full" />
+      </div>
 
-        {/* Loading Spinner */}
-        <div className="mb-6">
-          <LoadingIcon className="w-12 h-12 text-blue-600 dark:text-blue-400 mx-auto" />
+      <div className="relative z-10 text-center animate-premium-fade">
+        {/* Logo with pulse effect */}
+        <div className="mb-10 relative inline-block">
+          <div className="absolute inset-0 bg-indigo-500/20 blur-2xl rounded-full scale-125 animate-pulse" />
+          <img src={logo} alt="Clinic Logo" className="w-24 h-24 mx-auto relative z-10 drop-shadow-2xl opacity-80" />
         </div>
 
         {/* Loading Message */}
-        <h2 className="text-xl font-medium text-gray-900 dark:text-white mb-2">
-          {message}
-        </h2>
+        <div className="space-y-4">
+          <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+            System <span className="text-gradient">Initializing</span>
+          </h2>
+          <p className="text-sm text-slate-500 font-medium tracking-wide max-w-xs mx-auto">
+            {message === 'Loading...' ? 'Preparing clinical modules and securing data environments' : message}
+          </p>
+        </div>
 
-        <p className="text-gray-600 dark:text-gray-400 max-w-sm mx-auto">
-          Please wait while we set up everything for you...
-        </p>
-
-        {/* Progress Dots */}
-        <div className="flex justify-center space-x-2 mt-8">
-          <div className="w-2 h-2 bg-blue-600 dark:bg-blue-400 rounded-full animate-pulse"></div>
-          <div className="w-2 h-2 bg-blue-600 dark:bg-blue-400 rounded-full animate-pulse" style={{ animationDelay: '0.2s' }}></div>
-          <div className="w-2 h-2 bg-blue-600 dark:bg-blue-400 rounded-full animate-pulse" style={{ animationDelay: '0.4s' }}></div>
+        {/* Unified Loading Indicator */}
+        <div className="mt-12 flex flex-col items-center gap-6">
+          <div className="flex items-center gap-1.5 h-1">
+            <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-bounce [animation-delay:-0.3s]" />
+            <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-bounce [animation-delay:-0.15s]" />
+            <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-bounce" />
+          </div>
+          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest animate-pulse">Establishing Secure Connection</span>
         </div>
       </div>
     </div>

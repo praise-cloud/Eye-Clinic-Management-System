@@ -3,15 +3,16 @@ import { useNavigate } from 'react-router-dom'
 import { DeleteIcon, EditIcon, ViewIcon } from '../components/Icons';
 import useTests from '../hooks/useTests';
 
-const TestsContent = ({ clientName, clientId, additionalTests = [] }) => {
+const DEFAULT_ADDITIONAL_TESTS = [];
+
+const TestsContent = ({ clientName, clientId, additionalTests = DEFAULT_ADDITIONAL_TESTS, mode = 'full' }) => {
   const navigate = useNavigate()
-  const [tests, setTests] = useState([])
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(5);
   const [viewingTest, setViewingTest] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
 
-  const { tests: dbTests, fetchTests } = useTests();
+  const { tests: dbTests, fetchTests, removeTest } = useTests();
 
   useEffect(() => {
     fetchTests();
@@ -19,7 +20,7 @@ const TestsContent = ({ clientName, clientId, additionalTests = [] }) => {
 
   const mappedDbTests = useMemo(() => dbTests.map(test => {
     let parsed = {};
-    try { parsed = JSON.parse(test.raw_data || '{}'); } catch {}
+    try { parsed = JSON.parse(test.raw_data || '{}'); } catch { }
     const res = parsed.result || parsed.status || 'Completed';
     const eyeLabel = test.eye || parsed.eye || 'both';
     const notesVal = parsed.notes || (eyeLabel ? `${eyeLabel} eye test` : '');
@@ -34,34 +35,41 @@ const TestsContent = ({ clientName, clientId, additionalTests = [] }) => {
       testType: testTypeVal,
       result: res,
       date: dateVal,
+      eye: eyeLabel,
       notes: notesVal
     };
   }), [dbTests, clientName]);
 
-  const totalPages = Math.ceil(tests.length / rowsPerPage);
-  const paginatedTests = tests.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage);
+  const allDisplayTests = useMemo(() => {
+    // Merge database tests with additional tests
+    let list = [...mappedDbTests, ...additionalTests];
+
+    // Filter by mode if specified
+    if (mode === 'scheduled') {
+      list = list.filter(t => t.result?.toLowerCase() === 'scheduled');
+    } else if (mode === 'completed') {
+      list = list.filter(t => t.result?.toLowerCase() !== 'scheduled');
+    }
+    return list;
+  }, [mappedDbTests, additionalTests, mode]);
+
+  const totalPages = Math.ceil(allDisplayTests.length / rowsPerPage);
+  const paginatedTests = allDisplayTests.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage);
 
   useEffect(() => {
     setCurrentPage(1);
   }, [rowsPerPage]);
 
   useEffect(() => {
-    const maxPage = Math.ceil(tests.length / rowsPerPage);
+    const maxPage = Math.ceil(allDisplayTests.length / rowsPerPage);
     if (currentPage > maxPage) {
       setCurrentPage(maxPage > 0 ? maxPage : 1);
     }
-  }, [tests.length, rowsPerPage]);
+  }, [allDisplayTests.length, rowsPerPage]);
 
   const [selectedDate, setSelectedDate] = React.useState('');
   const [customDate, setCustomDate] = React.useState('');
 
-  const additionalTestsRef = useRef(additionalTests);
-
-  useEffect(() => {
-    // Merge database tests with additional tests from TestResultsContent
-    const allTests = [...mappedDbTests, ...additionalTests];
-    setTests(allTests);
-  }, [mappedDbTests, additionalTests])
   const getResultColor = (result) => {
     switch (result?.toLowerCase()) {
       case 'normal': return 'text-green-600 bg-green-100';
@@ -136,10 +144,15 @@ const TestsContent = ({ clientName, clientId, additionalTests = [] }) => {
           <table className="min-w-full divide-y divide-gray-200 bg-white dark:bg-gray-800 border border-gray-200 dark:border-none rounded-md">
             <thead className="bg-gray-50 dark:bg-gray-700 py-5">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Patient Name</th>
+                {(!clientId && !clientName) && (
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Patient Name</th>
+                )}
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Test Type</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Result</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Date</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Eye</th>
+                {mode !== 'scheduled' && (
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Result</th>
+                )}
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{mode === 'scheduled' ? 'Scheduled Date' : 'Date'}</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Notes</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Actions</th>
               </tr>
@@ -152,71 +165,69 @@ const TestsContent = ({ clientName, clientId, additionalTests = [] }) => {
                   return true;
                 })
                 .map((test) => (
-                <tr key={test.id}>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">{test.patientName}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">{test.testType}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getResultColor(test.result)}`}>
-                      {test.result}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">{test.date}</td>
-                  <td className="px-6 py-4 text-sm text-gray-900 dark:text-gray-100 max-w-xs truncate">{test.notes}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm">
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => setViewingTest(test)}
-                        className="text-blue-500 hover:text-blue-700 p-1"
-                        title="View Details"
-                      >
-                        <ViewIcon />
-                      </button>
-                      <button
-                        onClick={() => {
-                          // Navigate to client details with test editing context
-                          const patientName = test.patientName;
-                          // Find patient and navigate to their details
-                          navigate('/dashboard', {
-                            state: {
-                              editTest: test,
-                              patientName: patientName
-                            }
-                          });
-                        }}
-                        className="text-green-500 hover:text-green-700 p-1"
-                        title="Edit"
-                      >
-                        <EditIcon />
-                      </button>
-                      <button
-                        onClick={() => setDeleteConfirm(test)}
-                        className="text-red-500 hover:text-red-700 p-1"
-                        title="Delete"
-                      >
-                        <DeleteIcon />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                  <tr key={test.id}>
+                    {(!clientId && !clientName) && (
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">{test.patientName}</td>
+                    )}
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">{test.testType}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100 uppercase">{test.eye}</td>
+                    {mode !== 'scheduled' && (
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getResultColor(test.result)}`}>
+                          {test.result}
+                        </span>
+                      </td>
+                    )}
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">{test.date}</td>
+                    <td className="px-6 py-4 text-sm text-gray-900 dark:text-gray-100 max-w-xs truncate">{test.notes}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setViewingTest(test)}
+                          className="text-blue-500 hover:text-blue-700 p-1"
+                          title="View Details"
+                        >
+                          <ViewIcon />
+                        </button>
+                        <button
+                          onClick={() => {
+                            // Navigate to dedicated patient details page
+                            navigate(`/patients/${test.patientId}`);
+                          }}
+                          className="text-green-500 hover:text-green-700 p-1"
+                          title="Edit"
+                        >
+                          <EditIcon />
+                        </button>
+                        <button
+                          onClick={() => setDeleteConfirm(test)}
+                          className="text-red-500 hover:text-red-700 p-1"
+                          title="Delete"
+                        >
+                          <DeleteIcon />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
             </tbody>
           </table>
 
           <div className="flex items-center justify-between mt-4">
             <div className="flex justify-end items-center mb-2 gap-2">
-          <label htmlFor="rowsPerPage" className="text-sm text-gray-600">Rows per page:</label>
-          <select
-            id="rowsPerPage"
-            className="border border-gray-300 rounded-md p-1 text-sm"
-            value={rowsPerPage}
-            onChange={e => setRowsPerPage(Number(e.target.value))}
-          >
-            <option value={5}>5</option>
-            <option value={10}>10</option>
-            <option value={20}>20</option>
-            <option value={50}>50</option>
-          </select>
-        </div>
+              <label htmlFor="rowsPerPage" className="text-sm text-gray-600">Rows per page:</label>
+              <select
+                id="rowsPerPage"
+                className="border border-gray-300 rounded-md p-1 text-sm"
+                value={rowsPerPage}
+                onChange={e => setRowsPerPage(Number(e.target.value))}
+              >
+                <option value={5}>5</option>
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+              </select>
+            </div>
             {/* Pagination controls */}
             <div className="flex justify-end items-center gap-2">
               <button
@@ -320,9 +331,15 @@ const TestsContent = ({ clientName, clientId, additionalTests = [] }) => {
                 Cancel
               </button>
               <button
-                onClick={() => {
-                  setTests(tests.filter(t => t.id !== deleteConfirm.id));
-                  setDeleteConfirm(null);
+                onClick={async () => {
+                  if (deleteConfirm?.id) {
+                    const success = await removeTest(deleteConfirm.id);
+                    if (success) {
+                      setDeleteConfirm(null);
+                    } else {
+                      alert('Failed to delete test from database.');
+                    }
+                  }
                 }}
                 className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
               >

@@ -108,9 +108,20 @@ const TestResultsContent = ({ clientName, onTestCreate, initialEditTest }) => {
     }
   };
 
-  const handleDelete = (id) => {
-    // TODO: Add real delete via electronAPI.deleteTest(id)
-    setTestResults(prev => prev.filter(t => t.id !== id));
+  const handleDelete = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this test result?')) return;
+    try {
+      const res = await window.electronAPI.deleteTest(id);
+      if (res.success) {
+        await fetchTests();
+        if (onTestCreate) onTestCreate(); // Signal refresh to parent
+      } else {
+        alert('Delete failed: ' + res.error);
+      }
+    } catch (err) {
+      console.error('Delete error:', err);
+      alert('Error deleting test');
+    }
     setDeleteConfirm(null);
   };
 
@@ -157,6 +168,7 @@ const TestResultsContent = ({ clientName, onTestCreate, initialEditTest }) => {
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Patient Name</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Test Type</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Eye</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Result</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Date</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Notes</th>
@@ -168,6 +180,7 @@ const TestResultsContent = ({ clientName, onTestCreate, initialEditTest }) => {
                 <tr key={test.id}>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">{test.patientName}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">{test.testType}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100 uppercase">{test.eye || 'Both'}</td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getResultColor(test.result)}`}>
                       {test.result || 'Pending'}

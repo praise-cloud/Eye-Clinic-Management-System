@@ -1,15 +1,15 @@
 import React, { useState } from 'react'
 
-const AddPatientModal = ({ onClose, currentUser, onPatientAdded }) => {
+const AddPatientModal = ({ onClose, currentUser, onPatientAdded, editPatientData = null }) => {
   const [formData, setFormData] = useState({
-    firstName: '',
-    lastName: '',
-    dateOfBirth: '',
-    gender: '',
-    email: '',
-    phoneNumber: '',
-    address: '',
-    reasonForVisit: ''
+    firstName: editPatientData?.first_name || '',
+    lastName: editPatientData?.last_name || '',
+    dateOfBirth: editPatientData?.dob || '',
+    gender: editPatientData?.gender || '',
+    email: editPatientData?.email || '',
+    phoneNumber: editPatientData?.contact || '',
+    address: editPatientData?.address || '',
+    reasonForVisit: editPatientData?.reason_for_visit || ''
   })
 
   const [loading, setLoading] = useState(false)
@@ -33,39 +33,36 @@ const AddPatientModal = ({ onClose, currentUser, onPatientAdded }) => {
       if (!formData.firstName || !formData.lastName || !formData.dateOfBirth) {
         throw new Error('First name, last name, and date of birth are required')
       }
-      
+
       const patientData = {
-        patient_id: `P${Date.now()}`, // Generate a simple patient ID
+        patient_id: editPatientData?.patient_id || `P${Date.now()}`,
         first_name: formData.firstName,
         last_name: formData.lastName,
         dob: formData.dateOfBirth,
-        gender: formData.gender || 'other', // Ensure gender is never empty
+        gender: formData.gender || 'other',
         contact: formData.phoneNumber || null,
         email: formData.email || null,
         address: formData.address || null,
         reason_for_visit: formData.reasonForVisit || null
       }
-      
-      console.log('Creating patient with data:', patientData);
-      
-      // Add patient via API - map form fields to database fields
-      const result = await window.electronAPI.createPatient(patientData)
-      
-      console.log('Create patient result:', result);
+
+      let result;
+      if (editPatientData) {
+        // Update existing patient
+        result = await window.electronAPI.updatePatient(editPatientData.id, patientData)
+      } else {
+        // Create new patient
+        result = await window.electronAPI.createPatient(patientData)
+      }
 
       if (result?.success) {
-        // Close modal on success
         onClose()
-        
-        // Notify parent component to refresh patient list
-        if (onPatientAdded) {
-          onPatientAdded()
-        }
+        if (onPatientAdded) onPatientAdded()
       } else {
-        throw new Error(result?.error || 'Failed to add patient')
+        throw new Error(result?.error || `Failed to ${editPatientData ? 'update' : 'add'} patient`)
       }
     } catch (err) {
-      setError(err.message || 'Failed to add patient')
+      setError(err.message || `Failed to ${editPatientData ? 'update' : 'add'} patient`)
     } finally {
       setLoading(false)
     }
@@ -75,7 +72,7 @@ const AddPatientModal = ({ onClose, currentUser, onPatientAdded }) => {
     <div className="fixed inset-0 bg-black bg-opacity-50 dark:bg-opacity-70 flex items-center justify-center z-50 p-4">
       <div className="bg-white dark:bg-gray-800 rounded-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto shadow-2xl">
         <div className="flex justify-between items-center p-6 border-b dark:border-gray-700 bg-gray-50 dark:bg-gray-700 rounded-t-lg">
-          <h2 className="text-2xl font-semibold text-gray-800 dark:text-gray-100">Add New Patient</h2>
+          <h2 className="text-2xl font-semibold text-gray-800 dark:text-gray-100">{editPatientData ? 'Edit Patient' : 'Add New Patient'}</h2>
           <button
             className="w-8 h-8 rounded-full flex items-center justify-center text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 hover:text-red-500 dark:hover:text-red-400 transition-colors duration-200"
             onClick={onClose}
@@ -221,7 +218,7 @@ const AddPatientModal = ({ onClose, currentUser, onPatientAdded }) => {
               disabled={loading}
               className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors duration-200"
             >
-              {loading ? 'Adding...' : 'Add Patient'}
+              {loading ? (editPatientData ? 'Updating...' : 'Adding...') : (editPatientData ? 'Update Patient' : 'Add Patient')}
             </button>
           </div>
         </form>

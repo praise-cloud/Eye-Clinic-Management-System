@@ -3,66 +3,67 @@ import PasswordInput from './PasswordInput'
 
 const DoctorForm = ({ formData, onChange }) => {
   return (
-    <div className="flex flex-col space-y-6 w-full">
-      {/* First & Last Name */}
-      <div className="flex gap-4 w-full">
-        <div className="flex flex-col w-1/2">
-          <label className="text-sm font-medium text-gray-700 dark:text-gray-300">First Name</label>
+    <div className="space-y-6 w-full animate-premium-fade">
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Professional First Name</label>
           <input
             type="text"
             name="firstName"
             value={formData.firstName || ''}
             onChange={onChange}
-            className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+            className="input-premium py-3 text-sm font-bold"
+            placeholder="Dr. John"
             required
           />
         </div>
-        <div className="flex flex-col w-1/2">
-          <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Last Name</label>
+        <div className="space-y-2">
+          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Legal Last Name</label>
           <input
             type="text"
             name="lastName"
             value={formData.lastName || ''}
             onChange={onChange}
-            className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+            className="input-premium py-3 text-sm font-bold"
+            placeholder="Doe"
             required
           />
         </div>
       </div>
 
-      {/* Email */}
-      <div className="flex flex-col">
-        <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Email</label>
+      <div className="space-y-2">
+        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Clinical Email Address</label>
         <input
           type="email"
           name="email"
           value={formData.email || ''}
           onChange={onChange}
-          className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+          className="input-premium py-3 text-sm font-bold"
+          placeholder="doctor@clinic.com"
           required
         />
       </div>
 
-      {/* Phone & Gender */}
-      <div className="flex gap-4 w-full">
-        <div className="flex flex-col w-1/2">
-          <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Phone Number</label>
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Contact Number</label>
           <input
             type="text"
             name="phoneNumber"
             value={formData.phoneNumber || ''}
             onChange={onChange}
-            className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+            className="input-premium py-3 text-sm font-bold"
+            placeholder="+251 ..."
             required
           />
         </div>
-        <div className="flex flex-col w-1/2">
-          <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Gender</label>
+        <div className="space-y-2">
+          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Gender</label>
           <select
             name="gender"
             value={formData.gender || ''}
             onChange={onChange}
-            className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+            className="input-premium py-3 text-sm font-bold appearance-none bg-no-repeat bg-[right_1rem_center]"
             required
           >
             <option value="">Select...</option>
@@ -73,26 +74,21 @@ const DoctorForm = ({ formData, onChange }) => {
         </div>
       </div>
 
-      {/* Passwords */}
-      <div className="flex gap-4 w-full">
-        <div className="w-1/2">
-          <PasswordInput
-            name="password"
-            value={formData.password}
-            onChange={onChange}
-            label="Password"
-            required
-          />
-        </div>
-        <div className="w-1/2">
-          <PasswordInput
-            name="confirmPassword"
-            value={formData.confirmPassword}
-            onChange={onChange}
-            label="Confirm Password"
-            required
-          />
-        </div>
+      <div className="grid grid-cols-2 gap-4">
+        <PasswordInput
+          name="password"
+          value={formData.password}
+          onChange={onChange}
+          label="Access Password"
+          required
+        />
+        <PasswordInput
+          name="confirmPassword"
+          value={formData.confirmPassword}
+          onChange={onChange}
+          label="Confirm Password"
+          required
+        />
       </div>
     </div>
   )

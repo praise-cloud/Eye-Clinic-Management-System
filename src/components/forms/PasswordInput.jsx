@@ -17,21 +17,22 @@ const PasswordInput = ({ name, value, onChange, label, required = false, classNa
   const [showPassword, setShowPassword] = useState(false)
 
   return (
-    <div className="flex flex-col">
-      <label className="text-sm font-medium text-gray-700 dark:text-gray-300">{label}</label>
-      <div className="relative">
+    <div className="space-y-2">
+      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">{label}</label>
+      <div className="relative group">
         <input
           type={showPassword ? 'text' : 'password'}
           name={name}
           value={value || ''}
           onChange={onChange}
-          className={`w-full p-3 pr-10 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 ${className}`}
+          className={`input-premium py-3.5 pr-12 text-sm font-bold ${className}`}
           required={required}
+          placeholder="••••••••"
         />
         <button
           type="button"
           onClick={() => setShowPassword(!showPassword)}
-          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+          className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-indigo-600 transition-colors"
         >
           {showPassword ? <EyeOffIcon /> : <EyeIcon />}
         </button>

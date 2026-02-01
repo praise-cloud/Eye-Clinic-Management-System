@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react'
+import * as patientService from '../../services/patientService'
+import * as testService from '../../services/testService'
 
 const UploadTestModal = ({ onClose, currentUser }) => {
   const [patients, setPatients] = useState([])
@@ -31,7 +33,7 @@ const UploadTestModal = ({ onClose, currentUser }) => {
 
   const loadPatients = async () => {
     try {
-      const patientsData = await window.api.getPatients()
+      const patientsData = await patientService.getAllPatients()
       setPatients(patientsData)
     } catch (err) {
       setError('Failed to load patients')
@@ -61,26 +63,27 @@ const UploadTestModal = ({ onClose, currentUser }) => {
 
     try {
       // Validate required fields
-      if (!formData.patientId || !formData.testType || !formData.testFile) {
-        throw new Error('Patient, test type, and test file are required')
+      if (!formData.patientId || !formData.testType) {
+        throw new Error('Patient and test type are required')
       }
 
-      // Create FormData for file upload
-      const uploadData = new FormData()
-      uploadData.append('patientId', formData.patientId)
-      uploadData.append('testType', formData.testType)
-      uploadData.append('testDate', formData.testDate)
-      uploadData.append('testFile', formData.testFile)
-      uploadData.append('notes', formData.notes)
-      uploadData.append('uploadedBy', currentUser.id)
+      const testData = {
+        patient_id: formData.patientId,
+        machine_type: formData.testType,
+        test_date: formData.testDate,
+        raw_data: JSON.stringify({
+          notes: formData.notes,
+          fileName: formData.testFile ? formData.testFile.name : null,
+          result: 'Completed' // Default to completed if uploading results
+        }),
+        uploaded_by: currentUser?.id
+      }
 
-      // Upload test via API
-      await window.api.uploadTest(uploadData)
+      await testService.createTest(testData)
 
-      // Close modal on success
       onClose()
     } catch (err) {
-      setError(err.message || 'Failed to upload test')
+      setError(err.message || 'Failed to create test')
     } finally {
       setLoading(false)
     }
@@ -96,7 +99,7 @@ const UploadTestModal = ({ onClose, currentUser }) => {
 
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
           {error && <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 px-4 py-3 rounded-md text-sm">{error}</div>}
-          
+
           <div className="flex flex-col">
             <label htmlFor="patientId" className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Patient *</label>
             <select
@@ -110,7 +113,7 @@ const UploadTestModal = ({ onClose, currentUser }) => {
               <option value="">Select a patient</option>
               {patients.map(patient => (
                 <option key={patient.id} value={patient.id}>
-                  {patient.firstName} {patient.lastName} - DOB: {patient.dateOfBirth}
+                  {patient.name || `${patient.first_name || ''} ${patient.last_name || ''}`.trim()} - DOB: {patient.dob || patient.dateOfBirth || 'N/A'}
                 </option>
               ))}
             </select>
@@ -133,7 +136,7 @@ const UploadTestModal = ({ onClose, currentUser }) => {
                 ))}
               </select>
             </div>
-            
+
             <div className="flex flex-col">
               <label htmlFor="testDate" className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Test Date *</label>
               <input

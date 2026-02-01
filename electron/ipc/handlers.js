@@ -132,6 +132,7 @@ class IPCHandlers {
           `Initial setup completed by ${userWithName.name} (${role})`
         );
 
+        BrowserWindow.getAllWindows().forEach(w => w.webContents.send('data:update', { table: 'users', action: 'create', record: userWithName }));
         return { success: true, user: userWithName };
       } catch (error) {
         console.error('Setup error:', error);
@@ -157,6 +158,7 @@ class IPCHandlers {
         }
 
         const user = await DatabaseService.createUser(dbUserData);
+        BrowserWindow.getAllWindows().forEach(w => w.webContents.send('data:update', { table: 'users', action: 'create', record: user }));
         return { success: true, user };
       } catch (error) {
         console.error('Create user error:', error);
@@ -175,7 +177,7 @@ class IPCHandlers {
     });
 
     ipcMain.handle('auth:isAuthenticated', async () => {
-        return !!currentUser; // true if someone is logged in
+      return !!currentUser; // true if someone is logged in
     });
 
     // ipcMain.handle('auth:getCurrentUser', async () => {
@@ -640,6 +642,7 @@ class IPCHandlers {
           );
         }
 
+        BrowserWindow.getAllWindows().forEach(w => w.webContents.send('data:update', { table: 'users', action: 'create', record: user }));
         return { success: true, user };
       } catch (error) {
         console.error('Admin create user error:', error);
@@ -665,6 +668,7 @@ class IPCHandlers {
           );
         }
 
+        BrowserWindow.getAllWindows().forEach(w => w.webContents.send('data:update', { table: 'users', action: 'update', userId }));
         return { success: true, ...result };
       } catch (error) {
         console.error('Admin update user status error:', error);
@@ -704,6 +708,7 @@ class IPCHandlers {
           );
         }
 
+        BrowserWindow.getAllWindows().forEach(w => w.webContents.send('data:update', { table: 'users', action: 'update', record: updatedUser }));
         return { success: true, user: updatedUser };
       } catch (error) {
         console.error('Admin update user error:', error);
@@ -729,6 +734,7 @@ class IPCHandlers {
           );
         }
 
+        BrowserWindow.getAllWindows().forEach(w => w.webContents.send('data:update', { table: 'users', action: 'delete', userId }));
         return result;
       } catch (error) {
         console.error('Admin delete user error:', error);
@@ -917,6 +923,26 @@ class IPCHandlers {
         return { success: false, error: error.message };
       }
     });
+
+    ipcMain.handle('db:getSettings', async () => {
+      try {
+        const settings = await DatabaseService.getAllSettings();
+        return { success: true, settings };
+      } catch (error) {
+        console.error('Get settings error:', error);
+        return { success: false, error: error.message };
+      }
+    });
+
+    ipcMain.handle('db:setSetting', async (event, { key, value }) => {
+      try {
+        await DatabaseService.setSetting(key, value);
+        return { success: true };
+      } catch (error) {
+        console.error('Set setting error:', error);
+        return { success: false, error: error.message };
+      }
+    });
   }
 
   registerSystemHandlers() {
@@ -954,7 +980,7 @@ class IPCHandlers {
         if (fs.existsSync(cfgPath)) {
           try {
             existing = JSON.parse(fs.readFileSync(cfgPath, 'utf-8'));
-          } catch {}
+          } catch { }
         }
         const data = { ...existing, network_db_path: payload?.path || '' };
         fs.writeFileSync(cfgPath, JSON.stringify(data));

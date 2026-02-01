@@ -54,6 +54,12 @@ class DatabaseService {
         return await db.getSetting(key);
     }
 
+    async getAllSettings() {
+        const db = await this.getDatabase();
+        const rows = await db.all('SELECT key, value FROM settings');
+        return rows;
+    }
+
     async setSetting(key, value) {
         const db = await this.getDatabase();
         return await db.setSetting(key, value);
@@ -197,24 +203,24 @@ class DatabaseService {
 
 
     async getAllTests(filters = {}) {
-    const db = await this.getDatabase();
-    let query = 'SELECT t.*, p.first_name, p.last_name FROM tests t LEFT JOIN patients p ON t.patient_id = p.id';
-    let params = [];
+        const db = await this.getDatabase();
+        let query = 'SELECT t.*, p.first_name, p.last_name FROM tests t LEFT JOIN patients p ON t.patient_id = p.id';
+        let params = [];
 
-    if (filters.patientName) {
-        query += ' WHERE p.first_name LIKE ? OR p.last_name LIKE ?';
-        const search = `%${filters.patientName}%`;
-        params = [search, search];
-    }
-    if (filters.patientId) {
-        query += params.length ? ' AND t.patient_id = ?' : ' WHERE t.patient_id = ?';
-        params.push(filters.patientId);
-    }
+        if (filters.patientName) {
+            query += ' WHERE p.first_name LIKE ? OR p.last_name LIKE ?';
+            const search = `%${filters.patientName}%`;
+            params = [search, search];
+        }
+        if (filters.patientId) {
+            query += params.length ? ' AND t.patient_id = ?' : ' WHERE t.patient_id = ?';
+            params.push(filters.patientId);
+        }
 
-    query += ' ORDER BY t.test_date DESC';
-    const rows = await db.all(query, params);
+        query += ' ORDER BY t.test_date DESC';
+        const rows = await db.all(query, params);
 
-    return rows;
+        return rows;
     }
 
     async createTest(testData) {
@@ -524,7 +530,7 @@ class DatabaseService {
                 const data = JSON.parse(t.raw_data || '{}');
                 const amount = Number(data.amount || data.fee || 0);
                 if (!isNaN(amount)) monthlyRevenue += amount;
-            } catch {}
+            } catch { }
         }
 
         const upcomingTests = await db.all(
@@ -536,7 +542,7 @@ class DatabaseService {
                 const data = JSON.parse(t.raw_data || '{}');
                 const status = String(data.result || '').toLowerCase();
                 if (status === 'scheduled') pendingAppointments += 1;
-            } catch {}
+            } catch { }
         }
 
         return {
@@ -574,7 +580,7 @@ class DatabaseService {
                 return { success: false, error: 'File not found' };
             }
             const ext = String(path.extname(externalPath) || '').toLowerCase();
-            if (ext === '.csv' || ext === '.json') {
+            if (ext === '.csv' || ext === '.json' || ext === '.bat') {
                 const appDb = await this.getDatabase();
                 await appDb.run('BEGIN');
                 try {
@@ -596,7 +602,7 @@ class DatabaseService {
                             }
                             rows.push(obj);
                         }
-                    } else {
+                    } else if (ext === '.json') {
                         const text = fs.readFileSync(externalPath, 'utf-8');
                         const data = JSON.parse(text);
                         if (Array.isArray(data)) {
@@ -605,6 +611,26 @@ class DatabaseService {
                             const keys = Object.keys(data);
                             for (const k of keys) {
                                 if (Array.isArray(data[k])) rows = rows.concat(data[k]);
+                            }
+                        }
+                    } else if (ext === '.bat') {
+                        // Legacy .bat files from .NET/C systems often contain space-separated or custom formatted data
+                        // We will attempt to parse them as text lines and look for data patterns
+                        const text = fs.readFileSync(externalPath, 'utf-8');
+                        const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0 && !l.trim().startsWith('@') && !l.trim().startsWith('rem'));
+
+                        if (lines.length > 0) {
+                            // Detect if it's a tab-separated or pipe-separated legacy dump
+                            const separator = lines[0].includes('|') ? '|' : (lines[0].includes('\t') ? '\t' : ',');
+                            const headers = lines[0].split(separator).map(h => h.trim().replace(/^"|"$/g, ''));
+
+                            for (let i = 1; i < lines.length; i++) {
+                                const parts = lines[i].split(separator).map(p => p.trim().replace(/^"|"$/g, ''));
+                                const obj = {};
+                                headers.forEach((h, idx) => {
+                                    if (h) obj[h] = parts[idx] ?? '';
+                                });
+                                rows.push(obj);
                             }
                         }
                     }
@@ -661,7 +687,7 @@ class DatabaseService {
                         }
                     } else if (target === 'patients') {
                         for (const p of rows) {
-                            const pid = p.patient_id || p.patientId || p.code || `P${Date.now()}${Math.floor(Math.random()*1000)}`;
+                            const pid = p.patient_id || p.patientId || p.code || `P${Date.now()}${Math.floor(Math.random() * 1000)}`;
                             const exists = await appDb.get('SELECT id FROM patients WHERE patient_id = ?', [pid]);
                             if (exists?.id) continue;
                             const id = require('uuid').v4();
@@ -772,7 +798,7 @@ class DatabaseService {
                     try {
                         const db = await this.getDatabase();
                         await db.run('ROLLBACK');
-                    } catch {}
+                    } catch { }
                     return { success: false, error: e.message };
                 }
             }
@@ -826,11 +852,11 @@ class DatabaseService {
                 if (fs.existsSync(cfgPath)) {
                     try {
                         existing = JSON.parse(fs.readFileSync(cfgPath, 'utf-8'));
-                    } catch {}
+                    } catch { }
                 }
                 const data = { ...existing, network_db_path: externalPath };
                 fs.writeFileSync(cfgPath, JSON.stringify(data));
-                try { extDb.close(); } catch {}
+                try { extDb.close(); } catch { }
                 return { success: true, mode: 'switch', path: externalPath };
             }
 
@@ -876,7 +902,7 @@ class DatabaseService {
                 const pTable = tableNames.has('patients') ? 'patients' : (tableNames.has('clients') ? 'clients' : (tableNames.has('client') ? 'client' : 'customer'));
                 const patients = await getAll(`SELECT * FROM ${pTable}`);
                 for (const p of patients) {
-                    const pid = p.patient_id || p.patientId || p.code || `P${Date.now()}${Math.floor(Math.random()*1000)}`;
+                    const pid = p.patient_id || p.patientId || p.code || `P${Date.now()}${Math.floor(Math.random() * 1000)}`;
                     const exists = await appDb.get('SELECT id FROM patients WHERE patient_id = ?', [pid]);
                     if (exists?.id) continue;
                     const id = require('uuid').v4();
@@ -995,13 +1021,13 @@ class DatabaseService {
             }
 
             await appDb.run('COMMIT');
-            try { extDb.close(); } catch {}
+            try { extDb.close(); } catch { }
             return { success: true, mode: 'import', imported };
         } catch (error) {
             try {
                 const db = await this.getDatabase();
                 await db.run('ROLLBACK');
-            } catch {}
+            } catch { }
             return { success: false, error: error.message };
         }
     }
