@@ -22,7 +22,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     closeAuthWindow: () => ipcRenderer.invoke('window:closeAuth'),
 
     // Database APIs
-    getSettings: () => ipcRenderer.invoke('db:getSettings'),
+    getSettings: () => ipcRenderer.invoke('settings:getAll'),
     setSetting: (key, value) => ipcRenderer.invoke('db:setSetting', { key, value }),
 
     // Patient APIs

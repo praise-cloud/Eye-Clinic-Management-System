@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import * as patientService from '../../services/patientService'
 
 const GenerateReportModal = ({ onClose, currentUser }) => {
   const [patients, setPatients] = useState([])
@@ -31,10 +32,10 @@ const GenerateReportModal = ({ onClose, currentUser }) => {
 
   const loadPatients = async () => {
     try {
-      const patientsData = await window.api.getPatients()
+      const patientsData = await patientService.getAllPatients()
       setPatients(patientsData)
     } catch (err) {
-      setError('Failed to load patients')
+      setError('Failed to load clinical subjects')
     }
   }
 
@@ -53,25 +54,39 @@ const GenerateReportModal = ({ onClose, currentUser }) => {
     setGeneratedReport(null)
 
     try {
-      // Validate required fields
       if (!formData.patientId || !formData.reportType) {
         throw new Error('Patient and report type are required')
       }
 
       if (formData.dateFrom && formData.dateTo && formData.dateFrom > formData.dateTo) {
-        throw new Error('Start date cannot be after end date')
+        throw new Error('Chronological error: Start date exceeds end date')
       }
 
-      // Generate report via API
-      const reportData = await window.api.generateReport({
-        ...formData,
-        generatedBy: currentUser.id,
-        generatedAt: new Date().toISOString()
-      })
+      if (window.electronAPI?.generateReport) {
+        const reportData = await window.electronAPI.generateReport({
+          ...formData,
+          generatedBy: currentUser?.id,
+          generatedAt: new Date().toISOString()
+        })
+        setGeneratedReport(reportData)
+      } else {
+        // Mock for dev if not in electron
+        setTimeout(() => {
+          setGeneratedReport({
+            title: formData.reportType,
+            patientName: patients.find(p => p.id === formData.patientId)?.name || 'Patient',
+            generatedAt: new Date().toISOString(),
+            pageCount: 3,
+            content: 'PDF_DUMMY_CONTENT',
+            fileName: `Report_${formData.patientId}_${Date.now()}`
+          })
+          setLoading(false)
+        }, 1500)
+        return // Handle async in setGeneratedReport
+      }
 
-      setGeneratedReport(reportData)
     } catch (err) {
-      setError(err.message || 'Failed to generate report')
+      setError(err.message || 'Failed to synthesize report')
     } finally {
       setLoading(false)
     }
@@ -79,12 +94,11 @@ const GenerateReportModal = ({ onClose, currentUser }) => {
 
   const handleDownload = () => {
     if (generatedReport) {
-      // Create a download link for the report
       const blob = new Blob([generatedReport.content], { type: 'application/pdf' })
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `${generatedReport.fileName || 'report'}.pdf`
+      a.download = `${generatedReport.fileName || 'medical_report'}.pdf`
       document.body.appendChild(a)
       a.click()
       window.URL.revokeObjectURL(url)
@@ -94,7 +108,6 @@ const GenerateReportModal = ({ onClose, currentUser }) => {
 
   const handlePreview = () => {
     if (generatedReport) {
-      // Open report in new window for preview
       const blob = new Blob([generatedReport.content], { type: 'application/pdf' })
       const url = window.URL.createObjectURL(blob)
       window.open(url, '_blank')
@@ -102,150 +115,211 @@ const GenerateReportModal = ({ onClose, currentUser }) => {
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 dark:bg-opacity-70 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-gray-800 rounded-lg w-full max-w-3xl max-h-[90vh] overflow-y-auto shadow-2xl">
-        <div className="flex justify-between items-center p-6 border-b dark:border-gray-700 bg-gray-50 dark:bg-gray-700 rounded-t-lg">
-          <h2 className="text-2xl font-semibold text-gray-800 dark:text-gray-100">Generate Report</h2>
-          <button className="w-8 h-8 rounded-full flex items-center justify-center text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 hover:text-red-500 dark:hover:text-red-400 transition-colors duration-200" onClick={onClose}>×</button>
+    <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-premium-fade">
+      <div className="card-premium w-full max-w-2xl bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 overflow-hidden shadow-2xl animate-premium-slide">
+        {/* Header */}
+        <div className="p-8 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-950/30">
+          <div>
+            <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">Report Synthesis</h2>
+            <p className="text-xs text-slate-500 font-bold uppercase tracking-widest mt-1">Generate professional medical documentation</p>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-2 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-xl transition-all duration-200 group"
+          >
+            <svg className="w-6 h-6 text-slate-400 group-hover:text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
         </div>
 
-        {!generatedReport ? (
-          <form onSubmit={handleSubmit} className="p-6 space-y-6">
-            {error && <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 px-4 py-3 rounded-md text-sm">{error}</div>}
-            
-            <div className="flex flex-col">
-              <label htmlFor="patientId" className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Patient *</label>
-              <select
-                id="patientId"
-                name="patientId"
-                value={formData.patientId}
-                onChange={handleInputChange}
-                required
-                className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        <div className="p-8 max-h-[70vh] overflow-y-auto custom-scrollbar">
+          {!generatedReport ? (
+            <form onSubmit={handleSubmit} className="space-y-8">
+              {error && (
+                <div className="p-4 bg-rose-50 dark:bg-rose-900/10 border-l-4 border-rose-500 rounded-r-xl flex items-center gap-3 animate-premium-slide">
+                  <div className="p-1.5 bg-rose-100 dark:bg-rose-900/30 rounded-lg text-rose-600 dark:text-rose-400">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <p className="text-sm font-bold text-rose-700 dark:text-rose-400">{error}</p>
+                </div>
+              )}
+
+              {/* Data Scope Section */}
+              <div className="space-y-6">
+                <div>
+                  <label className="block text-[10px] font-black text-indigo-500 uppercase tracking-widest mb-4">Target Intelligence</label>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="md:col-span-2">
+                      <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Clinical Subject (Patient) *</label>
+                      <select
+                        name="patientId"
+                        value={formData.patientId}
+                        onChange={handleInputChange}
+                        required
+                        className="input-premium appearance-none"
+                      >
+                        <option value="">Select subject...</option>
+                        {patients.map(patient => (
+                          <option key={patient.id} value={patient.id}>
+                            {patient.name || `${patient.first_name || ''} ${patient.last_name || ''}`.trim()} — DOB: {patient.dob}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="md:col-span-2">
+                      <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Report Document Archetype *</label>
+                      <select
+                        name="reportType"
+                        value={formData.reportType}
+                        onChange={handleInputChange}
+                        required
+                        className="input-premium appearance-none"
+                      >
+                        <option value="">Select archetype...</option>
+                        {reportTypes.map(type => (
+                          <option key={type} value={type}>{type}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Temporal Start (From)</label>
+                      <input
+                        type="date"
+                        name="dateFrom"
+                        value={formData.dateFrom}
+                        onChange={handleInputChange}
+                        className="input-premium"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Temporal End (To)</label>
+                      <input
+                        type="date"
+                        name="dateTo"
+                        value={formData.dateTo}
+                        onChange={handleInputChange}
+                        className="input-premium"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Inclusion Matrix */}
+                <div>
+                  <label className="block text-[10px] font-black text-emerald-500 uppercase tracking-widest mb-4">Inclusion Matrix</label>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {[
+                      { id: 'includeTests', label: 'Diagnostics', icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' },
+                      { id: 'includeImages', label: 'Imaging', icon: 'M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z' },
+                      { id: 'includeNotes', label: 'Clinical Notes', icon: 'M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z' }
+                    ].map(item => (
+                      <label
+                        key={item.id}
+                        className={`flex items-center gap-3 p-4 rounded-xl border transition-all cursor-pointer ${formData[item.id] ? 'bg-indigo-50 border-indigo-200 dark:bg-indigo-900/20 dark:border-indigo-800' : 'bg-slate-50 border-slate-100 dark:bg-slate-800/50 dark:border-slate-800'}`}
+                      >
+                        <input
+                          type="checkbox"
+                          name={item.id}
+                          checked={formData[item.id]}
+                          onChange={handleInputChange}
+                          className="hidden"
+                        />
+                        <div className={`p-2 rounded-lg ${formData[item.id] ? 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/50 dark:text-indigo-400' : 'bg-slate-200 text-slate-400 dark:bg-slate-700'}`}>
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={item.icon} />
+                          </svg>
+                        </div>
+                        <span className={`text-xs font-bold uppercase tracking-widest ${formData[item.id] ? 'text-indigo-900 dark:text-indigo-200' : 'text-slate-500'}`}>{item.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-4 pt-6">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="flex-1 px-6 py-4 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-xl text-xs font-black tracking-widest uppercase hover:bg-slate-100 dark:hover:bg-slate-700 transition-all border border-slate-200 dark:border-slate-700 active:scale-95"
+                >
+                  Discard
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="flex-[2] btn btn-primary py-4 text-xs font-black tracking-widest uppercase shadow-xl shadow-indigo-200 dark:shadow-none hover:scale-[1.02] active:scale-95"
+                >
+                  {loading ? (
+                    <div className="flex items-center justify-center gap-2">
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      <span>Synthesizing...</span>
+                    </div>
+                  ) : (
+                    'Generate Clinical Report'
+                  )}
+                </button>
+              </div>
+            </form>
+          ) : (
+            <div className="py-6 animate-premium-fade">
+              <div className="mb-8 p-6 bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-100 dark:border-emerald-800 rounded-2xl flex items-center gap-5">
+                <div className="w-12 h-12 bg-emerald-100 dark:bg-emerald-900/30 rounded-full flex items-center justify-center text-emerald-600">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-lg font-black text-emerald-900 dark:text-emerald-400 leading-tight">Synthesis Complete</h3>
+                  <p className="text-xs text-emerald-600 dark:text-emerald-500 font-bold uppercase tracking-widest mt-0.5">Medical file has been successfully generated</p>
+                </div>
+              </div>
+
+              <div className="bg-slate-50 dark:bg-slate-950/50 p-6 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-4 mb-10">
+                <div className="flex justify-between items-center pb-4 border-b border-slate-200/50 dark:border-slate-800">
+                  <span className="text-xs font-black text-slate-400 uppercase tracking-widest">Document Title</span>
+                  <span className="text-sm font-bold text-slate-900 dark:text-white">{generatedReport.title}</span>
+                </div>
+                <div className="flex justify-between items-center pb-4 border-b border-slate-200/50 dark:border-slate-800">
+                  <span className="text-xs font-black text-slate-400 uppercase tracking-widest">Clinical Subject</span>
+                  <span className="text-sm font-bold text-slate-900 dark:text-white">{generatedReport.patientName}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-black text-slate-400 uppercase tracking-widest">Volume (Length)</span>
+                  <span className="text-sm font-bold text-slate-900 dark:text-white">{generatedReport.pageCount} Pages</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <button
+                  onClick={handlePreview}
+                  className="px-6 py-4 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-xl text-xs font-black tracking-widest uppercase hover:bg-slate-100 dark:hover:bg-slate-700 transition-all border border-slate-200 dark:border-slate-700 active:scale-95"
+                >
+                  Deep Preview
+                </button>
+                <button
+                  onClick={handleDownload}
+                  className="btn btn-primary py-4 text-xs font-black tracking-widest uppercase shadow-xl shadow-indigo-200 dark:shadow-none hover:scale-[1.02] active:scale-95 transition-all"
+                >
+                  Download PDF
+                </button>
+              </div>
+
+              <button
+                onClick={onClose}
+                className="w-full mt-4 py-3 text-xs font-black text-slate-400 uppercase tracking-[0.2em] hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
               >
-                <option value="">Select a patient</option>
-                {patients.map(patient => (
-                  <option key={patient.id} value={patient.id}>
-                    {patient.firstName} {patient.lastName} - DOB: {patient.dateOfBirth}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="flex flex-col">
-              <label htmlFor="reportType" className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Report Type *</label>
-              <select
-                id="reportType"
-                name="reportType"
-                value={formData.reportType}
-                onChange={handleInputChange}
-                required
-                className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="">Select report type</option>
-                {reportTypes.map(type => (
-                  <option key={type} value={type}>{type}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="flex flex-col">
-                <label htmlFor="dateFrom" className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Date From</label>
-                <input
-                  type="date"
-                  id="dateFrom"
-                  name="dateFrom"
-                  value={formData.dateFrom}
-                  onChange={handleInputChange}
-                  className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-              </div>
-              
-              <div className="flex flex-col">
-                <label htmlFor="dateTo" className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Date To</label>
-                <input
-                  type="date"
-                  id="dateTo"
-                  name="dateTo"
-                  value={formData.dateTo}
-                  onChange={handleInputChange}
-                  className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-              </div>
-            </div>
-
-            <div className="flex flex-col">
-              <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Include in Report:</label>
-              <div className="space-y-2">
-                <label className="flex items-center">
-                  <input
-                    type="checkbox"
-                    name="includeTests"
-                    checked={formData.includeTests}
-                    onChange={handleInputChange}
-                    className="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded"
-                  />
-                  <span className="text-gray-700 dark:text-gray-300">Test Results</span>
-                </label>
-                <label className="flex items-center">
-                  <input
-                    type="checkbox"
-                    name="includeImages"
-                    checked={formData.includeImages}
-                    onChange={handleInputChange}
-                    className="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded"
-                  />
-                  <span className="text-gray-700 dark:text-gray-300">Medical Images</span>
-                </label>
-                <label className="flex items-center">
-                  <input
-                    type="checkbox"
-                    name="includeNotes"
-                    checked={formData.includeNotes}
-                    onChange={handleInputChange}
-                    className="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded"
-                  />
-                  <span className="text-gray-700 dark:text-gray-300">Clinical Notes</span>
-                </label>
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-3 pt-6 border-t dark:border-gray-600">
-              <button type="button" className="px-6 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 dark:bg-gray-500 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors duration-200" onClick={onClose}>
-                Cancel
-              </button>
-              <button type="submit" className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors duration-200" disabled={loading}>
-                {loading ? 'Generating...' : 'Generate Report'}
+                Close Synthesis Lab
               </button>
             </div>
-          </form>
-        ) : (
-          <div className="p-6">
-            <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-700 dark:text-green-400 px-4 py-3 rounded-md mb-6 text-sm">
-              ✓ Report generated successfully!
-            </div>
-            
-            <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg mb-6">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">{generatedReport.title}</h3>
-              <p className="text-gray-600 dark:text-gray-400">Patient: {generatedReport.patientName}</p>
-              <p className="text-gray-600 dark:text-gray-400">Generated: {new Date(generatedReport.generatedAt).toLocaleString()}</p>
-              <p className="text-gray-600 dark:text-gray-400">Pages: {generatedReport.pageCount}</p>
-            </div>
-
-            <div className="flex justify-end gap-3 pt-6 border-t dark:border-gray-600">
-              <button type="button" className="px-6 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 dark:bg-gray-500 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors duration-200" onClick={onClose}>
-                Close
-              </button>
-              <button type="button" className="px-6 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors duration-200" onClick={handlePreview}>
-                Preview
-              </button>
-              <button type="button" className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-200" onClick={handleDownload}>
-                Download PDF
-              </button>
-            </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   )

@@ -4,44 +4,45 @@ const LogoutModal = ({ isOpen, onClose, onConfirm, loading = false }) => {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-center mb-4">
-          <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
-            <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-            </svg>
-          </div>
-        </div>
-        
-        <div className="text-center mb-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">Confirm Logout</h3>
-          <p className="text-gray-600">
-            Are you sure you want to logout? You will need to sign in again to access the system.
-          </p>
-        </div>
-
-        <div className="flex gap-3 justify-end">
-          <button
-            onClick={onClose}
-            disabled={loading}
-            className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors disabled:opacity-50"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={onConfirm}
-            disabled={loading}
-            className="px-4 py-2 bg-red-600 text-white hover:bg-red-700 rounded-md transition-colors disabled:opacity-50 flex items-center gap-2"
-          >
-            {loading && (
-              <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+    <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center z-[110] p-4 animate-premium-fade">
+      <div className="card-premium bg-white dark:bg-slate-900 w-full max-w-md p-8 shadow-2xl animate-premium-slide" onClick={(e) => e.stopPropagation()}>
+        <div className="flex flex-col items-center text-center">
+          <div className="w-20 h-20 bg-rose-50 dark:bg-rose-900/10 rounded-3xl flex items-center justify-center mb-6 group transition-all duration-500 hover:scale-110">
+            <div className="w-14 h-14 bg-rose-100 dark:bg-rose-900/20 rounded-2xl flex items-center justify-center text-rose-600 transition-colors group-hover:bg-rose-500 group-hover:text-white">
+              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
               </svg>
-            )}
-            {loading ? 'Logging out...' : 'Logout'}
-          </button>
+            </div>
+          </div>
+
+          <h3 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight mb-2">Session Termination</h3>
+          <p className="text-sm text-slate-500 font-medium mb-10 max-w-[280px]">
+            You are about to terminate your current clinical session. All unsaved telemetry may be lost.
+          </p>
+
+          <div className="flex flex-col w-full gap-3">
+            <button
+              onClick={onConfirm}
+              disabled={loading}
+              className="w-full py-4 bg-rose-500 hover:bg-rose-600 text-white rounded-xl text-xs font-black tracking-widest uppercase shadow-xl shadow-rose-200 dark:shadow-none transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50 flex items-center justify-center gap-3"
+            >
+              {loading ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  <span>Suspending...</span>
+                </>
+              ) : (
+                'Confirm Termination'
+              )}
+            </button>
+            <button
+              onClick={onClose}
+              disabled={loading}
+              className="w-full py-4 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-xl text-xs font-black tracking-widest uppercase hover:bg-slate-100 dark:hover:bg-slate-700 transition-all border border-slate-200 dark:border-slate-700 active:scale-95 disabled:opacity-50"
+            >
+              Return to System
+            </button>
+          </div>
         </div>
       </div>
     </div>

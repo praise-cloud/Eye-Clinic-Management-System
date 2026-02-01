@@ -24,7 +24,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     closeAuthWindow: () => ipcRenderer.invoke('window:closeAuth'),
 
     // Database APIs
-    getSettings: () => ipcRenderer.invoke('db:getSettings'),
+    getSettings: () => ipcRenderer.invoke('settings:getAll'),
     setSetting: (key, value) => ipcRenderer.invoke('db:setSetting', { key, value }),
 
     // Patient APIs
@@ -81,7 +81,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
         ipcRenderer.on(channel, subscription);
         return () => ipcRenderer.removeListener(channel, subscription);
     },
-    syncToSupabase: () => ipcRenderer.invoke('presence:syncToSupabase')
+    syncToSupabase: () => ipcRenderer.invoke('presence:syncToSupabase'),
 
     // File APIs
     selectFile: (options) => ipcRenderer.invoke('file:select', options),
@@ -112,8 +112,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
         ipcRenderer.on('tests:imported', subscription);
         return () => ipcRenderer.removeListener('tests:imported', subscription);
     }
-
-
 });
 
 // Listen for preload events

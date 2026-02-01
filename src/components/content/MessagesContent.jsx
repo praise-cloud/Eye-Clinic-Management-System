@@ -353,18 +353,18 @@ const MessagesContent = () => {
               <button
                 key={user.id}
                 onClick={() => setOtherUser(user)}
-                className={`w - full text - left p - 4 rounded - 2xl flex items - center gap - 4 transition - all ${isSelected
+                className={`w-full text-left p-4 rounded-2xl flex items-center gap-4 transition-all ${isSelected
                   ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200 dark:shadow-none'
                   : 'hover:bg-slate-50/80 dark:hover:bg-slate-800/40 text-slate-700 dark:text-slate-300'
-                  } `}
+                  }`}
               >
                 <div className="relative">
-                  <div className={`w - 11 h - 11 rounded - xl flex items - center justify - center font - black text - xs ${isSelected ? 'bg-white/20 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'
-                    } `}>
+                  <div className={`w-11 h-11 rounded-xl flex items-center justify-center font-black text-xs ${isSelected ? 'bg-white/20 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'
+                    }`}>
                     {userName.split(' ').map(n => n[0]).join('')}
                   </div>
-                  <div className={`absolute - bottom - 1 - right - 1 w - 3.5 h - 3.5 rounded - full border - 2 ${isSelected ? 'border-indigo-600' : 'border-white dark:border-slate-900'
-                    } ${isOnline ? 'bg-emerald-500' : 'bg-slate-300'} `}></div>
+                  <div className={`absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full border-2 ${isSelected ? 'border-indigo-600' : 'border-white dark:border-slate-900'
+                    } ${isOnline ? 'bg-emerald-500' : 'bg-slate-300'}`}></div>
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between">
@@ -375,7 +375,7 @@ const MessagesContent = () => {
                       </span>
                     )}
                   </div>
-                  <p className={`text - [10px] font - black uppercase tracking - widest mt - 1 opacity - 70`}>{user.role}</p>
+                  <p className={`text-[10px] font-black uppercase tracking-widest mt-1 opacity-70`}>{user.role}</p>
                 </div>
               </button>
             );
@@ -402,12 +402,12 @@ const MessagesContent = () => {
                   <div className="w-12 h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-600 font-black text-sm">
                     {otherUserName.split(' ').map(n => n[0]).join('')}
                   </div>
-                  <div className={`absolute - bottom - 1 - right - 1 w - 4 h - 4 rounded - full border - 2 border - white dark: border - slate - 900 ${otherUser?.is_online ? 'bg-emerald-500' : 'bg-slate-300'} `}></div>
+                  <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-white dark:border-slate-900 ${otherUser?.is_online ? 'bg-emerald-500' : 'bg-slate-300'}`}></div>
                 </div>
                 <div>
                   <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">{otherUserName}</h3>
                   <div className="flex items-center gap-2 mt-0.5">
-                    <span className={`text - [10px] font - black uppercase tracking - widest ${otherUser?.is_online ? 'text-emerald-500' : 'text-slate-400'} `}>
+                    <span className={`text-[10px] font-black uppercase tracking-widest ${otherUser?.is_online ? 'text-emerald-500' : 'text-slate-400'}`}>
                       {otherUser?.is_online ? 'Active Now' : 'Disconnected'}
                     </span>
                     <span className="text-slate-200">|</span>
@@ -440,20 +440,20 @@ const MessagesContent = () => {
                 messages.map((msg, index) => {
                   const isMe = msg.sender_id === currentUser.id;
                   return (
-                    <div key={`${msg.id} -${index} `} className={`flex ${isMe ? 'justify-end' : 'justify-start'} `}>
-                      <div className={`max - w - [80 %] flex flex - col ${isMe ? 'items-end' : 'items-start'} `}>
-                        <div className={`p - 4 rounded - [1.5rem] shadow - sm text - sm relative group ${isMe
+                    <div key={`${msg.id}-${index}`} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+                      <div className={`max-w-[80%] flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
+                        <div className={`p-4 rounded-[1.5rem] shadow-sm text-sm relative group ${isMe
                           ? 'bg-indigo-600 text-white rounded-tr-none'
                           : 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-100 rounded-tl-none'
-                          } `}>
+                          }`}>
                           {/* Reply Context */}
                           {(() => {
                             const replyId = msg.reply_to_id || clientReplies[msg.id];
                             const refMsg = messages.find(m => m.id === replyId);
                             if (refMsg) {
                               return (
-                                <div className={`mb - 3 p - 2 rounded - xl border - l - 4 text - [10px] ${isMe ? 'bg-indigo-700/50 border-white/40' : 'bg-slate-200/50 dark:bg-slate-700 border-slate-300'
-                                  } `}>
+                                <div className={`mb-3 p-2 rounded-xl border-l-4 text-[10px] ${isMe ? 'bg-indigo-700/50 border-white/40' : 'bg-slate-200/50 dark:bg-slate-700 border-slate-300'
+                                  }`}>
                                   <div className="font-black uppercase tracking-widest opacity-60 mb-1">REFERENCE</div>
                                   <div className="truncate font-medium">{refMsg.message_text || 'Asset Attachment'}</div>
                                 </div>
@@ -484,7 +484,7 @@ const MessagesContent = () => {
                                   return (
                                     <button
                                       onClick={() => setModalContent({ type: 'file', data: att.data, name: att.name })}
-                                      className={`flex items - center gap - 3 p - 3 rounded - xl ${isMe ? 'bg-white/10' : 'bg-slate-200 dark:bg-slate-700'} `}
+                                      className={`flex items-center gap-3 p-3 rounded-xl ${isMe ? 'bg-white/10' : 'bg-slate-200 dark:bg-slate-700'}`}
                                     >
                                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                                       <div className="text-left">
@@ -499,7 +499,7 @@ const MessagesContent = () => {
                           )}
 
                           {/* Message Actions (Floating) */}
-                          <div className={`absolute top - 0 ${isMe ? '-left-10' : '-right-10'} opacity - 0 group - hover: opacity - 100 transition - opacity flex flex - col gap - 1`}>
+                          <div className={`absolute top-0 ${isMe ? '-left-10' : '-right-10'} opacity-0 group-hover:opacity-100 transition-opacity flex flex-col gap-1`}>
                             <button
                               onClick={() => setReplyTo(msg)}
                               className="w-8 h-8 rounded-full bg-white dark:bg-slate-900 shadow-sm border border-slate-100 dark:border-slate-800 flex items-center justify-center text-slate-400 hover:text-indigo-600 transition-colors"
@@ -604,22 +604,22 @@ const MessagesContent = () => {
 
       {/* Asset Preview Modal */}
       {modalContent && (
-        <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-xl z-[100] flex items-center justify-center p-12" onClick={() => setModalContent(null)}>
-          <div className="max-w-6xl w-full h-full flex flex-col" onClick={e => e.stopPropagation()}>
-            <div className="flex justify-between items-center mb-6 text-white">
+        <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-xl z-[200] flex items-center justify-center p-8 animate-premium-fade" onClick={() => setModalContent(null)}>
+          <div className="max-w-6xl w-full h-[90vh] flex flex-col animate-premium-slide" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-6 text-white px-2">
               <div>
                 <h3 className="text-xl font-black tracking-tight">{modalContent.name}</h3>
-                <p className="text-sm opacity-60">Verified Clinical Asset</p>
+                <p className="text-xs font-black uppercase tracking-[0.2em] text-indigo-400">Verified Clinical Asset</p>
               </div>
-              <button onClick={() => setModalContent(null)} className="w-12 h-12 rounded-2xl bg-white/10 hover:bg-white/20 flex items-center justify-center shadow-xl transition-colors">
+              <button onClick={() => setModalContent(null)} className="w-12 h-12 rounded-2xl bg-white/10 hover:bg-white/20 flex items-center justify-center shadow-xl transition-all hover:scale-110 active:scale-90">
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
-            <div className="flex-1 bg-white dark:bg-slate-900 rounded-[3rem] overflow-hidden shadow-2xl flex items-center justify-center border border-white/10">
+            <div className="flex-1 bg-white dark:bg-slate-900 rounded-[2.5rem] overflow-hidden shadow-2xl flex items-center justify-center border border-white/10 relative">
               {modalContent.type === 'image' ? (
-                <img src={modalContent.data} className="max-w-full max-h-full object-contain" />
+                <img src={modalContent.data} className="max-w-full max-h-full object-contain p-4" alt={modalContent.name} />
               ) : (
-                <iframe src={modalContent.data} className="w-full h-full" title={modalContent.name} />
+                <iframe src={modalContent.data} className="w-full h-full border-none" title={modalContent.name} />
               )}
             </div>
           </div>
@@ -628,16 +628,16 @@ const MessagesContent = () => {
 
       {/* Disposal Confirmation */}
       {deleteConfirm && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center" onClick={() => setDeleteConfirm(null)}>
-          <div className="card-premium p-8 max-w-md w-full mx-4 shadow-2xl" onClick={e => e.stopPropagation()}>
-            <div className="w-16 h-16 rounded-2xl bg-rose-50 dark:bg-rose-900/30 text-rose-600 flex items-center justify-center mb-6">
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-[200] flex items-center justify-center p-4 animate-premium-fade" onClick={() => setDeleteConfirm(null)}>
+          <div className="card-premium bg-white dark:bg-slate-900 p-8 max-w-sm w-full shadow-2xl animate-premium-slide" onClick={e => e.stopPropagation()}>
+            <div className="w-16 h-16 rounded-2xl bg-rose-50 dark:bg-rose-900/10 text-rose-600 flex items-center justify-center mb-6 font-black scale-110">
               <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
             </div>
-            <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">Dispose Consultation?</h3>
-            <p className="text-sm text-slate-500 font-medium mt-2 leading-relaxed">This action will permanently purge the selected message from the clinical record logs. This cannot be reversed.</p>
-            <div className="flex gap-3 justify-end mt-8">
-              <button onClick={() => setDeleteConfirm(null)} className="btn btn-ghost px-6">Keep Record</button>
-              <button onClick={() => handleDelete(deleteConfirm.id)} className="btn btn-primary bg-rose-600 hover:bg-rose-700 px-6">Purge Log</button>
+            <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight leading-tight">Dispose Consultation?</h3>
+            <p className="text-sm text-slate-500 font-medium mt-3 leading-relaxed">This action will permanently purge the selected message from the clinical record logs. This cannot be reversed.</p>
+            <div className="flex gap-3 mt-10">
+              <button onClick={() => setDeleteConfirm(null)} className="flex-1 py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-xl text-xs font-black tracking-widest uppercase hover:bg-slate-200 transition-all">Keep Record</button>
+              <button onClick={() => handleDelete(deleteConfirm.id)} className="flex-1 py-3 bg-rose-500 text-white rounded-xl text-xs font-black tracking-widest uppercase shadow-lg shadow-rose-200 dark:shadow-none hover:bg-rose-600 transition-all active:scale-95">Purge Log</button>
             </div>
           </div>
         </div>

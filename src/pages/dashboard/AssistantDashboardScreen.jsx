@@ -1,21 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { DeleteIcon, EditIcon, ViewIcon } from '../../components/Icons';
 import ClientDetailContent from '../ClientDetailContent';
+import AddPatientModal from '../../components/modals/AddPatientModal';
+import useUser from '../../hooks/useUser';
 
-const getStatClasses = (color) => {
-    if (color.includes('blue')) return { icon: 'text-blue-600', bg: 'bg-blue-100' };
-    if (color.includes('green')) return { icon: 'text-green-600', bg: 'bg-green-100' };
-    if (color.includes('yellow')) return { icon: 'text-yellow-600', bg: 'bg-yellow-100' };
-    if (color.includes('red')) return { icon: 'text-red-600', bg: 'bg-red-100' };
-    return {};
-};
-
-const App = () => {
+const AssistantDashboardScreen = () => {
+    const { user } = useUser();
     const [statsData, setStatsData] = useState([
-        { label: 'Total Patients', number: '0', icon: 'fas fa-users', color: 'text-blue-500' },
-        { label: "Today's Appointments", number: '0', icon: 'fas fa-calendar-check', color: 'text-green-500' },
-        { label: 'Pending Appointments', number: '0', icon: 'fas fa-clock', color: 'text-yellow-500' },
-        { label: 'Monthly Revenue', number: '₦0', icon: 'fa-solid fa-coins', color: 'text-red-500' },
+        { label: 'Total Patients', number: '0', icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z', color: 'indigo' },
+        { label: "Today's Intake", number: '0', icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z', color: 'emerald' },
+        { label: 'Pending Tests', number: '0', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4', color: 'amber' },
+        { label: 'Clinical Revenue', number: '₦0', icon: 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z', color: 'rose' },
     ]);
 
     const [patients, setPatients] = useState([]);
@@ -27,14 +22,7 @@ const App = () => {
     const [selectedClient, setSelectedClient] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
-    const [showAddModal, setShowAddModal] = useState(false);
-    const [newPatient, setNewPatient] = useState({
-        first_name: '',
-        last_name: '',
-        dob: '',
-        gender: 'other',
-        contact: ''
-    });
+    const [showAddPatientModal, setShowAddPatientModal] = useState(false);
 
     const loadPatients = async () => {
         try {
@@ -45,9 +33,9 @@ const App = () => {
                     id: patient.id,
                     name: `${patient.first_name} ${patient.last_name}`,
                     date: patient.dob,
-                    case: patient.reason_for_visit || 'Not specified',
-                    phone: patient.contact || patient.phone_number || '',
-                    email: patient.email || '',
+                    case: patient.reason_for_visit || 'Routine Checkup',
+                    phone: patient.contact || patient.phone_number || 'N/A',
+                    email: patient.email || 'N/A',
                     patient_id: patient.patient_id,
                     first_name: patient.first_name,
                     last_name: patient.last_name,
@@ -58,57 +46,51 @@ const App = () => {
                 setPatients(transformed);
                 setError('');
             } else {
-                setError(result.error || 'Failed to load patients');
+                setError(result.error || 'Database connection error');
             }
         } catch (err) {
-            setError('Failed to load patients');
+            setError('System fault: Unable to access patient registry');
         } finally {
             setLoading(false);
         }
     };
 
-    useEffect(() => {
-        loadPatients();
-    }, []);
+    const fetchStats = async () => {
+        try {
+            if (!window.electronAPI?.getDashboardStats) return;
+            const result = await window.electronAPI.getDashboardStats();
+            if (result?.success && result.stats) {
+                const stats = result.stats;
+                const currency = new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN', minimumFractionDigits: 0 });
+                setStatsData([
+                    { label: 'Total Patients', number: String(stats.totalPatients || 0), icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z', color: 'indigo' },
+                    { label: "Today's Intake", number: String(stats.todayAppointments || 0), icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z', color: 'emerald' },
+                    { label: 'Pending Tests', number: String(stats.pendingTests || stats.pendingAppointments || 0), icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4', color: 'amber' },
+                    { label: 'Clinical Revenue', number: currency.format(Number(stats.monthlyRevenue || 0)), icon: 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z', color: 'rose' },
+                ]);
+            }
+        } catch (error) {
+            console.error('Failed to load dashboard stats:', error);
+        }
+    };
 
     useEffect(() => {
-        const fetchStats = async () => {
-            try {
-                if (!window.electronAPI || !window.electronAPI.getDashboardStats) return;
-                const result = await window.electronAPI.getDashboardStats();
-                if (result?.success && result.stats) {
-                    const stats = result.stats;
-                    const currency = new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN', minimumFractionDigits: 0 });
-                    setStatsData([
-                        { label: 'Total Patients', number: String(stats.totalPatients || 0), icon: 'fas fa-users', color: 'text-blue-500' },
-                        { label: "Today's Appointments", number: String(stats.todayAppointments || 0), icon: 'fas fa-calendar-check', color: 'text-green-500' },
-                        { label: 'Pending Appointments', number: String(stats.pendingTests || stats.pendingAppointments || 0), icon: 'fas fa-clock', color: 'text-yellow-500' },
-                        { label: 'Monthly Revenue', number: currency.format(Number(stats.monthlyRevenue || 0)), icon: 'fa-solid fa-coins', color: 'text-red-500' },
-                    ]);
-                }
-            } catch (error) {
-                console.error('Failed to load dashboard stats:', error);
-            }
-        };
+        loadPatients();
         fetchStats();
-        if (window.electronAPI && window.electronAPI.onIpcEvent) {
+        if (window.electronAPI?.onIpcEvent) {
             const unsubscribe = window.electronAPI.onIpcEvent('data:update', () => {
                 fetchStats();
             });
-            return () => {
-                if (unsubscribe) unsubscribe();
-            };
+            return () => unsubscribe?.();
         }
     }, []);
 
     const handleDelete = async () => {
-        if (!deleteConfirm || !deleteConfirm.patient) return;
+        if (!deleteConfirm) return;
         try {
-            const result = await window.electronAPI.deletePatient(deleteConfirm.patient.id);
+            const result = await window.electronAPI.deletePatient(deleteConfirm.id);
             if (result.success) {
                 await loadPatients();
-                setDeleteConfirm(null);
-            } else {
                 setDeleteConfirm(null);
             }
         } catch (err) {
@@ -116,18 +98,9 @@ const App = () => {
         }
     };
 
-    const handleView = (patient) => {
-        setViewingPatient(patient);
-    };
-
-    const handleEdit = (patient) => {
-        setSelectedClient(patient);
-    };
-
     const handleClientSave = async (updatedClient) => {
         try {
             const patientData = {
-                patient_id: updatedClient.patient_id || selectedClient.patient_id,
                 first_name: updatedClient.first_name || selectedClient.first_name,
                 last_name: updatedClient.last_name || selectedClient.last_name,
                 dob: updatedClient.date || selectedClient.date,
@@ -147,10 +120,6 @@ const App = () => {
         }
     };
 
-    const handleBackToDashboard = () => {
-        setSelectedClient(null);
-    };
-
     const filteredPatients = patients.filter(patient =>
         searchTerm === '' ||
         patient.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -164,273 +133,218 @@ const App = () => {
     if (selectedClient) {
         return <ClientDetailContent
             client={selectedClient}
-            onBack={handleBackToDashboard}
+            onBack={() => setSelectedClient(null)}
             onSave={handleClientSave}
-            initialEditTest={location.state?.editTest}
         />;
     }
 
-    const DashboardSection = () => (
-        <div className="w-full">
-            <div className="mb-6">
-                <p className="text-gray-300 text-sm italic">Overview of your eye clinic operations and quick access tools.</p>
+    return (
+        <div className="space-y-10 animate-premium-fade pb-10">
+            {/* Context Header */}
+            <div>
+                <h1 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">Clinical Administration</h1>
+                <p className="text-slate-500 font-medium mt-1">Operational overview and patient intake control</p>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                {statsData.map((stat, index) => {
-                    const { icon: iconClass, bg: bgClass } = getStatClasses(stat.color);
-                    return (
-                        <div key={index} className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md flex items-center gap-4 hover:shadow-lg transition-shadow">
-                            <div className={`p-4 rounded-lg ${bgClass}`}>
-                                <i className={`${stat.icon} text-2xl ${iconClass}`}></i>
-                            </div>
-                            <div>
-                                <h3 className="text-sm font-semibold text-gray-600 dark:text-gray-400 mb-1">{stat.label}</h3>
-                                <span className="text-3xl font-bold text-gray-900 dark:text-white">{stat.number}</span>
-                            </div>
+            {/* Performance Metrics */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                {statsData.map((stat, index) => (
+                    <div key={index} className="card-premium p-6 flex flex-col gap-4">
+                        <div className={`w-12 h-12 rounded-2xl bg-${stat.color}-50 dark:bg-${stat.color}-900/10 flex items-center justify-center text-${stat.color}-600 dark:text-${stat.color}-400`}>
+                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={stat.icon} />
+                            </svg>
                         </div>
-                    );
-                })}
+                        <div>
+                            <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1.5">{stat.label}</h3>
+                            <span className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">{stat.number}</span>
+                        </div>
+                    </div>
+                ))}
             </div>
 
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
-                <div className="mb-4 pb-4 border-b-2 border-gray-200 dark:border-gray-700">
-                    <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-xl font-bold text-gray-900 dark:text-white">Patient's of the day</h3>
-                        <button
-                            onClick={() => setShowAddModal(true)}
-                            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-                            title="Add Patient"
-                        >
-                            Add Patient
-                        </button>
+            {/* Main Operational Card */}
+            <div className="card-premium overflow-hidden">
+                <div className="p-8 border-b border-slate-100 dark:border-slate-800 bg-slate-50/30 dark:bg-slate-950/20 flex flex-col md:flex-row gap-6 items-center justify-between">
+                    <div className="relative flex-1 w-full max-w-xl">
+                        <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                        <input
+                            type="text"
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            placeholder="Identify subject by name, clinical reason, or telemetry..."
+                            className="input-premium pl-12 py-4 shadow-sm"
+                        />
                     </div>
-                    <input
-                        type="text"
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        placeholder="Search by name, case, or email..."
-                        className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
+                    <button
+                        onClick={() => setShowAddPatientModal(true)}
+                        className="btn btn-primary px-8 py-4 flex items-center gap-3 shadow-xl shadow-indigo-100 dark:shadow-none w-full md:w-auto"
+                    >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                        </svg>
+                        <span className="font-bold">New Subject Intake</span>
+                    </button>
                 </div>
-                <table style={{width: '100%', borderCollapse: 'collapse'}} className="dark:text-white">
-                    <thead>
-                        <tr className="bg-gray-50 dark:bg-gray-700" style={{borderBottom: '2px solid #dee2e6'}}>
-                            <th className="dark:text-gray-300" style={{padding: '12px', textAlign: 'left', fontSize: '0.875rem', fontWeight: '600', color: '#6c757d'}}>Name</th>
-                            <th className="dark:text-gray-300" style={{padding: '12px', textAlign: 'left', fontSize: '0.875rem', fontWeight: '600', color: '#6c757d'}}>Date</th>
-                            <th className="dark:text-gray-300" style={{padding: '12px', textAlign: 'left', fontSize: '0.875rem', fontWeight: '600', color: '#6c757d'}}>Case</th>
-                            <th className="dark:text-gray-300" style={{padding: '12px', textAlign: 'left', fontSize: '0.875rem', fontWeight: '600', color: '#6c757d'}}>Phone</th>
-                            <th className="dark:text-gray-300" style={{padding: '12px', textAlign: 'left', fontSize: '0.875rem', fontWeight: '600', color: '#6c757d'}}>Email</th>
-                            <th className="dark:text-gray-300" style={{padding: '12px', textAlign: 'left', fontSize: '0.875rem', fontWeight: '600', color: '#6c757d'}}>Action</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {paginatedPatients.length > 0 ? paginatedPatients.map((patient, idx) => (
-                            <tr key={idx} className="dark:border-gray-700" style={{borderBottom: '1px solid #dee2e6'}}>
-                                <td style={{padding: '12px', fontSize: '0.875rem'}}>{patient.name}</td>
-                                <td style={{padding: '12px', fontSize: '0.875rem'}}>{patient.date}</td>
-                                <td style={{padding: '12px', fontSize: '0.875rem'}}>{patient.case}</td>
-                                <td style={{padding: '12px', fontSize: '0.875rem'}}>{patient.phone}</td>
-                                <td style={{padding: '12px', fontSize: '0.875rem'}}>{patient.email}</td>
-                                <td style={{padding: '12px', fontSize: '0.875rem', display: 'flex', gap: '8px'}}>
-                                    <button onClick={() => setDeleteConfirm({patient, index: (currentPage - 1) * rowsPerPage + idx})} style={{color: '#dc3545', background: 'none', border: 'none', cursor: 'pointer'}} title="Delete">
-                                        <DeleteIcon />
-                                    </button>
-                                    <button onClick={() => handleEdit(patient)} style={{color: '#28a745', background: 'none', border: 'none', cursor: 'pointer'}} title="Edit">
-                                        <EditIcon />
-                                    </button>
-                                    <button onClick={() => handleView(patient)} style={{color: '#007bff', background: 'none', border: 'none', cursor: 'pointer'}} title="View">
-                                        <ViewIcon />
-                                    </button>
-                                </td>
+
+                <div className="overflow-x-auto">
+                    <table className="min-w-full text-left">
+                        <thead>
+                            <tr className="bg-slate-50/50 dark:bg-slate-800/30 border-b border-slate-100 dark:border-slate-800 font-black text-[10px] text-slate-400 uppercase tracking-widest">
+                                <th className="px-8 py-5">Patient Dossier</th>
+                                <th className="px-8 py-5">Intake Date</th>
+                                <th className="px-8 py-5">Diagnostic Focus</th>
+                                <th className="px-8 py-5">Telemetry</th>
+                                <th className="px-8 py-5 text-right">Management</th>
                             </tr>
-                        )) : (
-                            <tr>
-                                <td colSpan="6" style={{padding: '24px', textAlign: 'center'}}>
-                                    <span className="text-gray-400 dark:text-gray-500">
-                                        {searchTerm ? 'No matching patients found' : 'No patients available'}
-                                    </span>
-                                </td>
-                            </tr>
-                        )}
-                    </tbody>
-                </table>
-                <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1rem'}}>
-                    <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
-                        <label className="dark:text-gray-400" style={{fontSize: '0.875rem', color: '#6c757d'}}>Rows per page:</label>
-                        <select value={rowsPerPage} onChange={(e) => setRowsPerPage(Number(e.target.value))} className="dark:bg-gray-700 dark:text-white dark:border-gray-600" style={{padding: '4px 8px', border: '1px solid #dee2e6', borderRadius: '4px'}}>
-                            <option value={5}>5</option>
-                            <option value={10}>10</option>
-                            <option value={20}>20</option>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                            {paginatedPatients.length > 0 ? paginatedPatients.map((patient, idx) => (
+                                <tr key={idx} className="group hover:bg-slate-50/50 dark:hover:bg-indigo-900/10 transition-colors">
+                                    <td className="px-8 py-6">
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 font-black text-xs group-hover:bg-indigo-100 group-hover:text-indigo-600 transition-colors">
+                                                {patient.name.split(' ').map(n => n[0]).join('')}
+                                            </div>
+                                            <div>
+                                                <p className="text-sm font-bold text-slate-900 dark:text-white leading-tight">{patient.name}</p>
+                                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">{patient.patient_id}</p>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td className="px-8 py-6 text-sm font-medium text-slate-600 dark:text-slate-400">{patient.date}</td>
+                                    <td className="px-8 py-6">
+                                        <span className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-lg text-xs font-bold truncate max-w-[200px] inline-block">
+                                            {patient.case}
+                                        </span>
+                                    </td>
+                                    <td className="px-8 py-6">
+                                        <div className="flex flex-col">
+                                            <span className="text-sm font-bold text-slate-700 dark:text-slate-300">{patient.phone}</span>
+                                            <span className="text-[10px] text-slate-400 font-medium">{patient.email}</span>
+                                        </div>
+                                    </td>
+                                    <td className="px-8 py-6 text-right">
+                                        <div className="flex justify-end gap-2">
+                                            <button onClick={() => handleView(patient)} className="w-9 h-9 rounded-xl flex items-center justify-center bg-slate-100 dark:bg-slate-800 text-slate-400 hover:bg-indigo-500 hover:text-white transition-all shadow-sm">
+                                                <ViewIcon />
+                                            </button>
+                                            <button onClick={() => handleEdit(patient)} className="w-9 h-9 rounded-xl flex items-center justify-center bg-slate-100 dark:bg-slate-800 text-slate-400 hover:bg-emerald-500 hover:text-white transition-all shadow-sm">
+                                                <EditIcon />
+                                            </button>
+                                            <button onClick={() => setDeleteConfirm(patient)} className="w-9 h-9 rounded-xl flex items-center justify-center bg-slate-100 dark:bg-slate-800 text-slate-400 hover:bg-rose-500 hover:text-white transition-all shadow-sm">
+                                                <DeleteIcon />
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            )) : (
+                                <tr>
+                                    <td colSpan="5" className="py-24 text-center">
+                                        <div className="w-20 h-20 rounded-3xl bg-slate-50 dark:bg-slate-800 flex items-center justify-center text-slate-200 mx-auto mb-6">
+                                            <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                                            </svg>
+                                        </div>
+                                        <h3 className="text-lg font-black text-slate-900 dark:text-white tracking-tight">System Registry Clear</h3>
+                                        <p className="text-sm text-slate-500 font-medium max-w-sm mx-auto mt-2">No active records match the current identification parameters.</p>
+                                    </td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+
+                <div className="p-8 border-t border-slate-100 dark:border-slate-800 bg-slate-50/30 dark:bg-slate-950/20 flex flex-col md:flex-row justify-between items-center gap-6">
+                    <div className="flex items-center gap-3">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Density Control</label>
+                        <select
+                            value={rowsPerPage}
+                            onChange={(e) => setRowsPerPage(Number(e.target.value))}
+                            className="bg-transparent border-none text-sm font-bold text-slate-600 dark:text-slate-400 focus:ring-0 cursor-pointer"
+                        >
+                            <option value={5}>5 Units</option>
+                            <option value={10}>10 Units</option>
+                            <option value={20}>20 Units</option>
                         </select>
                     </div>
-                    <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
-                        <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="dark:bg-gray-700 dark:text-white dark:border-gray-600" style={{padding: '6px 12px', border: '1px solid #dee2e6', borderRadius: '4px', background: currentPage === 1 ? '#e9ecef' : 'white', cursor: currentPage === 1 ? 'not-allowed' : 'pointer'}}>Previous</button>
-                        <span className="dark:text-gray-400" style={{fontSize: '0.875rem', color: '#6c757d'}}>Page {currentPage} of {totalPages}</span>
-                        <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="dark:bg-gray-700 dark:text-white dark:border-gray-600" style={{padding: '6px 12px', border: '1px solid #dee2e6', borderRadius: '4px', background: currentPage === totalPages ? '#e9ecef' : 'white', cursor: currentPage === totalPages ? 'not-allowed' : 'pointer'}}>Next</button>
-                    </div>
-                </div>
-            </div>
 
-            {/* Delete Confirmation Modal */}
-            {deleteConfirm && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => setDeleteConfirm(null)}>
-                    <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-sm w-full mx-4" onClick={(e) => e.stopPropagation()}>
-                        <h3 className="text-lg font-semibold mb-4 dark:text-white">Delete Patient Record</h3>
-                        <p className="text-gray-600 dark:text-gray-300 mb-2">Are you sure you want to delete this patient record?</p>
-                        <p className="text-sm text-gray-500 dark:text-gray-400 mb-6"><strong>{deleteConfirm.patient.name}</strong> - {deleteConfirm.patient.case}</p>
-                        <div className="flex gap-3 justify-end">
-                            <button onClick={() => setDeleteConfirm(null)} className="px-4 py-2 text-gray-600 border border-gray-300 rounded hover:bg-gray-50">Cancel</button>
-                            <button onClick={handleDelete} className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">Delete</button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* View Modal */}
-            {viewingPatient && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => setViewingPatient(null)}>
-                    <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex justify-between items-center mb-4">
-                            <h3 className="text-lg font-semibold dark:text-white">Patient Details</h3>
-                            <button onClick={() => setViewingPatient(null)} className="text-gray-500 hover:text-gray-700 text-xl">✕</button>
-                        </div>
-                        <div className="space-y-3">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Name</label>
-                                <p className="text-gray-900 dark:text-white bg-gray-50 dark:bg-gray-700 p-2 rounded">{viewingPatient.name}</p>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Date</label>
-                                <p className="text-gray-900 dark:text-white bg-gray-50 dark:bg-gray-700 p-2 rounded">{viewingPatient.date}</p>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Phone Number</label>
-                                <p className="text-gray-900 dark:text-white bg-gray-50 dark:bg-gray-700 p-2 rounded">{viewingPatient.phone}</p>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Email</label>
-                                <p className="text-gray-900 dark:text-white bg-gray-50 dark:bg-gray-700 p-2 rounded">{viewingPatient.email}</p>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Case Description</label>
-                                <p className="text-gray-900 dark:text-white bg-gray-50 dark:bg-gray-700 p-2 rounded min-h-[60px]">{viewingPatient.case}</p>
-                            </div>
-                        </div>
-                        <div className="flex justify-end mt-6">
-                            <button onClick={() => setViewingPatient(null)} className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700">Close</button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Add Patient Modal */}
-            {showAddModal && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => setShowAddModal(false)}>
-                    <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex justify-between items-center mb-4">
-                            <h3 className="text-lg font-semibold dark:text-white">Add Patient</h3>
-                            <button onClick={() => setShowAddModal(false)} className="text-gray-500 hover:text-gray-700 text-xl">✕</button>
-                        </div>
-                        <div className="space-y-3">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">First Name</label>
-                                <input
-                                    className="w-full px-3 py-2 border rounded dark:bg-gray-700 dark:text-white dark:border-gray-600"
-                                    value={newPatient.first_name}
-                                    onChange={(e) => setNewPatient(p => ({ ...p, first_name: e.target.value }))}
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Last Name</label>
-                                <input
-                                    className="w-full px-3 py-2 border rounded dark:bg-gray-700 dark:text-white dark:border-gray-600"
-                                    value={newPatient.last_name}
-                                    onChange={(e) => setNewPatient(p => ({ ...p, last_name: e.target.value }))}
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Date of Birth</label>
-                                <input
-                                    type="date"
-                                    className="w-full px-3 py-2 border rounded dark:bg-gray-700 dark:text-white dark:border-gray-600"
-                                    value={newPatient.dob}
-                                    onChange={(e) => setNewPatient(p => ({ ...p, dob: e.target.value }))}
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Gender</label>
-                                <select
-                                    className="w-full px-3 py-2 border rounded dark:bg-gray-700 dark:text-white dark:border-gray-600"
-                                    value={newPatient.gender}
-                                    onChange={(e) => setNewPatient(p => ({ ...p, gender: e.target.value }))}
-                                >
-                                    <option value="male">Male</option>
-                                    <option value="female">Female</option>
-                                    <option value="other">Other</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Contact</label>
-                                <input
-                                    className="w-full px-3 py-2 border rounded dark:bg-gray-700 dark:text-white dark:border-gray-600"
-                                    value={newPatient.contact}
-                                    onChange={(e) => setNewPatient(p => ({ ...p, contact: e.target.value }))}
-                                />
-                            </div>
-                        </div>
-                        <div className="flex justify-end mt-6 gap-3">
-                            <button onClick={() => setShowAddModal(false)} className="px-4 py-2 text-gray-600 border border-gray-300 rounded hover:bg-gray-50">Cancel</button>
-                            <button
-                                onClick={async () => {
-                                    try {
-                                        if (!newPatient.first_name || !newPatient.last_name || !newPatient.dob || !newPatient.gender) {
-                                            alert('Please fill first name, last name, date of birth, and gender.');
-                                            return;
-                                        }
-                                        const pid = 'P' + Date.now();
-                                        const payload = {
-                                            patient_id: pid,
-                                            first_name: newPatient.first_name.trim(),
-                                            last_name: newPatient.last_name.trim(),
-                                            dob: newPatient.dob,
-                                            gender: newPatient.gender,
-                                            contact: newPatient.contact.trim() || null
-                                        };
-                                        const res = await window.electronAPI.createPatient(payload);
-                                        if (res?.success || res?.id) {
-                                            setShowAddModal(false);
-                                            setNewPatient({ first_name: '', last_name: '', dob: '', gender: 'other', contact: '' });
-                                            await loadPatients();
-                                            try {
-                                                if (window.electronAPI?.syncToSupabase) {
-                                                    await window.electronAPI.syncToSupabase();
-                                                }
-                                            } catch (syncErr) {
-                                                console.warn('Sync error:', syncErr);
-                                            }
-                                        } else {
-                                            alert(res?.error || 'Failed to create patient');
-                                        }
-                                    } catch (err) {
-                                        console.error('Create patient error:', err);
-                                        alert('Error creating patient: ' + err.message);
-                                    }
-                                }}
-                                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-                            >
-                                Save
+                    <div className="flex items-center gap-4">
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest font-mono">Segment {currentPage} / {totalPages || 1}</span>
+                        <div className="flex gap-2">
+                            <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="w-10 h-10 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-400 disabled:opacity-30 transition-all hover:bg-slate-100 active:scale-90 shadow-sm">
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" /></svg>
+                            </button>
+                            <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages || totalPages === 0} className="w-10 h-10 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-400 disabled:opacity-30 transition-all hover:bg-slate-100 active:scale-90 shadow-sm">
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" /></svg>
                             </button>
                         </div>
                     </div>
                 </div>
+            </div>
+
+            {/* Premium Intelligence Overlays */}
+            {deleteConfirm && (
+                <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center z-[200] p-4 animate-premium-fade">
+                    <div className="card-premium bg-white dark:bg-slate-900 w-full max-w-sm p-8 shadow-2xl animate-premium-slide">
+                        <div className="w-16 h-16 bg-rose-50 dark:bg-rose-900/10 rounded-2xl flex items-center justify-center text-rose-600 mb-6 font-black scale-110">
+                            <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                        </div>
+                        <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight leading-tight">Data Revocation</h3>
+                        <p className="text-sm text-slate-500 font-medium mt-3 leading-relaxed">Confirm deletion of clinical dossier for <b>{deleteConfirm.name}</b>. This action is final.</p>
+                        <div className="flex gap-3 mt-10">
+                            <button onClick={() => setDeleteConfirm(null)} className="flex-1 py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-xl text-xs font-black tracking-widest uppercase hover:bg-slate-200 transition-all">Abort</button>
+                            <button onClick={handleDelete} className="flex-1 py-3 bg-rose-500 text-white rounded-xl text-xs font-black tracking-widest uppercase shadow-lg shadow-rose-200 dark:shadow-none hover:bg-rose-600 transition-all active:scale-95">Purge</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {viewingPatient && (
+                <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center z-[200] p-4 animate-premium-fade" onClick={() => setViewingPatient(null)}>
+                    <div className="card-premium bg-white dark:bg-slate-900 w-full max-w-md p-8 shadow-2xl animate-premium-slide" onClick={e => e.stopPropagation()}>
+                        <div className="flex justify-between items-center mb-10 pb-4 border-b border-slate-100 dark:border-slate-800">
+                            <div>
+                                <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">Subject Intelligence</h3>
+                                <p className="text-[10px] font-black text-indigo-500 uppercase tracking-widest mt-1">Verified Clinical Record</p>
+                            </div>
+                            <button onClick={() => setViewingPatient(null)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg group transition-colors">
+                                <svg className="w-5 h-5 text-slate-400 group-hover:text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
+                            </button>
+                        </div>
+                        <div className="space-y-6">
+                            {[
+                                { label: 'Legal Identity', value: viewingPatient.name },
+                                { label: 'Clinical Marker (DOB)', value: viewingPatient.date },
+                                { label: 'Connectivity Telemetry', value: viewingPatient.phone },
+                                { label: 'Communications Link', value: viewingPatient.email },
+                                { label: 'Clinical Narrative', value: viewingPatient.case, large: true },
+                            ].map((field, i) => (
+                                <div key={i}>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">{field.label}</p>
+                                    <div className={`p-4 bg-slate-50 dark:bg-slate-950/30 rounded-xl border border-slate-100 dark:border-slate-800 text-sm font-bold text-slate-900 dark:text-white ${field.large ? 'min-h-[100px] leading-relaxed italic' : ''}`}>
+                                        {field.value}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                        <button onClick={() => setViewingPatient(null)} className="w-full mt-12 py-4 bg-slate-900 dark:bg-indigo-600 text-white rounded-xl text-xs font-black tracking-widest uppercase shadow-xl hover:bg-slate-800 dark:hover:bg-indigo-700 transition-all active:scale-95">Dismiss Intelligence</button>
+                    </div>
+                </div>
+            )}
+
+            {showAddPatientModal && (
+                <AddPatientModal
+                    onClose={() => setShowAddPatientModal(false)}
+                    onPatientAdded={loadPatients}
+                />
             )}
         </div>
     );
-
-
-
-    return <DashboardSection />;
 };
 
-export default App;
+export default AssistantDashboardScreen;

@@ -62,7 +62,6 @@ const UploadTestModal = ({ onClose, currentUser }) => {
     setError('')
 
     try {
-      // Validate required fields
       if (!formData.patientId || !formData.testType) {
         throw new Error('Patient and test type are required')
       }
@@ -74,13 +73,12 @@ const UploadTestModal = ({ onClose, currentUser }) => {
         raw_data: JSON.stringify({
           notes: formData.notes,
           fileName: formData.testFile ? formData.testFile.name : null,
-          result: 'Completed' // Default to completed if uploading results
+          result: 'Completed'
         }),
         uploaded_by: currentUser?.id
       }
 
       await testService.createTest(testData)
-
       onClose()
     } catch (err) {
       setError(err.message || 'Failed to create test')
@@ -90,105 +88,160 @@ const UploadTestModal = ({ onClose, currentUser }) => {
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 dark:bg-opacity-70 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-gray-800 rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl">
-        <div className="flex justify-between items-center p-6 border-b dark:border-gray-700 bg-gray-50 dark:bg-gray-700 rounded-t-lg">
-          <h2 className="text-2xl font-semibold text-gray-800 dark:text-gray-100">Upload Test Results</h2>
-          <button className="w-8 h-8 rounded-full flex items-center justify-center text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 hover:text-red-500 dark:hover:text-red-400 transition-colors duration-200" onClick={onClose}>×</button>
+    <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-premium-fade">
+      <div className="card-premium w-full max-w-2xl bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 overflow-hidden shadow-2xl animate-premium-slide">
+        {/* Header */}
+        <div className="p-8 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-950/30">
+          <div>
+            <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">Clinical Test Acquisition</h2>
+            <p className="text-xs text-slate-500 font-bold uppercase tracking-widest mt-1">Upload and digitize patient diagnostic results</p>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-2 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-xl transition-all duration-200 group"
+          >
+            <svg className="w-6 h-6 text-slate-400 group-hover:text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
-          {error && <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 px-4 py-3 rounded-md text-sm">{error}</div>}
+        <form onSubmit={handleSubmit} className="p-8 max-h-[70vh] overflow-y-auto custom-scrollbar">
+          {error && (
+            <div className="mb-6 p-4 bg-rose-50 dark:bg-rose-900/10 border-l-4 border-rose-500 rounded-r-xl flex items-center gap-3 animate-premium-slide">
+              <div className="p-1.5 bg-rose-100 dark:bg-rose-900/30 rounded-lg text-rose-600 dark:text-rose-400">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <p className="text-sm font-bold text-rose-700 dark:text-rose-400">{error}</p>
+            </div>
+          )}
 
-          <div className="flex flex-col">
-            <label htmlFor="patientId" className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Patient *</label>
-            <select
-              id="patientId"
-              name="patientId"
-              value={formData.patientId}
-              onChange={handleInputChange}
-              required
-              className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            >
-              <option value="">Select a patient</option>
-              {patients.map(patient => (
-                <option key={patient.id} value={patient.id}>
-                  {patient.name || `${patient.first_name || ''} ${patient.last_name || ''}`.trim()} - DOB: {patient.dob || patient.dateOfBirth || 'N/A'}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="flex flex-col">
-              <label htmlFor="testType" className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Test Type *</label>
-              <select
-                id="testType"
-                name="testType"
-                value={formData.testType}
-                onChange={handleInputChange}
-                required
-                className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="">Select test type</option>
-                {testTypes.map(type => (
-                  <option key={type} value={type}>{type}</option>
-                ))}
-              </select>
+          <div className="space-y-8">
+            {/* Subject Selection */}
+            <div>
+              <label className="block text-[10px] font-black text-indigo-500 uppercase tracking-widest mb-4">Diagnostic Subject</label>
+              <div className="flex flex-col">
+                <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Select Registered Patient *</label>
+                <select
+                  name="patientId"
+                  value={formData.patientId}
+                  onChange={handleInputChange}
+                  required
+                  className="input-premium appearance-none"
+                >
+                  <option value="">Choose patient...</option>
+                  {patients.map(patient => (
+                    <option key={patient.id} value={patient.id}>
+                      {patient.name || `${patient.first_name || ''} ${patient.last_name || ''}`.trim()} — {patient.id}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
 
-            <div className="flex flex-col">
-              <label htmlFor="testDate" className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Test Date *</label>
-              <input
-                type="date"
-                id="testDate"
-                name="testDate"
-                value={formData.testDate}
+            {/* Test Parameters */}
+            <div>
+              <label className="block text-[10px] font-black text-emerald-500 uppercase tracking-widest mb-4">Procedure Detail</label>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Modality / Test Type *</label>
+                  <select
+                    name="testType"
+                    value={formData.testType}
+                    onChange={handleInputChange}
+                    required
+                    className="input-premium appearance-none"
+                  >
+                    <option value="">Select modality...</option>
+                    {testTypes.map(type => (
+                      <option key={type} value={type}>{type}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Examination Date *</label>
+                  <input
+                    type="date"
+                    name="testDate"
+                    value={formData.testDate}
+                    onChange={handleInputChange}
+                    required
+                    className="input-premium"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* File Acquisition */}
+            <div>
+              <label className="block text-[10px] font-black text-amber-500 uppercase tracking-widest mb-4">Data Acquisition</label>
+              <div className="border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl p-8 text-center transition-colors hover:border-indigo-500 group relative">
+                <input
+                  type="file"
+                  name="testFile"
+                  onChange={handleFileChange}
+                  accept=".pdf,.jpg,.jpeg,.png,.dcm,.tiff"
+                  required
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                />
+                <div className="flex flex-col items-center">
+                  <div className="w-12 h-12 bg-slate-50 dark:bg-slate-800 rounded-xl flex items-center justify-center text-slate-400 group-hover:bg-indigo-50 dark:group-hover:bg-indigo-900/30 group-hover:text-indigo-600 mb-4 transition-colors">
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                    </svg>
+                  </div>
+                  <p className="text-sm font-bold text-slate-900 dark:text-white capitalize">
+                    {formData.testFile ? formData.testFile.name : 'Select clinical document or image'}
+                  </p>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-2 px-10">
+                    PDF, DICOM (.dcm), TIFF, or Standard Images (JPEG/PNG)
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Observations */}
+            <div>
+              <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Clinical Observations / Notes</label>
+              <textarea
+                name="notes"
+                value={formData.notes}
                 onChange={handleInputChange}
-                required
-                className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                rows="3"
+                placeholder="Enter clinical notes or preliminary findings..."
+                className="input-premium resize-none"
               />
             </div>
           </div>
-
-          <div className="flex flex-col">
-            <label htmlFor="testFile" className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Test File *</label>
-            <input
-              type="file"
-              id="testFile"
-              name="testFile"
-              onChange={handleFileChange}
-              accept=".pdf,.jpg,.jpeg,.png,.dcm,.tiff"
-              required
-              className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-            <small className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-              Accepted formats: PDF, JPG, PNG, DICOM (.dcm), TIFF
-            </small>
-          </div>
-
-          <div className="flex flex-col">
-            <label htmlFor="notes" className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Notes</label>
-            <textarea
-              id="notes"
-              name="notes"
-              value={formData.notes}
-              onChange={handleInputChange}
-              rows="4"
-              placeholder="Additional notes about the test..."
-              className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-vertical"
-            />
-          </div>
-
-          <div className="flex justify-end gap-3 pt-6 border-t dark:border-gray-600">
-            <button type="button" className="px-6 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 dark:bg-gray-500 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors duration-200" onClick={onClose}>
-              Cancel
-            </button>
-            <button type="submit" className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors duration-200" disabled={loading}>
-              {loading ? 'Uploading...' : 'Upload Test'}
-            </button>
-          </div>
         </form>
+
+        {/* Actions */}
+        <div className="p-8 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/30 flex gap-4">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 px-6 py-4 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-xl text-xs font-black tracking-widest uppercase hover:bg-slate-100 dark:hover:bg-slate-700 transition-all border border-slate-200 dark:border-slate-700 active:scale-95"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={loading}
+            className="flex-1 btn btn-primary py-4 text-xs font-black tracking-widest uppercase shadow-xl shadow-indigo-200 dark:shadow-none hover:scale-[1.02] active:scale-95 transition-all"
+          >
+            {loading ? (
+              <div className="flex items-center justify-center gap-2">
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                <span>Digitizing...</span>
+              </div>
+            ) : (
+              'Acquire Result'
+            )}
+          </button>
+        </div>
       </div>
     </div>
   )

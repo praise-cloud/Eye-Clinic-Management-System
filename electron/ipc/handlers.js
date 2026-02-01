@@ -10,6 +10,7 @@ let currentUser = null; // Centralized user state in main process
 
 class IPCHandlers {
   constructor() {
+    this.registerSettingsHandlers();
     this.registerAuthHandlers();
     this.registerPatientHandlers();
     this.registerTestHandlers();
@@ -19,11 +20,10 @@ class IPCHandlers {
     this.registerFileHandlers();
     this.registerChatHandlers();
     this.registerPresenceHandlers();
-    this.registerSettingsHandlers();
     this.registerSystemHandlers();
     this.registerWindowHandlers();
     this.registerDashboardHandlers();
-    console.log('IPC handlers registered successfully');
+    console.log('IPC handlers - All registration methods called');
   }
 
   // ──────────────────────────────────────────────────────────────────────────────
@@ -914,6 +914,7 @@ class IPCHandlers {
   }
 
   registerSettingsHandlers() {
+    console.log('IPC handlers - Registering settings handlers');
     ipcMain.handle('settings:get', async (event, key) => {
       try {
         const value = await DatabaseService.getSetting(key);
@@ -924,7 +925,8 @@ class IPCHandlers {
       }
     });
 
-    ipcMain.handle('db:getSettings', async () => {
+    ipcMain.handle('settings:getAll', async () => {
+      console.log('IPC handler called: settings:getAll');
       try {
         const settings = await DatabaseService.getAllSettings();
         return { success: true, settings };
