@@ -37,22 +37,7 @@ const Header = ({ activeSection, currentUser, searchTerm, onSearchChange, onSect
 
   return (
     <header className="glass-effect sticky top-0 z-10 border-b border-slate-200/60 dark:border-slate-800/60">
-      <div className="w-full px-8 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-4 flex-1">
-          <div className="relative w-full max-w-md group">
-            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-              <svg className="w-4 h-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-            </div>
-            <input
-              type="text"
-              placeholder="Search patients, tests, or medical records..."
-              className="input-premium pl-11 py-2.5 text-sm"
-              value={searchTerm || ''}
-              onChange={(e) => onSearchChange && onSearchChange(e.target.value)}
-            />
-          </div>
-          <OnlineStatusIndicator />
-        </div>
+      <div className="w-full px-8 py-4 flex items-center justify-end">
 
         <div className="flex items-center gap-6">
           <div className="relative" ref={userRef}>

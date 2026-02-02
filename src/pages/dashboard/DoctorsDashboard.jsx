@@ -1,12 +1,14 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { CLIENT_DATA } from '../../utils/constants.js';
 import { DeleteIcon, EditIcon, ViewIcon } from '../../components/Icons';
-import ClientDetailContent from '../ClientDetailContent';
 import AddPatientModal from '../../components/modals/AddPatientModal';
+import PatientQuickViewModal from '../../components/modals/PatientQuickViewModal';
 import useUser from '../../hooks/useUser';
 
 const DoctorsDashboard = ({ activeSection }) => {
   const { user } = useUser();
+  const navigate = useNavigate();
   const [selectedDate, setSelectedDate] = useState('');
   const [customDate, setCustomDate] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
@@ -18,8 +20,7 @@ const DoctorsDashboard = ({ activeSection }) => {
   const [rowsPerPage, setRowsPerPage] = useState(5);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [clientList, setClientList] = useState([]);
-  const [selectedClient, setSelectedClient] = useState(null);
-  const [viewingClient, setViewingClient] = useState(null);
+  const [quickViewPatient, setQuickViewPatient] = useState(null);
   const [showAddPatientModal, setShowAddPatientModal] = useState(false);
   const [syncStatus, setSyncStatus] = useState('checking');
 
@@ -77,11 +78,11 @@ const DoctorsDashboard = ({ activeSection }) => {
   const paginatedClients = filteredClients.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage);
 
   const handleEdit = (client) => {
-    setSelectedClient(client);
+    navigate(`/patients/${client.id}`);
   };
 
   const handleView = (client) => {
-    setViewingClient(client);
+    setQuickViewPatient(client);
   };
 
   const handleDelete = async () => {
@@ -97,32 +98,7 @@ const DoctorsDashboard = ({ activeSection }) => {
     }
   };
 
-  const handleClientSave = async (updatedClient) => {
-    try {
-      const patientData = {
-        first_name: updatedClient.first_name || selectedClient.first_name,
-        last_name: updatedClient.last_name || selectedClient.last_name,
-        dob: updatedClient.date || selectedClient.date,
-        gender: updatedClient.gender || selectedClient.gender,
-        contact: updatedClient.phone || selectedClient.phone,
-        email: updatedClient.email || selectedClient.email,
-        address: updatedClient.address || selectedClient.address,
-        reason_for_visit: updatedClient.reason_for_visit || selectedClient.reason_for_visit
-      };
 
-      const result = await window.electronAPI.updatePatient(selectedClient.id, patientData);
-      if (result.success) {
-        await loadPatients();
-        setSelectedClient(null);
-      }
-    } catch (err) {
-      setError('Failed to update patient record');
-    }
-  };
-
-  if (selectedClient) {
-    return <ClientDetailContent client={selectedClient} onBack={() => setSelectedClient(null)} onSave={handleClientSave} />;
-  }
 
   return (
     <div className="space-y-10 animate-premium-fade pb-10">
@@ -331,34 +307,11 @@ const DoctorsDashboard = ({ activeSection }) => {
         </div>
       )}
 
-      {viewingClient && (
-        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center z-[150] p-4 animate-premium-fade" onClick={() => setViewingClient(null)}>
-          <div className="card-premium bg-white dark:bg-slate-900 w-full max-w-md p-8 shadow-2xl animate-premium-slide" onClick={e => e.stopPropagation()}>
-            <div className="flex justify-between items-center mb-8 pb-4 border-b border-slate-100 dark:border-slate-800">
-              <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">Subject Intelligence</h3>
-              <button onClick={() => setViewingClient(null)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg group transition-colors">
-                <svg className="w-5 h-5 text-slate-400 group-hover:text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
-              </button>
-            </div>
-            <div className="space-y-6">
-              {[
-                { label: 'Patient Identity', value: viewingClient.name },
-                { label: 'Temporal Marker (DOB)', value: viewingClient.date },
-                { label: 'Primary Contact', value: viewingClient.phone },
-                { label: 'Communications', value: viewingClient.email || 'N/A' },
-                { label: 'Clinical Narrative', value: viewingClient.case, large: true },
-              ].map((field, i) => (
-                <div key={i}>
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{field.label}</p>
-                  <div className={`p-4 bg-slate-50 dark:bg-slate-950/30 rounded-xl border border-slate-100 dark:border-slate-800 text-sm font-bold text-slate-900 dark:text-white ${field.large ? 'min-h-[100px] leading-relaxed' : ''}`}>
-                    {field.value}
-                  </div>
-                </div>
-              ))}
-            </div>
-            <button onClick={() => setViewingClient(null)} className="w-full mt-10 py-4 bg-slate-900 dark:bg-indigo-600 text-white rounded-xl text-xs font-black tracking-widest uppercase shadow-xl hover:bg-slate-800 dark:hover:bg-indigo-700 transition-all active:scale-95">Dismiss Dossier</button>
-          </div>
-        </div>
+      {quickViewPatient && (
+        <PatientQuickViewModal
+          patient={quickViewPatient}
+          onClose={() => setQuickViewPatient(null)}
+        />
       )}
 
       {showAddPatientModal && (

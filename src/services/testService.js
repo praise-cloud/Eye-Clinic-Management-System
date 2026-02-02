@@ -1,8 +1,19 @@
-const electronAPI = window.electronAPI;
+// src/services/testService.js
+// Abstracts all test CRUD/retrieval via window.electronAPI
+
+const getApi = () => {
+  if (!window.electronAPI) {
+    console.error('Electron API not found in window');
+    return null;
+  }
+  return window.electronAPI;
+};
 
 export const getAllTests = async (filters = {}) => {
+  const api = getApi();
+  if (!api) return [];
   try {
-    const res = await electronAPI.getTests(filters); // ← matches preload 'tests:getAll'
+    const res = await api.getTests(filters);
     if (res?.success) {
       return res.tests.map(test => ({
         id: test.id,
@@ -31,8 +42,10 @@ export const getAllTests = async (filters = {}) => {
 };
 
 export const getTestById = async (id) => {
+  const api = getApi();
+  if (!api) return null;
   try {
-    const res = await electronAPI.getTest(id);
+    const res = await api.getTest(id);
     return res?.success ? res.test : null;
   } catch (err) {
     console.error('getTestById error:', err);
@@ -41,21 +54,25 @@ export const getTestById = async (id) => {
 };
 
 export const createTest = async (testData) => {
+  const api = getApi();
+  if (!api) throw new Error('Electron API not available');
   try {
-    const res = await electronAPI.createTest(testData);
+    const res = await api.createTest(testData);
     if (!res?.success) {
       throw new Error(res?.error || 'Test creation failed');
     }
     return res.test;
   } catch (err) {
-    console.err('createTest error:', err);
+    console.error('createTest error:', err);
     throw err;
   }
 };
 
 export const updateTest = async (id, testData) => {
+  const api = getApi();
+  if (!api) throw new Error('Electron API not available');
   try {
-    const res = await electronAPI.updateTest(id, testData);
+    const res = await api.updateTest(id, testData);
     if (!res?.success) {
       throw new Error(res?.error || 'Test update failed');
     }
@@ -67,8 +84,10 @@ export const updateTest = async (id, testData) => {
 };
 
 export const deleteTest = async (id) => {
+  const api = getApi();
+  if (!api) return false;
   try {
-    const res = await electronAPI.deleteTest(id);
+    const res = await api.deleteTest(id);
     return !!res?.success;
   } catch (err) {
     console.error('deleteTest error:', err);
@@ -76,12 +95,15 @@ export const deleteTest = async (id) => {
   }
 };
 
-export const getTestsByPatient = async (patientId) => {
+export const generateReport = async (patientId, testIds) => {
+  const api = getApi();
+  if (!api) throw new Error('Electron API not available');
   try {
-    const res = await electronAPI.getTestsByPatient(patientId);
-    return res?.success ? res.tests : [];
+    const res = await api.generateReport(patientId, testIds);
+    if (!res?.success) throw new Error(res?.error || 'Report generation failed');
+    return res;
   } catch (err) {
-    console.error('getTestsByPatient error:', err);
-    return [];
+    console.error('generateReport error:', err);
+    throw err;
   }
 };

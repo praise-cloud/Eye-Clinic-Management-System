@@ -23,7 +23,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
     // Database APIs
     getSettings: () => ipcRenderer.invoke('settings:getAll'),
-    setSetting: (key, value) => ipcRenderer.invoke('db:setSetting', { key, value }),
+    setSetting: (key, value) => ipcRenderer.invoke('settings:set', { key, value }),
 
     // Patient APIs
     getPatients: (filters) => ipcRenderer.invoke('patients:getAll', filters),
@@ -92,6 +92,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     checkOnlineStatus: () => ipcRenderer.invoke('system:checkOnline'),
     setNetworkDbPath: (path) => ipcRenderer.invoke('system:setNetworkDbPath', { path }),
     getNetworkDbPath: () => ipcRenderer.invoke('system:getNetworkDbPath'),
+    setUserOnline: (userId) => ipcRenderer.invoke('presence:setOnline', { userId }),
+    setUserOffline: (userId) => ipcRenderer.invoke('presence:setOffline', { userId }),
+    getOnlineUsers: () => ipcRenderer.invoke('presence:getOnlineUsers'),
+    getUsersWithPresence: () => ipcRenderer.invoke('presence:getUsersWithPresence'),
 
     // Generic IPC event listeners
     onIpcEvent: (channel, callback) => {

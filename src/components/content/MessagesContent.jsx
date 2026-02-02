@@ -176,6 +176,7 @@ const MessagesContent = () => {
   const [loading, setLoading] = useState(false);
   const [notification, setNotification] = useState('');
   const [clientReplies, setClientReplies] = useState({});
+  const [sendingMessage, setSendingMessage] = useState(false);
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -217,6 +218,7 @@ const MessagesContent = () => {
       if (isImage && selectedFile.type.startsWith('image/')) {
         // Auto-send images immediately
         if (!electronAPI) return;
+        setSendingMessage(true);
         const reader = new FileReader();
         reader.onload = async (ev) => {
           const attachment = {
@@ -226,12 +228,12 @@ const MessagesContent = () => {
           };
           try {
             const attachmentData = JSON.stringify(attachment);
-            const res = await electronAPI.sendMessage(currentUser.id, otherUser.id, 'Image', attachmentData);
-            if (res.success) {
-              setMessages((msgs) => [...msgs, res.message]);
-            }
+            await electronAPI.sendMessage(currentUser.id, otherUser.id, 'Image', attachmentData);
+            // Don't manually add to state - let the real-time handler do it
           } catch (err) {
             console.error('Send image error:', err);
+          } finally {
+            setSendingMessage(false);
           }
         };
         reader.readAsDataURL(selectedFile);
@@ -248,6 +250,7 @@ const MessagesContent = () => {
     e.preventDefault();
     if ((!input.trim() && !file) || !electronAPI) return;
 
+    setSendingMessage(true);
     if (file) {
       // Read file as base64
       const reader = new FileReader();
@@ -261,11 +264,13 @@ const MessagesContent = () => {
         await sendMessage(attachment);
         setFile(null);
         setInput('');
+        setSendingMessage(false);
       };
       reader.readAsDataURL(file);
     } else {
       await sendMessage();
       setInput('');
+      setSendingMessage(false);
     }
   };
 
@@ -531,6 +536,21 @@ const MessagesContent = () => {
                   );
                 })
               )}
+
+              {/* Sending Indicator */}
+              {sendingMessage && (
+                <div className="flex justify-end animate-premium-fade">
+                  <div className="max-w-[80%] flex flex-col items-end">
+                    <div className="p-4 rounded-[1.5rem] bg-indigo-600/50 text-white rounded-tr-none shadow-sm flex items-center gap-3">
+                      <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
+                      <div className="w-2 h-2 bg-white rounded-full animate-pulse" style={{ animationDelay: '0.2s' }}></div>
+                      <div className="w-2 h-2 bg-white rounded-full animate-pulse" style={{ animationDelay: '0.4s' }}></div>
+                      <span className="text-xs font-medium ml-2">Sending...</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div ref={chatEndRef} />
             </div>
 

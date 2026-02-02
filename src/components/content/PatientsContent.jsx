@@ -1,6 +1,7 @@
 import React, { useEffect, useImperativeHandle, forwardRef, useState } from 'react';
 import usePatients from '../../hooks/usePatients';
 import AddPatientModal from '../modals/AddPatientModal';
+import PatientQuickViewModal from '../modals/PatientQuickViewModal';
 import { useNavigate } from 'react-router-dom';
 
 const PatientsContent = forwardRef(({ searchTerm }, ref) => {
@@ -14,6 +15,7 @@ const PatientsContent = forwardRef(({ searchTerm }, ref) => {
   } = usePatients();
 
   const [editingPatient, setEditingPatient] = useState(null);
+  const [quickViewPatient, setQuickViewPatient] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
 
   useEffect(() => {
@@ -122,16 +124,16 @@ const PatientsContent = forwardRef(({ searchTerm }, ref) => {
                     <td className="px-8 py-5 text-right">
                       <div className="flex justify-end gap-2">
                         <button
-                          onClick={() => navigate(`/patients/${patient.id}`)}
+                          onClick={() => setQuickViewPatient(patient)}
                           className="w-9 h-9 rounded-xl flex items-center justify-center bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-indigo-50 hover:text-indigo-600 dark:hover:bg-indigo-900/40 transition-all"
-                          title="View Records"
+                          title="View Quick Profile"
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
                         </button>
                         <button
-                          onClick={() => setEditingPatient(patient)}
+                          onClick={() => navigate(`/patients/${patient.id}`)}
                           className="w-9 h-9 rounded-xl flex items-center justify-center bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-emerald-50 hover:text-emerald-600 dark:hover:bg-emerald-900/40 transition-all"
-                          title="Edit Profile"
+                          title="Full Patient Record"
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                         </button>
@@ -165,6 +167,13 @@ const PatientsContent = forwardRef(({ searchTerm }, ref) => {
           onClose={() => setEditingPatient(null)}
           editPatientData={editingPatient}
           onPatientAdded={() => fetchPatients()}
+        />
+      )}
+
+      {quickViewPatient && (
+        <PatientQuickViewModal
+          patient={quickViewPatient}
+          onClose={() => setQuickViewPatient(null)}
         />
       )}
 

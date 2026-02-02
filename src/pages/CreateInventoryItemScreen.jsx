@@ -6,6 +6,8 @@ const CreateInventoryItemScreen = () => {
   const { id } = useParams()
   const [loading, setLoading] = useState(false)
   const [imagePreview, setImagePreview] = useState(null)
+  const [notification, setNotification] = useState(null)
+  const [originalData, setOriginalData] = useState(null)
   const [formData, setFormData] = useState({
     item_code: '',
     item_name: '',
@@ -40,6 +42,7 @@ const CreateInventoryItemScreen = () => {
       const result = await window.electronAPI.getInventoryItem(parseInt(id))
       if (result.success) {
         setFormData(result.item)
+        setOriginalData(result.item) // Store original data for comparison
         if (result.item.image_path) {
           setImagePreview(result.item.image_path)
         }
@@ -75,26 +78,42 @@ const CreateInventoryItemScreen = () => {
   const handleSubmit = async (e) => {
     e.preventDefault()
     setLoading(true)
+    setNotification(null)
 
     try {
       const user = JSON.parse(localStorage.getItem('user'))
-      const itemData = { ...formData, last_updated_by: user?.id }
 
       let result
       if (id) {
-        result = await window.electronAPI.updateInventoryItem(parseInt(id), itemData)
+        // For updates, only send changed fields
+        const changedFields = {}
+        Object.keys(formData).forEach(key => {
+          if (formData[key] !== originalData[key]) {
+            changedFields[key] = formData[key]
+          }
+        })
+
+        // Always include the last_updated_by field
+        changedFields.last_updated_by = user?.id
+
+        result = await window.electronAPI.updateInventoryItem(parseInt(id), changedFields)
       } else {
+        // For new items, send all data
+        const itemData = { ...formData, last_updated_by: user?.id }
         result = await window.electronAPI.createInventoryItem(itemData)
       }
 
       if (result.success) {
-        navigate('/inventory')
+        setNotification({ type: 'success', message: id ? 'Item updated successfully!' : 'Item created successfully!' })
+        setTimeout(() => {
+          navigate('/inventory')
+        }, 1500)
       } else {
-        alert(result.error || 'Failed to save item')
+        setNotification({ type: 'error', message: result.error || 'Failed to save item' })
       }
     } catch (error) {
       console.error('Error saving item:', error)
-      alert('Failed to save item')
+      setNotification({ type: 'error', message: 'Failed to save item' })
     } finally {
       setLoading(false)
     }
@@ -115,6 +134,23 @@ const CreateInventoryItemScreen = () => {
       </div>
 
       <form onSubmit={handleSubmit} className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
+        {/* Notification */}
+        {notification && (
+          <div className={`mb-6 p-4 rounded-xl flex items-center gap-3 animate-premium-fade ${notification.type === 'success'
+              ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 border border-emerald-100 dark:border-emerald-900/30'
+              : 'bg-rose-50 dark:bg-rose-900/20 text-rose-600 border border-rose-100 dark:border-rose-900/30'
+            }`}>
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              {notification.type === 'success' ? (
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+              ) : (
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+              )}
+            </svg>
+            <span className="font-bold text-sm">{notification.message}</span>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left Column - Image Upload */}
           <div className="lg:col-span-1">

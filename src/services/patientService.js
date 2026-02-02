@@ -1,7 +1,14 @@
 // src/services/patientService.js
-// Abstracts all patient CRUD/search logic via IPC
+// Abstracts all patient CRUD/search logic via IPC using window.electronAPI
 
-const { ipcRenderer } = window.require ? window.require('electron') : {};
+// Accessing window.electronAPI inside functions to ensure it's available after preload
+const getApi = () => {
+  if (!window.electronAPI) {
+    console.error('Electron API not found in window');
+    return null;
+  }
+  return window.electronAPI;
+};
 
 // Generate unique patient ID
 export const generatePatientId = () => {
@@ -13,37 +20,74 @@ export const generatePatientId = () => {
 };
 
 export const getAllPatients = async (filters = {}) => {
-  if (!ipcRenderer) return [];
-  const res = await ipcRenderer.invoke('patients:getAll', filters);
-  return res.success ? res.patients : [];
+  const api = getApi();
+  if (!api) return [];
+  try {
+    const res = await api.getPatients(filters);
+    return res?.success ? res.patients : [];
+  } catch (err) {
+    console.error('getAllPatients error:', err);
+    return [];
+  }
 };
 
 export const getPatientById = async (id) => {
-  if (!ipcRenderer) return null;
-  const res = await ipcRenderer.invoke('patients:getById', id);
-  return res.success ? res.patient : null;
+  const api = getApi();
+  if (!api) return null;
+  try {
+    const res = await api.getPatient(id);
+    return res?.success ? res.patient : null;
+  } catch (err) {
+    console.error('getPatientById error:', err);
+    return null;
+  }
 };
 
 export const createPatient = async (patientData) => {
-  if (!ipcRenderer) return null;
-  const res = await ipcRenderer.invoke('patients:create', patientData);
-  return res.success ? res.patient : null;
+  const api = getApi();
+  if (!api) return null;
+  try {
+    const res = await api.createPatient(patientData);
+    return res?.success ? res.patient : null;
+  } catch (err) {
+    console.error('createPatient error:', err);
+    return null;
+  }
 };
 
 export const updatePatient = async (id, patientData) => {
-  if (!ipcRenderer) return null;
-  const res = await ipcRenderer.invoke('patients:update', { id, patientData });
-  return res.success ? res.patient : null;
+  const api = getApi();
+  if (!api) return null;
+  try {
+    const res = await api.updatePatient(id, patientData);
+    return res?.success ? res.patient : null;
+  } catch (err) {
+    console.error('updatePatient error:', err);
+    return null;
+  }
 };
 
 export const deletePatient = async (id) => {
-  if (!ipcRenderer) return false;
-  const res = await ipcRenderer.invoke('patients:delete', id);
-  return res.success;
+  const api = getApi();
+  if (!api) return false;
+  try {
+    const res = await api.deletePatient(id);
+    return !!res?.success;
+  } catch (err) {
+    console.error('deletePatient error:', err);
+    return false;
+  }
 };
 
 export const searchPatients = async (searchTerm) => {
-  if (!ipcRenderer) return [];
-  const res = await ipcRenderer.invoke('patients:search', searchTerm);
-  return res.success ? res.patients : [];
+  const api = getApi();
+  if (!api) return [];
+  try {
+    // Note: getPatients handler in handlers.js already handles filters including search
+    const res = await api.getPatients({ search: searchTerm });
+    return res?.success ? res.patients : [];
+  } catch (err) {
+    console.error('searchPatients error:', err);
+    return [];
+  }
 };

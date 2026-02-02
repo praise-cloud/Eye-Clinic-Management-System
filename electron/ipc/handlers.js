@@ -884,7 +884,7 @@ class IPCHandlers {
         return { success: false, error: error.message };
       }
     });
-    ipcMain.handle('presence:setOffline', async (event, userId) => {
+    ipcMain.handle('presence:setOffline', async (event, { userId }) => {
       try {
         await DatabaseService.setUserOffline(userId);
         return { success: true };
@@ -936,7 +936,7 @@ class IPCHandlers {
       }
     });
 
-    ipcMain.handle('db:setSetting', async (event, { key, value }) => {
+    ipcMain.handle('settings:set', async (event, { key, value }) => {
       try {
         await DatabaseService.setSetting(key, value);
         return { success: true };

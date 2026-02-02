@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { DeleteIcon, EditIcon, ViewIcon } from '../components/Icons';
-import useTests from '../hooks/useTests';
+import { DeleteIcon, EditIcon, ViewIcon } from '../Icons';
+import useTests from '../../hooks/useTests';
+import useUser from '../../hooks/useUser';
+import UploadTestModal from '../modals/UploadTestModal';
 
 const DEFAULT_ADDITIONAL_TESTS = [];
 
@@ -11,6 +13,8 @@ const TestsContent = ({ clientName, clientId, additionalTests = DEFAULT_ADDITION
   const [rowsPerPage, setRowsPerPage] = useState(5);
   const [viewingTest, setViewingTest] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const { user } = useUser();
 
   const { tests: dbTests, fetchTests, removeTest } = useTests();
 
@@ -81,65 +85,57 @@ const TestsContent = ({ clientName, clientId, additionalTests = DEFAULT_ADDITION
   }
 
   return (
-    <div className="">
-      <div className="flex my-5">
-        <div className="flex flex-col gap-4 bg-white  dark:bg-gray-800 w-full rounded-md shadow px-5 py-4">
-          <div className="flex items-center gap-5 w-2/3">
-            <input type="text" className="border border-gray-300  dark:bg-gray-700 dark:text-gray-600 rounded-md p-3 w-full" placeholder="name of case or clients name..." />
-            <div className="flex items-center gap-3">
-              <div className="flex">
-                <p className="dark:text-gray-600">Filter</p>
-              </div>
-              {/* Date filter dropdown */}
-              <div className="relative">
-                <select
-                  className="border border-gray-300 rounded-md p-2 dark:bg-gray-700 dark:text-white"
-
-                  onChange={e => setSelectedDate(e.target.value)}
-                  value={selectedDate || ''}
-                >
-                  <option value="">Date</option>
-                  <option value="today">Today</option>
-                  <option value="yesterday">Yesterday</option>
-                  <option value="this_week">This Week</option>
-                  <option value="this_month">This Month</option>
-                  <option value="custom">Custom...</option>
-                </select>
-                {/* If custom, show date picker */}
-                {selectedDate === 'custom' && (
-                  <input
-                    type="date"
-                    className="absolute top-full left-0 mt-2 border border-gray-300 rounded-md p-2 bg-white  z-10"
-                    onChange={e => setCustomDate(e.target.value)}
-                    value={customDate || ''}
-                  />
-                )}
-              </div>
-            </div>
-          </div>
-          {/* Show selected date filter with close icon */}
-          {selectedDate && selectedDate !== '' && (
-            <div className="flex w-56 items-center justify-center gap-1 bg-blue-50 border border-blue-200 rounded px-2 py-1 text-sm">
-              <span className="flex">
-                {selectedDate === 'custom' && customDate ? customDate : selectedDate.replace('_', ' ')}
-              </span>
-              <button
-                className="ml-1 text-blue-500 hover:text-blue-700"
-                onClick={() => {
-                  setSelectedDate('');
-                  setCustomDate('');
-                }}
-                aria-label="Remove date filter"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-          )}
+    <div className="space-y-6 animate-premium-fade">
+      {/* Header with Search and Add Button */}
+      <div className="card-premium p-6 flex flex-col md:flex-row gap-6 items-center justify-between">
+        <div className="relative flex-1 w-full max-w-xl">
+          <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          <input
+            type="text"
+            placeholder="Search test records by patient name or modality..."
+            className="input-premium pl-12 py-3 shadow-sm"
+          />
         </div>
+
+        <button
+          onClick={() => setShowUploadModal(true)}
+          className="btn btn-primary px-8 py-3 flex items-center gap-3 shadow-xl shadow-indigo-100 dark:shadow-none w-full md:w-auto"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+          </svg>
+          <span className="font-bold">New Test Acquisition</span>
+        </button>
       </div>
-      <div>
+
+      {/* Legacy Filter Bar (Keeping for now but styled) */}
+      <div className="flex flex-wrap gap-4 px-2">
+        <select
+          className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2 text-sm font-bold text-slate-600 dark:text-slate-400 focus:ring-2 focus:ring-indigo-500 outline-none transition-all cursor-pointer"
+          onChange={e => setSelectedDate(e.target.value)}
+          value={selectedDate || ''}
+        >
+          <option value="">Filter by Date</option>
+          <option value="today">Today</option>
+          <option value="yesterday">Yesterday</option>
+          <option value="this_week">This Week</option>
+          <option value="this_month">This Month</option>
+          <option value="custom">Custom Range...</option>
+        </select>
+
+        {selectedDate && (
+          <div className="flex items-center gap-2 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest border border-indigo-100 dark:border-indigo-900/30">
+            <span>{selectedDate.replace('_', ' ')}</span>
+            <button onClick={() => setSelectedDate('')} className="hover:text-rose-500 transition-colors">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+          </div>
+        )}
+      </div>
+
+      <div className="card-premium overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200 bg-white dark:bg-gray-800 border border-gray-200 dark:border-none rounded-md">
             <thead className="bg-gray-50 dark:bg-gray-700 py-5">
@@ -213,12 +209,12 @@ const TestsContent = ({ clientName, clientId, additionalTests = DEFAULT_ADDITION
             </tbody>
           </table>
 
-          <div className="flex items-center justify-between mt-4">
+          <div className="flex items-center justify-between my-4 mx-5">
             <div className="flex justify-end items-center mb-2 gap-2">
               <label htmlFor="rowsPerPage" className="text-sm text-gray-600">Rows per page:</label>
               <select
                 id="rowsPerPage"
-                className="border border-gray-300 rounded-md p-1 text-sm"
+                className="border border-gray-300 rounded-md p-1 text-sm dark:text-slate-800"
                 value={rowsPerPage}
                 onChange={e => setRowsPerPage(Number(e.target.value))}
               >
@@ -229,18 +225,16 @@ const TestsContent = ({ clientName, clientId, additionalTests = DEFAULT_ADDITION
               </select>
             </div>
             {/* Pagination controls */}
-            <div className="flex justify-end items-center gap-2">
+            <div className="flex justify-start items-center gap-2">
               <button
-                className={`px-3 py-1 rounded border text-sm ${currentPage === 1 || totalPages === 0 ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-white text-gray-700 hover:bg-gray-100'}`}
+                className={`px-3 py-1 rounded border text-sm ${currentPage === 1 || totalPages === 0 ? 'bg-gray-200 text-gray-400 cursor-not-allowed dark:text-slate-800 ' : 'bg-white text-gray-700 hover:bg-gray-100'}`}
                 onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                 disabled={currentPage === 1 || totalPages === 0}
-              >
-                Previous
-              </button>
-              <span className="text-sm text-gray-600">                Page {currentPage} of {totalPages || 1}
-              </span>
+              >Previous</button>
+
+              <span className="text-sm text-slate-600">Page {currentPage} of {totalPages || 1}</span>
               <button
-                className={`px-3 py-1 rounded border text-sm ${currentPage === totalPages || totalPages === 0 ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-white text-gray-700 hover:bg-gray-100'}`}
+                className={`px-3 py-1 rounded border text-sm ${currentPage === totalPages || totalPages === 0 ? 'bg-gray-200 text-gray-400 cursor-not-allowed dark:text-slate-800 ' : 'bg-white text-gray-700 hover:bg-gray-100'}`}
                 onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                 disabled={currentPage === totalPages || totalPages === 0}
               >
@@ -348,6 +342,16 @@ const TestsContent = ({ clientName, clientId, additionalTests = DEFAULT_ADDITION
             </div>
           </div>
         </div>
+      )}
+      {/* Upload Test Modal */}
+      {showUploadModal && (
+        <UploadTestModal
+          onClose={() => {
+            setShowUploadModal(false);
+            fetchTests();
+          }}
+          currentUser={user}
+        />
       )}
     </div>
   );

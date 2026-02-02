@@ -1,14 +1,20 @@
-const electronAPI = window.electronAPI;
+// src/services/messageService.js
+// Abstracts all internal messaging logic via window.electronAPI
+
+const getApi = () => {
+    if (!window.electronAPI) {
+        console.error('Electron API not found in window');
+        return null;
+    }
+    return window.electronAPI;
+};
 
 export const getMessages = async (filters = {}) => {
+    const api = getApi();
+    if (!api) return [];
     try {
-        if (electronAPI?.invoke) {
-            // Use invoke for standardized IPC calls
-            const res = await electronAPI.invoke('chat:getMessages', filters);
-            return res?.success ? res.messages : [];
-        }
-        console.warn('Electron API not available');
-        return [];
+        const res = await api.getMessages(filters);
+        return res?.success ? res.messages : [];
     } catch (err) {
         console.error('getMessages error:', err);
         return [];
@@ -16,28 +22,22 @@ export const getMessages = async (filters = {}) => {
 };
 
 export const sendMessage = async (messageData) => {
+    const api = getApi();
+    if (!api) throw new Error('Electron API not available');
     try {
-        if (electronAPI?.invoke) {
-            const { text, senderId, receiverId, attachment, replyToId } = messageData;
-            // Default receiver to 'assistant' or 'admin' if not specified for now, 
-            // but ideally the UI provides this.
-            // For the AssistantChatScreen, receiver is likely the "Doctor" or vice-versa.
-            // We'll assume a broadcast or fixed receiver for the simple chat unless specified.
+        const { text, senderId, receiverId, attachment, replyToId } = messageData;
+        const targetReceiver = receiverId || 'all_assistants';
 
-            const targetReceiver = receiverId || 'all_assistants'; // Backend logic handles routing or broadcast
+        const res = await api.sendMessage(
+            senderId,
+            targetReceiver,
+            text,
+            attachment,
+            replyToId
+        );
 
-            const res = await electronAPI.invoke('chat:sendMessage',
-                senderId,
-                targetReceiver,
-                text,
-                attachment,
-                replyToId
-            );
-
-            if (!res?.success) throw new Error(res?.error || 'Failed to send message');
-            return res.message;
-        }
-        throw new Error('Electron API not available');
+        if (!res?.success) throw new Error(res?.error || 'Failed to send message');
+        return res.message;
     } catch (err) {
         console.error('sendMessage error:', err);
         throw err;
@@ -45,11 +45,33 @@ export const sendMessage = async (messageData) => {
 };
 
 export const markAsRead = async (messageId, userId) => {
+    const api = getApi();
+    if (!api) return;
     try {
-        if (electronAPI?.invoke) {
-            return await electronAPI.invoke('chat:markMessageRead', { messageId, userId });
-        }
+        return await api.markMessageRead({ messageId, userId });
     } catch (err) {
         console.error('markAsRead error:', err);
     }
-}
+};
+
+export const markAllAsRead = async (userId, otherUserId) => {
+    const api = getApi();
+    if (!api) return;
+    try {
+        return await api.markAllAsRead(userId, otherUserId);
+    } catch (err) {
+        console.error('markAllAsRead error:', err);
+    }
+};
+
+export const deleteMessage = async (messageId) => {
+    const api = getApi();
+    if (!api) return false;
+    try {
+        const res = await api.deleteMessage(messageId);
+        return !!res?.success;
+    } catch (err) {
+        console.error('deleteMessage error:', err);
+        return false;
+    }
+};

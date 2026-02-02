@@ -46,7 +46,7 @@ const Sidebar = ({ activeSection, onSectionClick, currentUser }) => {
       {/* Logo */}
       <div className="flex items-center px-6 py-10">
         <div className="flex flex-col">
-          <Logo className="w-16 mb-2" />
+          <Logo className="w-16 mb-1" />
           <span className="text-xs font-black text-indigo-400 uppercase tracking-[0.2em] line-clamp-2">{config.clinicName || 'Korene Eye Clinic'}</span>
           <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">Management System</span>
         </div>

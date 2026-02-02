@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { DeleteIcon, EditIcon, ViewIcon } from '../../components/Icons';
-import ClientDetailContent from '../ClientDetailContent';
 import AddPatientModal from '../../components/modals/AddPatientModal';
+import PatientQuickViewModal from '../../components/modals/PatientQuickViewModal';
 import useUser from '../../hooks/useUser';
 
 const AssistantDashboardScreen = () => {
     const { user } = useUser();
+    const navigate = useNavigate();
     const [statsData, setStatsData] = useState([
         { label: 'Total Patients', number: '0', icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z', color: 'indigo' },
         { label: "Today's Intake", number: '0', icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z', color: 'emerald' },
@@ -18,8 +20,7 @@ const AssistantDashboardScreen = () => {
     const [currentPage, setCurrentPage] = useState(1);
     const [rowsPerPage, setRowsPerPage] = useState(5);
     const [deleteConfirm, setDeleteConfirm] = useState(null);
-    const [viewingPatient, setViewingPatient] = useState(null);
-    const [selectedClient, setSelectedClient] = useState(null);
+    const [quickViewPatient, setQuickViewPatient] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [showAddPatientModal, setShowAddPatientModal] = useState(false);
@@ -98,27 +99,6 @@ const AssistantDashboardScreen = () => {
         }
     };
 
-    const handleClientSave = async (updatedClient) => {
-        try {
-            const patientData = {
-                first_name: updatedClient.first_name || selectedClient.first_name,
-                last_name: updatedClient.last_name || selectedClient.last_name,
-                dob: updatedClient.date || selectedClient.date,
-                gender: updatedClient.gender || selectedClient.gender,
-                contact: updatedClient.phone || selectedClient.phone,
-                email: updatedClient.email || selectedClient.email,
-                address: updatedClient.address || selectedClient.address,
-                reason_for_visit: updatedClient.reason_for_visit || selectedClient.reason_for_visit
-            };
-            const result = await window.electronAPI.updatePatient(selectedClient.id, patientData);
-            if (result.success) {
-                await loadPatients();
-                setSelectedClient(null);
-            }
-        } catch (err) {
-            setSelectedClient(null);
-        }
-    };
 
     const filteredPatients = patients.filter(patient =>
         searchTerm === '' ||
@@ -129,14 +109,6 @@ const AssistantDashboardScreen = () => {
 
     const totalPages = Math.ceil(filteredPatients.length / rowsPerPage);
     const paginatedPatients = filteredPatients.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage);
-
-    if (selectedClient) {
-        return <ClientDetailContent
-            client={selectedClient}
-            onBack={() => setSelectedClient(null)}
-            onSave={handleClientSave}
-        />;
-    }
 
     return (
         <div className="space-y-10 animate-premium-fade pb-10">
@@ -228,10 +200,18 @@ const AssistantDashboardScreen = () => {
                                     </td>
                                     <td className="px-8 py-6 text-right">
                                         <div className="flex justify-end gap-2">
-                                            <button onClick={() => handleView(patient)} className="w-9 h-9 rounded-xl flex items-center justify-center bg-slate-100 dark:bg-slate-800 text-slate-400 hover:bg-indigo-500 hover:text-white transition-all shadow-sm">
+                                            <button
+                                                onClick={() => setQuickViewPatient(patient)}
+                                                className="w-9 h-9 rounded-xl flex items-center justify-center bg-slate-100 dark:bg-slate-800 text-slate-400 hover:bg-indigo-500 hover:text-white transition-all shadow-sm"
+                                                title="Quick View"
+                                            >
                                                 <ViewIcon />
                                             </button>
-                                            <button onClick={() => handleEdit(patient)} className="w-9 h-9 rounded-xl flex items-center justify-center bg-slate-100 dark:bg-slate-800 text-slate-400 hover:bg-emerald-500 hover:text-white transition-all shadow-sm">
+                                            <button
+                                                onClick={() => navigate(`/patients/${patient.id}`)}
+                                                className="w-9 h-9 rounded-xl flex items-center justify-center bg-slate-100 dark:bg-slate-800 text-slate-400 hover:bg-emerald-500 hover:text-white transition-all shadow-sm"
+                                                title="Full Patient Record"
+                                            >
                                                 <EditIcon />
                                             </button>
                                             <button onClick={() => setDeleteConfirm(patient)} className="w-9 h-9 rounded-xl flex items-center justify-center bg-slate-100 dark:bg-slate-800 text-slate-400 hover:bg-rose-500 hover:text-white transition-all shadow-sm">
@@ -304,42 +284,17 @@ const AssistantDashboardScreen = () => {
                 </div>
             )}
 
-            {viewingPatient && (
-                <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center z-[200] p-4 animate-premium-fade" onClick={() => setViewingPatient(null)}>
-                    <div className="card-premium bg-white dark:bg-slate-900 w-full max-w-md p-8 shadow-2xl animate-premium-slide" onClick={e => e.stopPropagation()}>
-                        <div className="flex justify-between items-center mb-10 pb-4 border-b border-slate-100 dark:border-slate-800">
-                            <div>
-                                <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">Subject Intelligence</h3>
-                                <p className="text-[10px] font-black text-indigo-500 uppercase tracking-widest mt-1">Verified Clinical Record</p>
-                            </div>
-                            <button onClick={() => setViewingPatient(null)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg group transition-colors">
-                                <svg className="w-5 h-5 text-slate-400 group-hover:text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
-                            </button>
-                        </div>
-                        <div className="space-y-6">
-                            {[
-                                { label: 'Legal Identity', value: viewingPatient.name },
-                                { label: 'Clinical Marker (DOB)', value: viewingPatient.date },
-                                { label: 'Connectivity Telemetry', value: viewingPatient.phone },
-                                { label: 'Communications Link', value: viewingPatient.email },
-                                { label: 'Clinical Narrative', value: viewingPatient.case, large: true },
-                            ].map((field, i) => (
-                                <div key={i}>
-                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">{field.label}</p>
-                                    <div className={`p-4 bg-slate-50 dark:bg-slate-950/30 rounded-xl border border-slate-100 dark:border-slate-800 text-sm font-bold text-slate-900 dark:text-white ${field.large ? 'min-h-[100px] leading-relaxed italic' : ''}`}>
-                                        {field.value}
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                        <button onClick={() => setViewingPatient(null)} className="w-full mt-12 py-4 bg-slate-900 dark:bg-indigo-600 text-white rounded-xl text-xs font-black tracking-widest uppercase shadow-xl hover:bg-slate-800 dark:hover:bg-indigo-700 transition-all active:scale-95">Dismiss Intelligence</button>
-                    </div>
-                </div>
+            {quickViewPatient && (
+                <PatientQuickViewModal
+                    patient={quickViewPatient}
+                    onClose={() => setQuickViewPatient(null)}
+                />
             )}
 
             {showAddPatientModal && (
                 <AddPatientModal
                     onClose={() => setShowAddPatientModal(false)}
+                    currentUser={user}
                     onPatientAdded={loadPatients}
                 />
             )}

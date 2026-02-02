@@ -9,6 +9,8 @@ const UploadTestModal = ({ onClose, currentUser }) => {
     testType: '',
     testDate: new Date().toISOString().split('T')[0],
     testFile: null,
+    eye: 'both',
+    result: 'Completed',
     notes: ''
   })
 
@@ -70,10 +72,12 @@ const UploadTestModal = ({ onClose, currentUser }) => {
         patient_id: formData.patientId,
         machine_type: formData.testType,
         test_date: formData.testDate,
+        eye: formData.eye,
         raw_data: JSON.stringify({
           notes: formData.notes,
           fileName: formData.testFile ? formData.testFile.name : null,
-          result: 'Completed'
+          result: formData.result,
+          eye: formData.eye
         }),
         uploaded_by: currentUser?.id
       }
@@ -173,6 +177,41 @@ const UploadTestModal = ({ onClose, currentUser }) => {
                   />
                 </div>
               </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+                <div>
+                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Eye Examined *</label>
+                  <select
+                    name="eye"
+                    value={formData.eye}
+                    onChange={handleInputChange}
+                    required
+                    className="input-premium appearance-none"
+                  >
+                    <option value="both">Both Eyes</option>
+                    <option value="left">Left Eye</option>
+                    <option value="right">Right Eye</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Test Result Status *</label>
+                  <select
+                    name="result"
+                    value={formData.result}
+                    onChange={handleInputChange}
+                    required
+                    className="input-premium appearance-none"
+                  >
+                    <option value="Completed">Completed</option>
+                    <option value="Normal">Normal</option>
+                    <option value="Abnormal">Abnormal</option>
+                    <option value="High">High</option>
+                    <option value="Low">Low</option>
+                    <option value="Scheduled">Scheduled</option>
+                  </select>
+                </div>
+              </div>
             </div>
 
             {/* File Acquisition */}
@@ -184,7 +223,6 @@ const UploadTestModal = ({ onClose, currentUser }) => {
                   name="testFile"
                   onChange={handleFileChange}
                   accept=".pdf,.jpg,.jpeg,.png,.dcm,.tiff"
-                  required
                   className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
                 />
                 <div className="flex flex-col items-center">
@@ -215,33 +253,33 @@ const UploadTestModal = ({ onClose, currentUser }) => {
                 className="input-premium resize-none"
               />
             </div>
+
+            {/* Actions */}
+            <div className="flex gap-4 mt-8">
+              <button
+                type="button"
+                onClick={onClose}
+                className="flex-1 px-6 py-4 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-xl text-xs font-black tracking-widest uppercase hover:bg-slate-100 dark:hover:bg-slate-700 transition-all border border-slate-200 dark:border-slate-700 active:scale-95"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={loading}
+                className="flex-1 btn btn-primary py-4 text-xs font-black tracking-widest uppercase shadow-xl shadow-indigo-200 dark:shadow-none hover:scale-[1.02] active:scale-95 transition-all"
+              >
+                {loading ? (
+                  <div className="flex items-center justify-center gap-2">
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <span>Digitizing...</span>
+                  </div>
+                ) : (
+                  'Acquire Result'
+                )}
+              </button>
+            </div>
           </div>
         </form>
-
-        {/* Actions */}
-        <div className="p-8 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/30 flex gap-4">
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex-1 px-6 py-4 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-xl text-xs font-black tracking-widest uppercase hover:bg-slate-100 dark:hover:bg-slate-700 transition-all border border-slate-200 dark:border-slate-700 active:scale-95"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSubmit}
-            disabled={loading}
-            className="flex-1 btn btn-primary py-4 text-xs font-black tracking-widest uppercase shadow-xl shadow-indigo-200 dark:shadow-none hover:scale-[1.02] active:scale-95 transition-all"
-          >
-            {loading ? (
-              <div className="flex items-center justify-center gap-2">
-                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                <span>Digitizing...</span>
-              </div>
-            ) : (
-              'Acquire Result'
-            )}
-          </button>
-        </div>
       </div>
     </div>
   )

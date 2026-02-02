@@ -25,7 +25,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
     // Database APIs
     getSettings: () => ipcRenderer.invoke('settings:getAll'),
-    setSetting: (key, value) => ipcRenderer.invoke('db:setSetting', { key, value }),
+    setSetting: (key, value) => ipcRenderer.invoke('settings:set', { key, value }),
 
     // Patient APIs
     getPatients: (filters) => ipcRenderer.invoke('patients:getAll', filters),
