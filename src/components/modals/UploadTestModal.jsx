@@ -6,6 +6,7 @@ const UploadTestModal = ({ onClose, currentUser }) => {
   const [patients, setPatients] = useState([])
   const [formData, setFormData] = useState({
     patientId: '',
+    patientName: '',
     testType: '',
     testDate: new Date().toISOString().split('T')[0],
     testFile: null,
@@ -36,7 +37,7 @@ const UploadTestModal = ({ onClose, currentUser }) => {
   const loadPatients = async () => {
     try {
       const patientsData = await patientService.getAllPatients()
-      setPatients(patientsData)
+      setPatients(patientsData || [])
     } catch (err) {
       setError('Failed to load patients')
     }
@@ -44,10 +45,24 @@ const UploadTestModal = ({ onClose, currentUser }) => {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target
+
+    if(name == "patientId"){
+      const selectedPatient = patients.find(p => p.id === parseInt(value));
+      const nameStr = selectedPatient 
+      ? (selectedPatient.name || `${selectedPatient.first_name} ${selectedPatient.last_name}`.trim())
+      : '';
+
     setFormData(prev => ({
       ...prev,
-      [name]: value
-    }))
+      patientId: value,
+      patientName: nameStr // This fills the missing field for handleSubmit
+    }));
+    } else{
+      setFormData(prev => ({
+        ...prev,
+        [name]: value
+      }))
+    }
   }
 
   const handleFileChange = (e) => {
@@ -58,18 +73,41 @@ const UploadTestModal = ({ onClose, currentUser }) => {
     }))
   }
 
+  const handleAcquireResult = () => {
+    setLoading(true)
+
+    const simulatedResult = `Acquired ${formData.testType || 'Scan'} Data: Normal parameters detected.`
+
+    const newResult = {
+      id : Date.now(),
+      name : `${formData.testType || 'Test'}_Result_${new Date().getHours()}${new Date().getMinutes()}.pdf`,
+      result : simulatedResult,
+      eye : formData.eye,
+      notes : formData.notes
+    }
+
+    setFormData(prev => ({
+      ...prev,
+      result : newResult.result,
+      notes : newResult.notes
+    }))
+    setScannedResults(prev => [...prev, newResult])
+    setLoading(false)
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     setLoading(true)
     setError('')
 
     try {
-      if (!formData.patientId || !formData.testType) {
+      if (!formData.patientId || !formData.patientName || !formData.testType) {
         throw new Error('Patient and test type are required')
       }
 
       const testData = {
         patient_id: formData.patientId,
+        patient_name: formData.patientName,
         machine_type: formData.testType,
         test_date: formData.testDate,
         eye: formData.eye,

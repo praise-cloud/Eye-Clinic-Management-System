@@ -1,5 +1,3 @@
-// src/services/testService.js
-// Abstracts all test CRUD/retrieval via window.electronAPI
 
 const getApi = () => {
   if (!window.electronAPI) {
