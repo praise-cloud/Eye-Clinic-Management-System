@@ -23,24 +23,17 @@ const TestsContent = ({ clientName, clientId, additionalTests = DEFAULT_ADDITION
   }, [fetchTests]);
 
   const mappedDbTests = useMemo(() => dbTests.map(test => {
-    let parsed = {};
-    try { parsed = JSON.parse(test.raw_data || '{}'); } catch { }
-    const res = parsed.result || parsed.status || 'Completed';
-    const eyeLabel = test.eye || parsed.eye || 'both';
-    const notesVal = parsed.notes || (eyeLabel ? `${eyeLabel} eye test` : '');
-    const nameJoin = (test.first_name || test.last_name) ? `${test.first_name || ''} ${test.last_name || ''}`.trim() : '';
-    const name = nameJoin || clientName || test.patientName || 'Unknown Patient';
-    const testTypeVal = test.machine_type || parsed.testType || 'Unknown';
-    const dateVal = test.test_date ? new Date(test.test_date).toLocaleDateString() : (parsed.date || '');
     return {
       id: test.id,
-      patientId: test.patient_id,
-      patientName: name,
-      testType: testTypeVal,
-      result: res,
-      date: dateVal,
-      eye: eyeLabel,
-      notes: notesVal
+      patientId: test.patientId || test.patient_id,
+      patientName: test.patientName || clientName || 'Unknown Patient',
+      testType: test.testType || 'Unknown',
+      eye: test.eye || 'both',
+      result: test.result || 'Pending',
+      date: test.date || 'N/A',
+      notes: test.notes || '',
+      imageData: test.imageData || null,
+      fileName: test.fileName || null
     };
   }), [dbTests, clientName]);
 
@@ -156,7 +149,7 @@ const TestsContent = ({ clientName, clientId, additionalTests = DEFAULT_ADDITION
             <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
               {paginatedTests
                 .filter(test => {
-                  if (clientId) return test.patientId === clientId;
+                  if (clientId) return String(test.patientId) === String(clientId);
                   if (clientName) return test.patientName === clientName;
                   return true;
                 })
@@ -179,7 +172,7 @@ const TestsContent = ({ clientName, clientId, additionalTests = DEFAULT_ADDITION
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
                       <div className="flex gap-2">
                         <button
-                          onClick={() => setViewingTest(test)}
+                          onClick={() => navigate(`/patients/${test.patientId}?testId=${test.id}`)}
                           className="text-blue-500 hover:text-blue-700 p-1"
                           title="View Details"
                         >
@@ -187,8 +180,7 @@ const TestsContent = ({ clientName, clientId, additionalTests = DEFAULT_ADDITION
                         </button>
                         <button
                           onClick={() => {
-                            // Navigate to dedicated patient details page
-                            navigate(`/patients/${test.patientId}`);
+                            navigate(`/patients/${test.patientId}?testId=${test.id}`);
                           }}
                           className="text-green-500 hover:text-green-700 p-1"
                           title="Edit"
@@ -302,9 +294,9 @@ const TestsContent = ({ clientName, clientId, additionalTests = DEFAULT_ADDITION
       {/* Delete Confirmation Modal */}
       {deleteConfirm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={() => setDeleteConfirm(null)}>
-          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white dark:bg-slate-900 rounded-lg p-6 w-full max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">Delete Test</h3>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-300">Delete Test</h3>
               <button
                 onClick={() => setDeleteConfirm(null)}
                 className="text-gray-500 hover:text-gray-700 text-xl"

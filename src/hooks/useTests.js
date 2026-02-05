@@ -23,7 +23,9 @@ export default function useTests() {
     setError(null);
     try {
       const newTest = await testService.createTest(testData);
-      if (newTest) setTests((prev) => [...prev, newTest]);
+      if (newTest) {
+        await fetchTests();
+      }
       return newTest;
     } catch (err) {
       setError(err);

@@ -46,18 +46,17 @@ const UploadTestModal = ({ onClose, currentUser }) => {
   const handleInputChange = (e) => {
     const { name, value } = e.target
 
-    if(name == "patientId"){
-      const selectedPatient = patients.find(p => p.id === parseInt(value));
-      const nameStr = selectedPatient 
-      ? (selectedPatient.name || `${selectedPatient.first_name} ${selectedPatient.last_name}`.trim())
-      : '';
-
-    setFormData(prev => ({
-      ...prev,
-      patientId: value,
-      patientName: nameStr // This fills the missing field for handleSubmit
-    }));
-    } else{
+    if (name === "patientId") {
+      const selectedPatient = patients.find(p => String(p.id) === String(value));
+      const nameStr = selectedPatient
+        ? (selectedPatient.name || `${selectedPatient.first_name || ''} ${selectedPatient.last_name || ''}`.trim())
+        : '';
+      setFormData(prev => ({
+        ...prev,
+        patientId: value,
+        patientName: nameStr
+      }));
+    } else {
       setFormData(prev => ({
         ...prev,
         [name]: value
@@ -67,10 +66,25 @@ const UploadTestModal = ({ onClose, currentUser }) => {
 
   const handleFileChange = (e) => {
     const file = e.target.files[0]
-    setFormData(prev => ({
-      ...prev,
-      testFile: file
-    }))
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      const dataUrl = event.target.result
+      setFormData(prev => ({
+        ...prev,
+        testFile: file,
+        imageData: dataUrl
+      }))
+    }
+    if (file.type && file.type.startsWith('image/')) {
+      reader.readAsDataURL(file)
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        testFile: file,
+        imageData: null
+      }))
+    }
   }
 
   const handleAcquireResult = () => {
@@ -115,7 +129,8 @@ const UploadTestModal = ({ onClose, currentUser }) => {
           notes: formData.notes,
           fileName: formData.testFile ? formData.testFile.name : null,
           result: formData.result,
-          eye: formData.eye
+          eye: formData.eye,
+          imageData: formData.imageData || null
         }),
         uploaded_by: currentUser?.id
       }

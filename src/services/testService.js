@@ -29,6 +29,12 @@ export const getAllTests = async (filters = {}) => {
           : 'N/A',
         notes: (() => {
           try { return JSON.parse(test.raw_data || '{}').notes || ''; } catch { return ''; }
+        })(),
+        fileName: (() => {
+          try { return JSON.parse(test.raw_data || '{}').fileName || null; } catch { return null; }
+        })(),
+        imageData: (() => {
+          try { return JSON.parse(test.raw_data || '{}').imageData || null; } catch { return null; }
         })()
       }));
     }
