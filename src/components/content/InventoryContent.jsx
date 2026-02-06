@@ -11,6 +11,11 @@ const InventoryContent = () => {
   const [viewingItem, setViewingItem] = useState(null)
   const [buyingItem, setBuyingItem] = useState(null)
   const [buyQuantity, setBuyQuantity] = useState(1)
+  const [editingItem, setEditingItem] = useState(null)
+  const [editForm, setEditForm] = useState(null)
+  const [editLoading, setEditLoading] = useState(false)
+  const [editSaving, setEditSaving] = useState(false)
+  const [editError, setEditError] = useState('')
   const { user } = useUser()
 
   useEffect(() => {
@@ -105,6 +110,92 @@ const InventoryContent = () => {
     if (quantity <= minStock) return 'text-red-600 bg-red-100'
     if (quantity <= minStock * 1.5) return 'text-yellow-600 bg-yellow-100'
     return 'text-green-600 bg-green-100'
+  }
+
+  const openEditItem = async (item) => {
+    try {
+      setEditLoading(true)
+      setEditError('')
+      const result = await window.electronAPI.getInventoryItem(item.id)
+      if (result.success && result.item) {
+        const it = result.item
+        setEditingItem(it)
+        setEditForm({
+          item_code: it.item_code || '',
+          item_name: it.item_name || '',
+          category: it.category || 'equipment',
+          description: it.description || '',
+          manufacturer: it.manufacturer || '',
+          model_number: it.model_number || '',
+          serial_number: it.serial_number || '',
+          current_quantity: it.current_quantity ?? 0,
+          minimum_quantity: it.minimum_quantity ?? 0,
+          maximum_quantity: it.maximum_quantity ?? 100,
+          unit_of_measure: it.unit_of_measure || 'pieces',
+          unit_cost: it.unit_cost ?? 0,
+          supplier_name: it.supplier_name || '',
+          supplier_contact: it.supplier_contact || '',
+          purchase_date: it.purchase_date || '',
+          expiry_date: it.expiry_date || '',
+          location: it.location || '',
+          status: it.status || 'active',
+          notes: it.notes || ''
+        })
+      } else {
+        alert(result.error || 'Failed to load item for editing')
+      }
+    } catch (error) {
+      console.error('Error loading item for edit:', error)
+      setEditError('Failed to load item for editing')
+    } finally {
+      setEditLoading(false)
+    }
+  }
+
+  const handleEditChange = (e) => {
+    const { name, value } = e.target
+    setEditForm(prev => ({ ...prev, [name]: value }))
+  }
+
+  const closeEditModal = () => {
+    setEditingItem(null)
+    setEditForm(null)
+    setEditError('')
+    setEditLoading(false)
+    setEditSaving(false)
+  }
+
+  const handleEditSave = async () => {
+    if (!editingItem || !editForm) return
+    try {
+      setEditSaving(true)
+      const changedFields = {}
+      Object.keys(editForm).forEach(key => {
+        if (editForm[key] !== editingItem[key]) {
+          changedFields[key] = editForm[key]
+        }
+      })
+      const userId = user?.id
+      if (userId) {
+        changedFields.last_updated_by = userId
+      }
+      if (Object.keys(changedFields).length === 0) {
+        closeEditModal()
+        return
+      }
+      const result = await window.electronAPI.updateInventoryItem(editingItem.id, changedFields)
+      if (result.success) {
+        await loadInventory()
+        closeEditModal()
+      } else {
+        setEditError(result.error || 'Failed to update item')
+      }
+    } catch (error) {
+      console.error('Error saving edited item:', error)
+      setEditError('Failed to update item')
+    } finally {
+      setEditSaving(false)
+    }
   }
 
   return (
@@ -218,7 +309,7 @@ const InventoryContent = () => {
                           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
                         </button>
                         <button
-                          onClick={() => navigate(`/inventory/edit/${item.id}`)}
+                          onClick={() => openEditItem(item)}
                           className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-emerald-50 hover:text-emerald-600 transition-all flex items-center justify-center"
                           title="Edit Asset"
                         >
@@ -363,7 +454,7 @@ const InventoryContent = () => {
             {/* Footer Actions */}
             <div className="sticky bottom-0 bg-slate-50/80 dark:bg-slate-900/80 backdrop-blur-sm border-t border-slate-100 dark:border-slate-800 p-6 flex gap-3">
               <button onClick={() => setViewingItem(null)} className="flex-1 py-3 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-xl text-xs font-black tracking-widest uppercase hover:bg-slate-100 transition-all border border-slate-200 dark:border-slate-700">Close</button>
-              <button onClick={() => { setViewingItem(null); navigate(`/inventory/edit/${viewingItem.id}`); }} className="flex-1 py-3 bg-indigo-600 text-white rounded-xl text-xs font-black tracking-widest uppercase shadow-lg shadow-indigo-200 dark:shadow-none hover:bg-indigo-700 transition-all active:scale-95">Edit Asset</button>
+              <button onClick={() => { setViewingItem(null); openEditItem(viewingItem); }} className="flex-1 py-3 bg-indigo-600 text-white rounded-xl text-xs font-black tracking-widest uppercaseshadow-lg shadow-indigo-200 dark:shadow-none hover:bg-indigo-700 transition-all active:scale-95">Edit Asset</button>
             </div>
           </div>
         </div>
@@ -408,6 +499,268 @@ const InventoryContent = () => {
                 className="flex-1 py-3 bg-emerald-600 text-white rounded-xl text-xs font-black tracking-widest uppercase shadow-lg shadow-emerald-200 dark:shadow-none hover:bg-emerald-700 transition-all active:scale-95"
               >
                 Confirm Purchase
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {editingItem && editForm && (
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center z-[220] p-4 animate-premium-fade" onClick={closeEditModal}>
+          <div className="card-premium bg-white dark:bg-slate-900 w-full max-w-3xl max-h-[90vh] overflow-y-auto shadow-2xl animate-premium-slide" onClick={e => e.stopPropagation()}>
+            <div className="p-8 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+              <div>
+                <h3 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">Edit Inventory Item</h3>
+                <p className="text-sm text-slate-500 mt-1 font-medium">{editingItem.item_name}</p>
+              </div>
+              <button onClick={closeEditModal} className="w-10 h-10 rounded-2xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 flex items-center justify-center transition-all">
+                <svg className="w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <div className="p-8 space-y-6">
+              {editLoading && (
+                <div className="flex items-center gap-3 text-sm text-slate-500">
+                  <div className="w-4 h-4 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+                  <span>Loading item details…</span>
+                </div>
+              )}
+              {editError && (
+                <div className="p-4 rounded-xl bg-rose-50 dark:bg-rose-900/20 text-rose-600 text-sm font-medium">
+                  {editError}
+                </div>
+              )}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Unit Code</label>
+                  <input
+                    type="text"
+                    name="item_code"
+                    value={editForm.item_code}
+                    onChange={handleEditChange}
+                    disabled
+                    className="input-premium disabled:bg-slate-100 disabled:dark:bg-slate-800"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Description</label>
+                  <input
+                    type="text"
+                    name="item_name"
+                    value={editForm.item_name}
+                    onChange={handleEditChange}
+                    className="input-premium"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Category</label>
+                  <select
+                    name="category"
+                    value={editForm.category}
+                    onChange={handleEditChange}
+                    className="input-premium"
+                  >
+                    <option value="equipment">Equipment</option>
+                    <option value="supplies">Supplies</option>
+                    <option value="medication">Medication</option>
+                    <option value="consumables">Consumables</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Status</label>
+                  <select
+                    name="status"
+                    value={editForm.status}
+                    onChange={handleEditChange}
+                    className="input-premium"
+                  >
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                    <option value="maintenance">Maintenance</option>
+                    <option value="disposed">Disposed</option>
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div>
+                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Current Quantity</label>
+                  <input
+                    type="number"
+                    name="current_quantity"
+                    value={editForm.current_quantity}
+                    onChange={handleEditChange}
+                    className="input-premium"
+                    min="0"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Min Quantity</label>
+                  <input
+                    type="number"
+                    name="minimum_quantity"
+                    value={editForm.minimum_quantity}
+                    onChange={handleEditChange}
+                    className="input-premium"
+                    min="0"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Max Quantity</label>
+                  <input
+                    type="number"
+                    name="maximum_quantity"
+                    value={editForm.maximum_quantity}
+                    onChange={handleEditChange}
+                    className="input-premium"
+                    min="0"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Unit Cost (₦)</label>
+                  <input
+                    type="number"
+                    name="unit_cost"
+                    value={editForm.unit_cost}
+                    onChange={handleEditChange}
+                    className="input-premium"
+                    min="0"
+                    step="0.01"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Unit Of Issue</label>
+                  <input
+                    type="text"
+                    name="unit_of_measure"
+                    value={editForm.unit_of_measure}
+                    onChange={handleEditChange}
+                    className="input-premium"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Manufacturer</label>
+                  <input
+                    type="text"
+                    name="manufacturer"
+                    value={editForm.manufacturer}
+                    onChange={handleEditChange}
+                    className="input-premium"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Model Number</label>
+                  <input
+                    type="text"
+                    name="model_number"
+                    value={editForm.model_number}
+                    onChange={handleEditChange}
+                    className="input-premium"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Serial Number</label>
+                  <input
+                    type="text"
+                    name="serial_number"
+                    value={editForm.serial_number}
+                    onChange={handleEditChange}
+                    className="input-premium"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Location</label>
+                  <input
+                    type="text"
+                    name="location"
+                    value={editForm.location}
+                    onChange={handleEditChange}
+                    className="input-premium"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Supplier Name</label>
+                  <input
+                    type="text"
+                    name="supplier_name"
+                    value={editForm.supplier_name}
+                    onChange={handleEditChange}
+                    className="input-premium"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Supplier Contact</label>
+                  <input
+                    type="text"
+                    name="supplier_contact"
+                    value={editForm.supplier_contact}
+                    onChange={handleEditChange}
+                    className="input-premium"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Purchase Date</label>
+                  <input
+                    type="date"
+                    name="purchase_date"
+                    value={editForm.purchase_date}
+                    onChange={handleEditChange}
+                    className="input-premium"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Expiry Date</label>
+                  <input
+                    type="date"
+                    name="expiry_date"
+                    value={editForm.expiry_date}
+                    onChange={handleEditChange}
+                    className="input-premium"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Additional Details</label>
+                <textarea
+                  name="description"
+                  value={editForm.description}
+                  onChange={handleEditChange}
+                  rows="3"
+                  className="input-premium min-h-[96px]"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Notes</label>
+                <textarea
+                  name="notes"
+                  value={editForm.notes}
+                  onChange={handleEditChange}
+                  rows="2"
+                  className="input-premium min-h-[64px]"
+                />
+              </div>
+            </div>
+            <div className="p-8 border-t border-slate-100 dark:border-slate-800 flex gap-3">
+              <button
+                onClick={closeEditModal}
+                className="flex-1 py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-xl text-xs font-black tracking-widest uppercase hover:bg-slate-200 transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleEditSave}
+                disabled={editSaving}
+                className="flex-1 py-3 bg-indigo-600 text-white rounded-xl text-xs font-black tracking-widest uppercase shadow-lg shadow-indigo-200 dark:shadow-none hover:bg-indigo-700 disabled:opacity-50 transition-all active:scale-95"
+              >
+                {editSaving ? 'Saving…' : 'Save Changes'}
               </button>
             </div>
           </div>
