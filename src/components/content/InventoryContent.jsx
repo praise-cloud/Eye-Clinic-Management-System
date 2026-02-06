@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import useUser from '../../hooks/useUser'
+import * as inventoryService from '../../services/inventoryService'
 
 const InventoryContent = () => {
   const navigate = useNavigate()
@@ -7,6 +9,9 @@ const InventoryContent = () => {
   const [loading, setLoading] = useState(true)
   const [deleteConfirm, setDeleteConfirm] = useState(null)
   const [viewingItem, setViewingItem] = useState(null)
+  const [buyingItem, setBuyingItem] = useState(null)
+  const [buyQuantity, setBuyQuantity] = useState(1)
+  const { user } = useUser()
 
   useEffect(() => {
     loadInventory()
@@ -47,6 +52,31 @@ const InventoryContent = () => {
     } catch (error) {
       console.error('Error deleting item:', error)
       alert('Failed to delete item')
+    }
+  }
+
+  const handleBuy = async () => {
+    if (!buyingItem) return
+    const qty = parseInt(buyQuantity, 10)
+    if (!qty || qty <= 0) {
+      alert('Enter a valid quantity to buy')
+      return
+    }
+    if (qty > buyingItem.current_quantity) {
+      alert('Quantity exceeds available stock')
+      return
+    }
+    try {
+      const newQuantity = buyingItem.current_quantity - qty
+      const userId = user?.id || null
+      const notes = `Dispensed ${qty} ${buyingItem.unit_of_measure || ''} from inventory`
+      await inventoryService.updateInventoryQuantity(buyingItem.id, newQuantity, userId, notes)
+      setBuyingItem(null)
+      setBuyQuantity(1)
+      loadInventory()
+    } catch (error) {
+      console.error('Error updating quantity:', error)
+      alert('Failed to complete purchase')
     }
   }
 
@@ -171,6 +201,15 @@ const InventoryContent = () => {
                     </td>
                     <td className="px-8 py-5 text-right">
                       <div className="flex justify-end gap-2">
+                        <button
+                          onClick={() => { setBuyingItem(item); setBuyQuantity(1); }}
+                          className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700 transition-all flex items-center justify-center"
+                          title="Buy Item"
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l2-8H5.4M7 13L5.4 5M7 13l-2 6h2m0 0h2m8 0h2l-2-6M9 19a2 2 0 11-4 0 2 2 0 014 0zm10 0a2 2 0 11-4 0 2 2 0 014 0z" />
+                          </svg>
+                        </button>
                         <button
                           onClick={() => setViewingItem(item)}
                           className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-indigo-50 hover:text-indigo-600 transition-all flex items-center justify-center"
@@ -325,6 +364,51 @@ const InventoryContent = () => {
             <div className="sticky bottom-0 bg-slate-50/80 dark:bg-slate-900/80 backdrop-blur-sm border-t border-slate-100 dark:border-slate-800 p-6 flex gap-3">
               <button onClick={() => setViewingItem(null)} className="flex-1 py-3 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-xl text-xs font-black tracking-widest uppercase hover:bg-slate-100 transition-all border border-slate-200 dark:border-slate-700">Close</button>
               <button onClick={() => { setViewingItem(null); navigate(`/inventory/edit/${viewingItem.id}`); }} className="flex-1 py-3 bg-indigo-600 text-white rounded-xl text-xs font-black tracking-widest uppercase shadow-lg shadow-indigo-200 dark:shadow-none hover:bg-indigo-700 transition-all active:scale-95">Edit Asset</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Buy Item Modal */}
+      {buyingItem && (
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center z-[210] p-4 animate-premium-fade" onClick={() => setBuyingItem(null)}>
+          <div className="card-premium bg-white dark:bg-slate-900 w-full max-w-md p-8 shadow-2xl animate-premium-slide" onClick={e => e.stopPropagation()}>
+            <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight mb-2">Record Product Sale</h3>
+            <p className="text-sm text-slate-500 mb-6">
+              {buyingItem.item_name} ({buyingItem.unit_of_measure}) at ₦{parseFloat(buyingItem.unit_cost || 0).toLocaleString()}
+            </p>
+            <div className="space-y-4 mb-6">
+              <div>
+                <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Quantity to dispense</label>
+                <input
+                  type="number"
+                  min="1"
+                  max={buyingItem.current_quantity}
+                  value={buyQuantity}
+                  onChange={e => setBuyQuantity(e.target.value)}
+                  className="input-premium"
+                />
+                <p className="text-[11px] text-slate-400 mt-1">Available: {buyingItem.current_quantity} in stock</p>
+              </div>
+              <div className="flex items-center justify-between bg-slate-50 dark:bg-slate-800/60 rounded-2xl px-4 py-3">
+                <span className="text-xs font-black text-slate-500 uppercase tracking-widest">Total Amount</span>
+                <span className="text-lg font-black text-emerald-600 dark:text-emerald-400">
+                  ₦{(parseFloat(buyingItem.unit_cost || 0) * (parseInt(buyQuantity || 0, 10) || 0)).toLocaleString()}
+                </span>
+              </div>
+            </div>
+            <div className="flex gap-3 mt-4">
+              <button
+                onClick={() => setBuyingItem(null)}
+                className="flex-1 py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-xl text-xs font-black tracking-widest uppercase hover:bg-slate-200 transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleBuy}
+                className="flex-1 py-3 bg-emerald-600 text-white rounded-xl text-xs font-black tracking-widest uppercase shadow-lg shadow-emerald-200 dark:shadow-none hover:bg-emerald-700 transition-all active:scale-95"
+              >
+                Confirm Purchase
+              </button>
             </div>
           </div>
         </div>

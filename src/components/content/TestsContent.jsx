@@ -142,7 +142,7 @@ const TestsContent = ({ clientName, clientId, additionalTests = DEFAULT_ADDITION
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Result</th>
                 )}
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{mode === 'scheduled' ? 'Scheduled Date' : 'Date'}</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Notes</th>
+                {/* <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Notes</th> */}
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Actions</th>
               </tr>
             </thead>
@@ -158,7 +158,7 @@ const TestsContent = ({ clientName, clientId, additionalTests = DEFAULT_ADDITION
                     {(!clientId && !clientName) && (
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">{test.patientName}</td>
                     )}
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">{test.testType}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100 max-w-52">{test.testType}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100 uppercase">{test.eye}</td>
                     {mode !== 'scheduled' && (
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -168,7 +168,7 @@ const TestsContent = ({ clientName, clientId, additionalTests = DEFAULT_ADDITION
                       </td>
                     )}
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">{test.date}</td>
-                    <td className="px-6 py-4 text-sm text-gray-900 dark:text-gray-100 max-w-xs truncate">{test.notes}</td>
+                    {/* <td className="px-6 py-4 text-sm text-gray-900 dark:text-gray-100 max-w-10 truncate">{test.notes}</td> */}
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
                       <div className="flex gap-2">
                         <button

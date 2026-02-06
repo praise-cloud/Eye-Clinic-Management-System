@@ -148,6 +148,20 @@ class Database {
                 FOREIGN KEY (last_updated_by) REFERENCES users (id)
             )`,
 
+            // Revenue table for financial tracking
+            `CREATE TABLE IF NOT EXISTS revenue (
+                id TEXT PRIMARY KEY,
+                source TEXT NOT NULL,
+                source_id TEXT,
+                amount REAL NOT NULL,
+                currency TEXT DEFAULT 'NGN',
+                user_id TEXT,
+                description TEXT,
+                meta TEXT,
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users (id)
+            )`,
+
             // Activity logs table for tracking user actions
             `CREATE TABLE IF NOT EXISTS activity_logs (
                 id TEXT PRIMARY KEY,

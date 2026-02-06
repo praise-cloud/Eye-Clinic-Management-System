@@ -460,6 +460,24 @@ class DatabaseService {
 
     async updateInventoryQuantity(id, quantity, userId = null, notes = null) {
         const db = await this.getDatabase();
+
+        const existing = await db.get('SELECT current_quantity, unit_cost FROM inventory WHERE id = ?', [id]);
+        let revenueAmount = 0;
+        let dispensedQuantity = 0;
+
+        if (existing) {
+            const prevQty = Number(existing.current_quantity || 0);
+            const newQty = Number(quantity || 0);
+            const delta = prevQty - newQty;
+            if (delta > 0) {
+                const unitCost = Number(existing.unit_cost || 0);
+                if (!isNaN(unitCost) && unitCost > 0) {
+                    dispensedQuantity = delta;
+                    revenueAmount = delta * unitCost;
+                }
+            }
+        }
+
         const query = `
             UPDATE inventory
             SET current_quantity = ?, last_updated_by = ?, notes = ?, updated_at = CURRENT_TIMESTAMP
@@ -467,6 +485,19 @@ class DatabaseService {
         `;
         const params = [quantity, userId || null, notes || null, id];
         await db.run(query, params);
+
+        if (revenueAmount > 0) {
+            const description = notes || `Inventory dispensed: ${dispensedQuantity} units`;
+            await this.recordRevenue({
+                source: 'inventory',
+                source_id: id,
+                amount: revenueAmount,
+                userId,
+                description,
+                meta: { dispensedQuantity }
+            });
+        }
+
         return await this.getInventoryItemById(id);
     }
 
@@ -477,7 +508,6 @@ class DatabaseService {
         return { success: result.changes > 0 };
     }
 
-    // Activity Logging
     async logActivity(userId, actionType, entityType, entityId, description, ipAddress = null, userAgent = null) {
         const db = await this.getDatabase();
         const id = require('uuid').v4();
@@ -489,6 +519,18 @@ class DatabaseService {
 
         await db.run(query, [id, userId, actionType, entityType, entityId, description, ipAddress, userAgent]);
         return { id, userId, actionType, entityType, entityId, description };
+    }
+
+    async recordRevenue({ source, source_id, amount, userId = null, description = null, meta = null }) {
+        const db = await this.getDatabase();
+        const id = require('uuid').v4();
+        const query = `
+            INSERT INTO revenue (id, source, source_id, amount, currency, user_id, description, meta, timestamp)
+            VALUES (?, ?, ?, ?, 'NGN', ?, ?, ?, CURRENT_TIMESTAMP)
+        `;
+        const metaJson = meta ? JSON.stringify(meta) : null;
+        await db.run(query, [id, source, source_id || null, amount, userId || null, description || null, metaJson]);
+        return { id, source, source_id, amount };
     }
 
     async getActivityLogs(filters = {}) {
@@ -531,6 +573,16 @@ class DatabaseService {
                 const amount = Number(data.amount || data.fee || 0);
                 if (!isNaN(amount)) monthlyRevenue += amount;
             } catch { }
+        }
+
+        const revenueRow = await db.get(
+            "SELECT COALESCE(SUM(amount), 0) as total FROM revenue WHERE strftime('%Y-%m', timestamp) = strftime('%Y-%m','now','localtime')"
+        );
+        const revenueTotal = revenueRow && typeof revenueRow.total === 'number'
+            ? revenueRow.total
+            : Number(revenueRow?.total || 0);
+        if (!isNaN(revenueTotal)) {
+            monthlyRevenue += revenueTotal;
         }
 
         const upcomingTests = await db.all(

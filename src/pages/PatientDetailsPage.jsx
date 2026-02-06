@@ -19,6 +19,8 @@ const PatientDetailsPage = () => {
     const [testsLoading, setTestsLoading] = useState(false);
     const [editingTestId, setEditingTestId] = useState(null);
     const [showEditModal, setShowEditModal] = useState(false);
+    const [viewingTest, setViewingTest] = useState(null);
+    const [deleteConfirm, setDeleteConfirm] = useState(null);
     const activeRefs = useRef({});
     const setCardRef = useCallback((tid, node) => {
         if (node) activeRefs.current[tid] = node;
@@ -88,6 +90,30 @@ const PatientDetailsPage = () => {
         setShowEditModal(true);
     };
 
+    const refreshTests = async () => {
+        try {
+            const data = await testService.getAllTests({ patientId: id });
+            setTests(data || []);
+        } catch (err) {
+            console.error('Error refreshing tests for patient:', err);
+        }
+    };
+
+    const handleDeleteConfirmed = async () => {
+        if (!deleteConfirm) return;
+        const success = await testService.deleteTest(deleteConfirm.id);
+        if (success) {
+            if (String(editingTestId) === String(deleteConfirm.id)) {
+                setShowEditModal(false);
+                setEditingTestId(null);
+            }
+            await refreshTests();
+            setDeleteConfirm(null);
+        } else {
+            alert('Failed to delete test');
+        }
+    };
+
     const handleBack = () => {
         navigate(-1);
     };
@@ -141,7 +167,7 @@ const PatientDetailsPage = () => {
                 onBack={handleBack}
                 onSave={handleSave}
             />
-            <div className="max-w-7xl mx-auto px-6 pb-12 space-y-6">
+            <div className="mx-auto px-6 pb-12 space-y-6">
                 <div className="flex items-center justify-between">
                     <div>
                         <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">Test Results</h2>
@@ -165,7 +191,7 @@ const PatientDetailsPage = () => {
                                     ref={(node) => setCardRef(t.id, node)}
                                     className={`rounded-xl border ${String(t.id) === String(editingTestId) ? 'md:col-span-2 lg:col-span-3 border-indigo-400' : 'border-slate-200 dark:border-slate-800'} bg-white dark:bg-slate-900 overflow-hidden group flex flex-col`}
                                 >
-                                    <div className="p-5 flex items-center justify-between bg-gradient-to-r from-slate-50/70 to-slate-100/50 dark:from-slate-800/40 dark:to-slate-900/30 border-b border-slate-100 dark:border-slate-800">
+                                    <div className="p-5 flex flex-col items-start justify-between bg-gradient-to-r from-slate-50/70 to-slate-100/50 dark:from-slate-800/40 dark:to-slate-900/30 border-b border-slate-100 dark:border-slate-800 w-full">
                                         <div className="flex items-center gap-3">
                                             <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 flex items-center justify-center font-black text-xs">
                                                 {String(t.testType || 'Test').split(' ').map(n => n[0]).join('')}
@@ -173,20 +199,34 @@ const PatientDetailsPage = () => {
                                             <div>
                                                 <p className="text-sm font-bold text-slate-900 dark:text-white">{t.testType}</p>
                                                 <div className="flex items-center gap-2 mt-1">
-                                                    <span className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Eye: {t.eye?.toUpperCase()}</span>
                                                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Date: {t.date}</span>
+                                                    <span className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Eye: {t.eye?.toUpperCase()}</span>
                                                 </div>
                                             </div>
                                         </div>
-                                        <div className="flex items-center gap-2">
-                                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getResultColor(t.result)}`}>
+                                           <div className="flex py-4">
+                                             <span className={`inline-flex px-4 py-2 text-xs font-semibold rounded-full ${getResultColor(t.result)}`}>
                                                 {t.result}
                                             </span>
+                                           </div>
+                                        <div className="flex flex-wrap items-center gap-2">
                                             <button
-                                                className="px-3 py-1 text-xs font-bold rounded-lg bg-indigo-600 text-white hover:bg-indigo-700"
+                                                className="px-4 py-2 text-xs font-bold rounded-lg bg-slate-300 text-slate-700 hover:bg-slate-200"
+                                                onClick={() => setViewingTest(t)}
+                                            >
+                                                View
+                                            </button>
+                                            <button
+                                                className="px-4 py-2 text-xs font-bold rounded-lg bg-indigo-600 text-white hover:bg-indigo-700"
                                                 onClick={() => startEditTest(t.id)}
                                             >
                                                 Edit
+                                            </button>
+                                            <button
+                                                className="px-4 py-2 text-xs font-bold rounded-lg bg-rose-600 text-white hover:bg-rose-700"
+                                                onClick={() => setDeleteConfirm(t)}
+                                            >
+                                                Delete
                                             </button>
                                         </div>
                                     </div>
@@ -207,7 +247,7 @@ const PatientDetailsPage = () => {
                                         ) : null}
                                             <div>
                                                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Notes</label>
-                                                <p className="text-sm font-medium text-slate-600 dark:text-slate-400">{t.notes || '—'}</p>
+                                                <p className="text-sm font-medium text-slate-600 dark:text-slate-400 truncate">{t.notes || '—'}</p>
                                             </div>
                                         </div>
                                     </div>
@@ -216,14 +256,107 @@ const PatientDetailsPage = () => {
                         </div>
                     )}
                 </div>
+                {viewingTest && (
+                    <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center z-[110] p-4" onClick={() => setViewingTest(null)}>
+                        <div className="card-premium w-full max-w-3xl bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 overflow-hidden shadow-2xl" onClick={(e) => e.stopPropagation()}>
+                            <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                                <div>
+                                    <h3 className="text-lg font-black text-slate-900 dark:text-white tracking-tight">{viewingTest.testType}</h3>
+                                    <div className="flex items-center gap-3 mt-2">
+                                        <span className={`inline-flex px-3 py-1 text-xs font-semibold rounded-full ${getResultColor(viewingTest.result)}`}>
+                                            {viewingTest.result}
+                                        </span>
+                                        <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Eye: {viewingTest.eye?.toUpperCase()}</span>
+                                        <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Date: {viewingTest.date}</span>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => setViewingTest(null)}
+                                    className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600"
+                                >
+                                    ✕
+                                </button>
+                            </div>
+                            <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+                                {viewingTest.imageData && (
+                                    <div>
+                                        <div className="rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 mb-3">
+                                            <img src={viewingTest.imageData} alt={viewingTest.fileName || 'Test Image'} className="w-full max-h-[420px] object-contain bg-slate-950" />
+                                        </div>
+                                        {viewingTest.fileName && (
+                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                                File: <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300">{viewingTest.fileName}</span>
+                                            </p>
+                                        )}
+                                    </div>
+                                )}
+                                <div>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Notes</p>
+                                    <p className="text-sm font-medium text-slate-700 dark:text-slate-300 whitespace-pre-line">
+                                        {viewingTest.notes || 'No notes recorded for this test.'}
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="p-6 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-3 bg-slate-50/60 dark:bg-slate-950/40">
+                                <button
+                                    onClick={() => setViewingTest(null)}
+                                    className="px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800"
+                                >
+                                    Close
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+                {deleteConfirm && (
+                    <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center z-[120] p-4" onClick={() => setDeleteConfirm(null)}>
+                        <div className="card-premium w-full max-w-md bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 overflow-hidden shadow-2xl" onClick={(e) => e.stopPropagation()}>
+                            <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                                <h3 className="text-lg font-black text-slate-900 dark:text-white tracking-tight">Delete Test Result</h3>
+                                <button
+                                    onClick={() => setDeleteConfirm(null)}
+                                    className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600"
+                                >
+                                    ✕
+                                </button>
+                            </div>
+                            <div className="p-6 space-y-3">
+                                <p className="text-sm text-slate-700 dark:text-slate-300">
+                                    This will permanently remove the selected test result
+                                    {deleteConfirm?.testType ? ` (${deleteConfirm.testType})` : ''}.
+                                </p>
+                                <p className="text-xs font-black text-rose-500 uppercase tracking-widest">
+                                    This action cannot be undone.
+                                </p>
+                            </div>
+                            <div className="p-6 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-3 bg-slate-50/60 dark:bg-slate-950/40">
+                                <button
+                                    onClick={() => setDeleteConfirm(null)}
+                                    className="px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleDeleteConfirmed}
+                                    className="px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest bg-rose-600 text-white hover:bg-rose-700"
+                                >
+                                    Delete
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
                 {showEditModal && editingTestId && (
                     <EditTestModal
                         testId={editingTestId}
-                        onClose={() => { setShowEditModal(false); setEditingTestId(null); }}
-                        onSaved={async () => {
-                            const data = await testService.getAllTests({ patientId: id });
-                            setTests(data || []);
+                        onClose={() => {
+                            setShowEditModal(false);
+                            setEditingTestId(null);
+                            if (selectedTestId) {
+                                navigate(location.pathname, { replace: true });
+                            }
                         }}
+                        onSaved={refreshTests}
                     />
                 )}
             </div>

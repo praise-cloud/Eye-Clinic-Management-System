@@ -1,6 +1,18 @@
 import React, { useEffect, useState } from 'react'
 import * as testService from '../../services/testService'
 
+const testTypes = [
+  'Visual Acuity Test',
+  'Refraction Test',
+  'Tonometry',
+  'Fundoscopy',
+  'OCT Scan',
+  'Visual Field Test',
+  'Slit Lamp Examination',
+  'Color Vision Test',
+  'Other'
+]
+
 const EditTestModal = ({ testId, onClose, onSaved }) => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -114,7 +126,7 @@ const EditTestModal = ({ testId, onClose, onSaved }) => {
             <div className="space-y-8">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Result</label>
+                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Result Status</label>
                   <select
                     name="result"
                     value={formData.result}
@@ -122,6 +134,7 @@ const EditTestModal = ({ testId, onClose, onSaved }) => {
                     className="input-premium appearance-none"
                   >
                     <option value="">Select result...</option>
+                    <option value="Completed">Completed</option>
                     <option value="Normal">Normal</option>
                     <option value="Abnormal">Abnormal</option>
                     <option value="High">High</option>
@@ -156,14 +169,21 @@ const EditTestModal = ({ testId, onClose, onSaved }) => {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Modality</label>
-                  <input
-                    type="text"
+                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Modality / Test Type</label>
+                  <select
                     name="machine_type"
                     value={formData.machine_type}
                     onChange={handleInputChange}
-                    className="input-premium"
-                  />
+                    className="input-premium appearance-none"
+                  >
+                    <option value="">Select modality...</option>
+                    {testTypes.map(type => (
+                      <option key={type} value={type}>{type}</option>
+                    ))}
+                    {formData.machine_type && !testTypes.includes(formData.machine_type) && (
+                      <option value={formData.machine_type}>{formData.machine_type}</option>
+                    )}
+                  </select>
                 </div>
               </div>
 
