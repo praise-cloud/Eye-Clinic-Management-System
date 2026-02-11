@@ -16,6 +16,8 @@ const InventoryContent = () => {
   const [editLoading, setEditLoading] = useState(false)
   const [editSaving, setEditSaving] = useState(false)
   const [editError, setEditError] = useState('')
+  const [editImagePreview, setEditImagePreview] = useState(null)
+  const [notification, setNotification] = useState(null)
   const { user } = useUser()
 
   useEffect(() => {
@@ -35,9 +37,13 @@ const InventoryContent = () => {
       const result = await window.electronAPI.getInventoryItems({})
       if (result.success) {
         setInventory(result.items)
+        setNotification(null)
+      } else if (result.error) {
+        setNotification({ type: 'error', message: result.error })
       }
     } catch (error) {
       console.error('Error loading inventory:', error)
+      setNotification({ type: 'error', message: 'Failed to load inventory. Please try again.' })
     } finally {
       setLoading(false)
     }
@@ -51,12 +57,13 @@ const InventoryContent = () => {
       if (result.success) {
         loadInventory()
         setDeleteConfirm(null)
+        setNotification({ type: 'success', message: 'Inventory item deleted successfully.' })
       } else {
-        alert(result.error || 'Failed to delete item')
+        setNotification({ type: 'error', message: result.error || 'Failed to delete item' })
       }
     } catch (error) {
       console.error('Error deleting item:', error)
-      alert('Failed to delete item')
+      setNotification({ type: 'error', message: 'Failed to delete item' })
     }
   }
 
@@ -64,11 +71,11 @@ const InventoryContent = () => {
     if (!buyingItem) return
     const qty = parseInt(buyQuantity, 10)
     if (!qty || qty <= 0) {
-      alert('Enter a valid quantity to buy')
+      setNotification({ type: 'error', message: 'Enter a valid quantity to dispense.' })
       return
     }
     if (qty > buyingItem.current_quantity) {
-      alert('Quantity exceeds available stock')
+      setNotification({ type: 'error', message: 'Quantity exceeds available stock.' })
       return
     }
     try {
@@ -81,7 +88,7 @@ const InventoryContent = () => {
       loadInventory()
     } catch (error) {
       console.error('Error updating quantity:', error)
-      alert('Failed to complete purchase')
+      setNotification({ type: 'error', message: 'Failed to complete purchase.' })
     }
   }
 
@@ -116,6 +123,7 @@ const InventoryContent = () => {
     try {
       setEditLoading(true)
       setEditError('')
+      setNotification(null)
       const result = await window.electronAPI.getInventoryItem(item.id)
       if (result.success && result.item) {
         const it = result.item
@@ -139,14 +147,24 @@ const InventoryContent = () => {
           expiry_date: it.expiry_date || '',
           location: it.location || '',
           status: it.status || 'active',
-          notes: it.notes || ''
+          notes: it.notes || '',
+          image_path: it.image_path || ''
         })
+        if (it.image_path) {
+          setEditImagePreview(
+            it.image_path.startsWith('data:')
+              ? it.image_path
+              : `file://${it.image_path}`
+          )
+        } else {
+          setEditImagePreview(null)
+        }
       } else {
-        alert(result.error || 'Failed to load item for editing')
+        setNotification({ type: 'error', message: result.error || 'Failed to load item for editing.' })
       }
     } catch (error) {
       console.error('Error loading item for edit:', error)
-      setEditError('Failed to load item for editing')
+      setNotification({ type: 'error', message: 'Failed to load item for editing.' })
     } finally {
       setEditLoading(false)
     }
@@ -157,12 +175,31 @@ const InventoryContent = () => {
     setEditForm(prev => ({ ...prev, [name]: value }))
   }
 
+  const handleEditImageSelect = () => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = 'image/jpeg,image/jpg,image/png,image/gif,image/webp'
+    input.onchange = (e) => {
+      const file = e.target.files[0]
+      if (file) {
+        const reader = new FileReader()
+        reader.onload = (event) => {
+          setEditImagePreview(event.target.result)
+          setEditForm(prev => ({ ...prev, image_path: file.path || event.target.result }))
+        }
+        reader.readAsDataURL(file)
+      }
+    }
+    input.click()
+  }
+
   const closeEditModal = () => {
     setEditingItem(null)
     setEditForm(null)
     setEditError('')
     setEditLoading(false)
     setEditSaving(false)
+    setEditImagePreview(null)
   }
 
   const handleEditSave = async () => {
@@ -186,6 +223,7 @@ const InventoryContent = () => {
       const result = await window.electronAPI.updateInventoryItem(editingItem.id, changedFields)
       if (result.success) {
         await loadInventory()
+        setNotification({ type: 'success', message: 'Inventory item updated successfully.' })
         closeEditModal()
       } else {
         setEditError(result.error || 'Failed to update item')
@@ -223,6 +261,22 @@ const InventoryContent = () => {
             </button>
           </div>
         </div>
+
+        {notification && (
+          <div className={`mx-8 mt-4 mb-2 p-4 rounded-xl flex items-center gap-3 animate-premium-fade ${notification.type === 'success'
+            ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 border border-emerald-100 dark:border-emerald-900/30'
+            : 'bg-rose-50 dark:bg-rose-900/20 text-rose-600 border border-rose-100 dark:border-rose-900/30'
+            }`}>
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              {notification.type === 'success' ? (
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+              ) : (
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+              )}
+            </svg>
+            <span className="font-bold text-sm">{notification.message}</span>
+          </div>
+        )}
 
         <div className="overflow-x-auto">
           {loading ? (
@@ -451,10 +505,9 @@ const InventoryContent = () => {
               )}
             </div>
 
-            {/* Footer Actions */}
             <div className="sticky bottom-0 bg-slate-50/80 dark:bg-slate-900/80 backdrop-blur-sm border-t border-slate-100 dark:border-slate-800 p-6 flex gap-3">
               <button onClick={() => setViewingItem(null)} className="flex-1 py-3 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-xl text-xs font-black tracking-widest uppercase hover:bg-slate-100 transition-all border border-slate-200 dark:border-slate-700">Close</button>
-              <button onClick={() => { setViewingItem(null); openEditItem(viewingItem); }} className="flex-1 py-3 bg-indigo-600 text-white rounded-xl text-xs font-black tracking-widest uppercaseshadow-lg shadow-indigo-200 dark:shadow-none hover:bg-indigo-700 transition-all active:scale-95">Edit Asset</button>
+              <button onClick={() => { setViewingItem(null); openEditItem(viewingItem); }} className="flex-1 py-3 bg-indigo-600 text-white rounded-xl text-xs font-black tracking-widest uppercase shadow-lg shadow-indigo-200 dark:shadow-none hover:bg-indigo-700 transition-all active:scale-95">Edit Asset</button>
             </div>
           </div>
         </div>
@@ -517,6 +570,26 @@ const InventoryContent = () => {
               </button>
             </div>
             <div className="p-8 space-y-6">
+              <div className="flex items-center gap-6">
+                <div className="w-28 h-28 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center overflow-hidden">
+                  {editImagePreview ? (
+                    <img
+                      src={editImagePreview}
+                      alt={editForm.item_name}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <svg className="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={handleEditImageSelect}
+                  className="px-4 py-2 rounded-xl bg-slate-900 text-white text-xs font-black tracking-widest uppercase hover:bg-slate-800 transition-all"
+                >
+                  Change Image
+                </button>
+              </div>
               {editLoading && (
                 <div className="flex items-center gap-3 text-sm text-slate-500">
                   <div className="w-4 h-4 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>

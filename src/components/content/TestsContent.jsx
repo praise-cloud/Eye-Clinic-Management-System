@@ -14,6 +14,7 @@ const TestsContent = ({ clientName, clientId, additionalTests = DEFAULT_ADDITION
   const [viewingTest, setViewingTest] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [showUploadModal, setShowUploadModal] = useState(false);
+  const [notification, setNotification] = useState(null);
   const { user } = useUser();
 
   const { tests: dbTests, fetchTests, removeTest } = useTests();
@@ -102,6 +103,22 @@ const TestsContent = ({ clientName, clientId, additionalTests = DEFAULT_ADDITION
           <span className="font-bold">New Test Acquisition</span>
         </button>
       </div>
+
+      {notification && (
+        <div className={`card-premium p-4 flex items-center gap-3 ${notification.type === 'success'
+          ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 border border-emerald-100 dark:border-emerald-900/30'
+          : 'bg-rose-50 dark:bg-rose-900/20 text-rose-600 border border-rose-100 dark:border-rose-900/30'
+          }`}>
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            {notification.type === 'success' ? (
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+            ) : (
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+            )}
+          </svg>
+          <span className="font-bold text-sm">{notification.message}</span>
+        </div>
+      )}
 
       {/* Legacy Filter Bar (Keeping for now but styled) */}
       <div className="flex flex-wrap gap-4 px-2">
@@ -322,8 +339,9 @@ const TestsContent = ({ clientName, clientId, additionalTests = DEFAULT_ADDITION
                     const success = await removeTest(deleteConfirm.id);
                     if (success) {
                       setDeleteConfirm(null);
+                      setNotification({ type: 'success', message: 'Test deleted successfully.' });
                     } else {
-                      alert('Failed to delete test from database.');
+                      setNotification({ type: 'error', message: 'Failed to delete test from database.' });
                     }
                   }
                 }}

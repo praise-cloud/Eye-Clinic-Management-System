@@ -1,10 +1,126 @@
-// electron/ipc/handlers.js
 const { ipcMain, BrowserWindow, app } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
 const DatabaseService = require('../../src/services/DatabaseService');
 const FileService = require('../../src/services/FileService');
+
+const mapDatabaseError = (error, context = {}) => {
+  const rawMessage = String(error && error.message ? error.message : '').trim();
+  const base = {
+    code: 'error.generic',
+    table: null,
+    column: null,
+    raw: rawMessage,
+    message: rawMessage || 'An unexpected error occurred while accessing the database.'
+  };
+
+  if (!rawMessage || !rawMessage.includes('SQLITE_CONSTRAINT')) {
+    return base;
+  }
+
+  let table = null;
+  let column = null;
+
+  const uniqueMatch = rawMessage.match(/UNIQUE constraint failed: ([\w_]+)\.([\w_]+)/i);
+  if (uniqueMatch) {
+    table = uniqueMatch[1];
+    column = uniqueMatch[2];
+    const key = `${table}.${column}`;
+    let userMessage = 'This value is already used. Please choose a different value.';
+
+    if (key === 'users.email') {
+      userMessage = 'A user with this email already exists. Please use a different email address.';
+    } else if (key === 'patients.patient_id') {
+      userMessage = 'A patient with this ID already exists. Please use a different patient ID.';
+    } else if (key === 'inventory.item_code') {
+      userMessage = 'An inventory item with this Unit Code already exists. Please use a different code.';
+    } else if (key === 'settings.key') {
+      userMessage = 'A setting with this key already exists. Please use a different key name.';
+    }
+
+    return {
+      code: `constraint.unique.${table}.${column}`,
+      table,
+      column,
+      raw: rawMessage,
+      message: userMessage
+    };
+  }
+
+  if (/FOREIGN KEY constraint failed/i.test(rawMessage)) {
+    let userMessage = 'This record is linked to other data and cannot be changed.';
+    if (context && context.entity === 'patient' && context.action === 'delete') {
+      userMessage = 'This patient has related tests or reports and cannot be deleted.';
+    } else if (context && context.entity === 'user' && context.action === 'delete') {
+      userMessage = 'This user is linked to other records and cannot be deleted.';
+    } else if (context && context.entity === 'inventory' && context.action === 'delete') {
+      userMessage = 'This inventory item is linked to other records and cannot be deleted.';
+    }
+    return {
+      code: 'constraint.foreign_key',
+      table: null,
+      column: null,
+      raw: rawMessage,
+      message: userMessage
+    };
+  }
+
+  const notNullMatch = rawMessage.match(/NOT NULL constraint failed: ([\w_]+)\.([\w_]+)/i);
+  if (notNullMatch) {
+    table = notNullMatch[1];
+    column = notNullMatch[2];
+    const label = column.replace(/_/g, ' ');
+    const key = `${table}.${column}`;
+    let userMessage = `The field "${label}" is required. Please fill it in before saving.`;
+
+    if (key === 'inventory.item_name') {
+      userMessage = 'Description is required. Please fill it in before saving.';
+    }
+
+    return {
+      code: `constraint.not_null.${table}.${column}`,
+      table,
+      column,
+      raw: rawMessage,
+      message: userMessage
+    };
+  }
+
+  const checkMatch = rawMessage.match(/CHECK constraint failed/i);
+  if (checkMatch) {
+    let userMessage = 'One of the values is not allowed. Please review the fields and try again.';
+    if (rawMessage.includes('users.role')) {
+      userMessage = 'The selected role is not valid. Choose admin, doctor, or assistant.';
+    } else if (rawMessage.includes('inventory.category')) {
+      userMessage = 'The selected category is not valid. Choose a valid inventory category.';
+    } else if (rawMessage.includes('inventory.status')) {
+      userMessage = 'The selected status is not valid. Choose a valid inventory status.';
+    } else if (rawMessage.includes('patients.gender')) {
+      userMessage = 'The selected gender is not valid.';
+    }
+    return {
+      code: 'constraint.check',
+      table: null,
+      column: null,
+      raw: rawMessage,
+      message: userMessage
+    };
+  }
+
+  return base;
+};
+
+const buildErrorResponse = (error, context = {}, extra = {}) => {
+  const mapped = mapDatabaseError(error, context);
+  return {
+    success: false,
+    error: mapped.message,
+    errorCode: mapped.code,
+    errorDetails: mapped,
+    ...extra
+  };
+};
 
 let currentUser = null; // Centralized user state in main process
 
@@ -47,7 +163,7 @@ class IPCHandlers {
         return { success: true, message: 'Logged out successfully' };
       } catch (error) {
         console.error('Logout error:', error);
-        return { success: false, error: error.message };
+        return buildErrorResponse(error, { scope: 'auth', action: 'logout' });
       }
     });
 
@@ -60,7 +176,7 @@ class IPCHandlers {
         return { success: true, isFirstRun };
       } catch (error) {
         console.error('First run check error:', error);
-        return { success: false, error: error.message, isFirstRun: true };
+        return buildErrorResponse(error, { scope: 'auth', action: 'isFirstRun' }, { isFirstRun: true });
       }
     });
 
@@ -86,7 +202,7 @@ class IPCHandlers {
         return { success: true, user: userWithName };
       } catch (error) {
         console.error('Login error:', error);
-        return { success: false, error: error.message };
+        return buildErrorResponse(error, { scope: 'auth', action: 'login', entity: 'user' });
       }
     });
 
@@ -136,7 +252,7 @@ class IPCHandlers {
         return { success: true, user: userWithName };
       } catch (error) {
         console.error('Setup error:', error);
-        return { success: false, error: error.message };
+        return buildErrorResponse(error, { scope: 'auth', action: 'completeSetup', entity: 'user' });
       }
     });
 
@@ -162,7 +278,7 @@ class IPCHandlers {
         return { success: true, user };
       } catch (error) {
         console.error('Create user error:', error);
-        return { success: false, error: error.message };
+        return buildErrorResponse(error, { scope: 'auth', action: 'createUser', entity: 'user' });
       }
     });
 
@@ -172,7 +288,7 @@ class IPCHandlers {
         return { success: true, users };
       } catch (error) {
         console.error('Get all users error:', error);
-        return { success: false, error: error.message };
+        return buildErrorResponse(error, { scope: 'auth', action: 'getAllUsers', entity: 'user' });
       }
     });
 
@@ -196,7 +312,7 @@ class IPCHandlers {
         return { success: true, patients };
       } catch (error) {
         console.error('Get patients error:', error);
-        return { success: false, error: error.message };
+        return buildErrorResponse(error, { scope: 'patients', action: 'getAll', entity: 'patient' });
       }
     });
 
@@ -209,7 +325,7 @@ class IPCHandlers {
           : { success: false, error: 'Patient not found' };
       } catch (error) {
         console.error('Get patient error:', error);
-        return { success: false, error: error.message };
+        return buildErrorResponse(error, { scope: 'patients', action: 'getById', entity: 'patient' });
       }
     });
 
@@ -233,7 +349,7 @@ class IPCHandlers {
         return { success: true, patient };
       } catch (error) {
         console.error('Create patient error:', error);
-        return { success: false, error: error.message };
+        return buildErrorResponse(error, { scope: 'patients', action: 'create', entity: 'patient' });
       }
     });
 
@@ -253,7 +369,7 @@ class IPCHandlers {
         return { success: true, patient };
       } catch (error) {
         console.error('Update patient error:', error);
-        return { success: false, error: error.message };
+        return buildErrorResponse(error, { scope: 'patients', action: 'update', entity: 'patient' });
       }
     });
 
@@ -273,7 +389,7 @@ class IPCHandlers {
         return result;
       } catch (error) {
         console.error('Delete patient error:', error);
-        return { success: false, error: error.message };
+        return buildErrorResponse(error, { scope: 'patients', action: 'delete', entity: 'patient' });
       }
     });
 
@@ -283,7 +399,7 @@ class IPCHandlers {
         return { success: true, patients };
       } catch (error) {
         console.error('Search patients error:', error);
-        return { success: false, error: error.message };
+        return buildErrorResponse(error, { scope: 'patients', action: 'search', entity: 'patient' });
       }
     });
   }
@@ -299,7 +415,7 @@ class IPCHandlers {
         return { success: true, tests };
       } catch (error) {
         console.error('Get tests error:', error);
-        return { success: false, error: error.message };
+        return buildErrorResponse(error, { scope: 'tests', action: 'getAll', entity: 'test' });
       }
     });
 
@@ -312,7 +428,7 @@ class IPCHandlers {
           : { success: false, error: 'Test not found' };
       } catch (error) {
         console.error('Get test error:', error);
-        return { success: false, error: error.message };
+        return buildErrorResponse(error, { scope: 'tests', action: 'getById', entity: 'test' });
       }
     });
 
@@ -337,7 +453,7 @@ class IPCHandlers {
         return { success: true, test };
       } catch (error) {
         console.error('Create test error:', error);
-        return { success: false, error: error.message };
+        return buildErrorResponse(error, { scope: 'tests', action: 'create', entity: 'test' });
       }
     });
 
@@ -358,7 +474,7 @@ class IPCHandlers {
         return { success: true, test };
       } catch (error) {
         console.error('Update test error:', error);
-        return { success: false, error: error.message };
+        return buildErrorResponse(error, { scope: 'tests', action: 'update', entity: 'test' });
       }
     });
 
@@ -381,7 +497,7 @@ class IPCHandlers {
         return result;
       } catch (error) {
         console.error('Delete test error:', error);
-        return { success: false, error: error.message };
+        return buildErrorResponse(error, { scope: 'tests', action: 'delete', entity: 'test' });
       }
     });
 
@@ -392,7 +508,7 @@ class IPCHandlers {
         return { success: true, tests };
       } catch (error) {
         console.error('Get patient tests error:', error);
-        return { success: false, error: error.message };
+        return buildErrorResponse(error, { scope: 'tests', action: 'getByPatient', entity: 'test' });
       }
     });
   }
@@ -409,7 +525,7 @@ class IPCHandlers {
         return { success: true, reports };
       } catch (error) {
         console.error('Get reports error:', error);
-        return { success: false, error: error.message };
+        return buildErrorResponse(error, { scope: 'reports', action: 'getAll', entity: 'report' });
       }
     });
 
@@ -422,7 +538,7 @@ class IPCHandlers {
           : { success: false, error: 'Report not found' };
       } catch (error) {
         console.error('Get report error:', error);
-        return { success: false, error: error.message };
+        return buildErrorResponse(error, { scope: 'reports', action: 'getById', entity: 'report' });
       }
     });
 
@@ -457,7 +573,7 @@ class IPCHandlers {
         return { success: true, report, fileName: pdfResult.fileName };
       } catch (error) {
         console.error('Generate report error:', error);
-        return { success: false, error: error.message };
+        return buildErrorResponse(error, { scope: 'reports', action: 'generate', entity: 'report' });
       }
     });
 
@@ -477,7 +593,7 @@ class IPCHandlers {
         return saveResult;
       } catch (error) {
         console.error('Export report error:', error);
-        return { success: false, error: error.message };
+        return buildErrorResponse(error, { scope: 'reports', action: 'export', entity: 'report' });
       }
     });
 
@@ -487,7 +603,7 @@ class IPCHandlers {
         return await DatabaseService.deleteReport(id);
       } catch (error) {
         console.error('Delete report error:', error);
-        return { success: false, error: error.message };
+        return buildErrorResponse(error, { scope: 'reports', action: 'delete', entity: 'report' });
       }
     });
   }
@@ -499,7 +615,7 @@ class IPCHandlers {
         return { success: true, items };
       } catch (error) {
         console.error('Get inventory error:', error);
-        return { success: false, error: error.message };
+        return buildErrorResponse(error, { scope: 'inventory', action: 'getAll', entity: 'inventory' });
       }
     });
 
@@ -510,7 +626,7 @@ class IPCHandlers {
         return item ? { success: true, item } : { success: false, error: 'Item not found' };
       } catch (error) {
         console.error('Get inventory item error:', error);
-        return { success: false, error: error.message };
+        return buildErrorResponse(error, { scope: 'inventory', action: 'getById', entity: 'inventory' });
       }
     });
 
@@ -530,7 +646,7 @@ class IPCHandlers {
         return { success: true, item };
       } catch (error) {
         console.error('Create inventory error:', error);
-        return { success: false, error: error.message };
+        return buildErrorResponse(error, { scope: 'inventory', action: 'create', entity: 'inventory' });
       }
     });
 
@@ -551,7 +667,7 @@ class IPCHandlers {
         return { success: true, item };
       } catch (error) {
         console.error('Update inventory error:', error);
-        return { success: false, error: error.message };
+        return buildErrorResponse(error, { scope: 'inventory', action: 'update', entity: 'inventory' });
       }
     });
 
@@ -574,7 +690,7 @@ class IPCHandlers {
         return result;
       } catch (error) {
         console.error('Delete inventory error:', error);
-        return { success: false, error: error.message };
+        return buildErrorResponse(error, { scope: 'inventory', action: 'delete', entity: 'inventory' });
       }
     });
 
@@ -595,7 +711,7 @@ class IPCHandlers {
         return { success: true, item };
       } catch (error) {
         console.error('Update inventory quantity error:', error);
-        return { success: false, error: error.message };
+        return buildErrorResponse(error, { scope: 'inventory', action: 'updateQuantity', entity: 'inventory' });
       }
     });
   }
@@ -607,7 +723,7 @@ class IPCHandlers {
         return { success: true, users };
       } catch (error) {
         console.error('Get all users error:', error);
-        return { success: false, error: error.message };
+        return buildErrorResponse(error, { scope: 'admin', action: 'getAllUsers', entity: 'user' });
       }
     });
 
@@ -646,7 +762,7 @@ class IPCHandlers {
         return { success: true, user };
       } catch (error) {
         console.error('Admin create user error:', error);
-        return { success: false, error: error.message };
+        return buildErrorResponse(error, { scope: 'admin', action: 'createUser', entity: 'user' });
       }
     });
 
@@ -672,7 +788,7 @@ class IPCHandlers {
         return { success: true, ...result };
       } catch (error) {
         console.error('Admin update user status error:', error);
-        return { success: false, error: error.message };
+        return buildErrorResponse(error, { scope: 'admin', action: 'updateUserStatus', entity: 'user' });
       }
     });
 
@@ -712,7 +828,7 @@ class IPCHandlers {
         return { success: true, user: updatedUser };
       } catch (error) {
         console.error('Admin update user error:', error);
-        return { success: false, error: error.message };
+        return buildErrorResponse(error, { scope: 'admin', action: 'updateUser', entity: 'user' });
       }
     });
 
@@ -738,7 +854,7 @@ class IPCHandlers {
         return result;
       } catch (error) {
         console.error('Admin delete user error:', error);
-        return { success: false, error: error.message };
+        return buildErrorResponse(error, { scope: 'admin', action: 'deleteUser', entity: 'user' });
       }
     });
 
@@ -748,7 +864,7 @@ class IPCHandlers {
         return { success: true, logs };
       } catch (error) {
         console.error('Get activity logs error:', error);
-        return { success: false, error: error.message };
+        return buildErrorResponse(error, { scope: 'admin', action: 'getActivityLogs' });
       }
     });
 
@@ -758,7 +874,7 @@ class IPCHandlers {
         return { success: true, stats };
       } catch (error) {
         console.error('Get activity stats error:', error);
-        return { success: false, error: error.message };
+        return buildErrorResponse(error, { scope: 'admin', action: 'getActivityStats' });
       }
     });
 
@@ -771,7 +887,7 @@ class IPCHandlers {
         return { success: true, activity };
       } catch (error) {
         console.error('Log activity error:', error);
-        return { success: false, error: error.message };
+        return buildErrorResponse(error, { scope: 'admin', action: 'logActivity' });
       }
     });
   }
@@ -782,7 +898,7 @@ class IPCHandlers {
         return await FileService.selectFile(options);
       } catch (error) {
         console.error('File select error:', error);
-        return { success: false, error: error.message };
+        return buildErrorResponse(error, { scope: 'file', action: 'select' });
       }
     });
     ipcMain.handle('file:importDb', async (event, dbPath) => {
@@ -797,7 +913,7 @@ class IPCHandlers {
         return result;
       } catch (error) {
         console.error('Database import error:', error);
-        return { success: false, error: error.message };
+        return buildErrorResponse(error, { scope: 'file', action: 'importDb', entity: 'database' });
       }
     });
   }
@@ -811,7 +927,7 @@ class IPCHandlers {
         return { success: true, messages };
       } catch (error) {
         console.error('Get messages error:', error);
-        return { success: false, error: error.message };
+        return buildErrorResponse(error, { scope: 'chat', action: 'getMessages', entity: 'message' });
       }
     });
 
@@ -822,7 +938,7 @@ class IPCHandlers {
         return { success: true, message: msg };
       } catch (error) {
         console.error('Send message error:', error);
-        return { success: false, error: error.message };
+        return buildErrorResponse(error, { scope: 'chat', action: 'sendMessage', entity: 'message' });
       }
     });
 
@@ -834,7 +950,7 @@ class IPCHandlers {
         return res;
       } catch (error) {
         console.error('Mark message read error:', error);
-        return { success: false, error: error.message };
+        return buildErrorResponse(error, { scope: 'chat', action: 'markMessageRead', entity: 'message' });
       }
     });
 
@@ -846,7 +962,7 @@ class IPCHandlers {
         return res;
       } catch (error) {
         console.error('Mark all as read error:', error);
-        return { success: false, error: error.message };
+        return buildErrorResponse(error, { scope: 'chat', action: 'markAllAsRead', entity: 'message' });
       }
     });
 
@@ -857,7 +973,7 @@ class IPCHandlers {
         return { success: true, count };
       } catch (error) {
         console.error('Get unread count error:', error);
-        return { success: false, error: error.message };
+        return buildErrorResponse(error, { scope: 'chat', action: 'getUnreadCount', entity: 'message' });
       }
     });
 
@@ -869,7 +985,7 @@ class IPCHandlers {
         return res;
       } catch (error) {
         console.error('Delete message error:', error);
-        return { success: false, error: error.message };
+        return buildErrorResponse(error, { scope: 'chat', action: 'deleteMessage', entity: 'message' });
       }
     });
   }
@@ -881,7 +997,7 @@ class IPCHandlers {
         return { success: true };
       } catch (error) {
         console.error('Set online error:', error);
-        return { success: false, error: error.message };
+        return buildErrorResponse(error, { scope: 'presence', action: 'setOnline', entity: 'user' });
       }
     });
     ipcMain.handle('presence:setOffline', async (event, { userId }) => {
@@ -890,7 +1006,7 @@ class IPCHandlers {
         return { success: true };
       } catch (error) {
         console.error('Set offline error:', error);
-        return { success: false, error: error.message };
+        return buildErrorResponse(error, { scope: 'presence', action: 'setOffline', entity: 'user' });
       }
     });
     ipcMain.handle('presence:getOnlineUsers', async () => {
@@ -899,7 +1015,7 @@ class IPCHandlers {
         return { success: true, users };
       } catch (error) {
         console.error('Get online users error:', error);
-        return { success: false, error: error.message };
+        return buildErrorResponse(error, { scope: 'presence', action: 'getOnlineUsers', entity: 'user' });
       }
     });
     ipcMain.handle('presence:getUsersWithPresence', async () => {
@@ -908,7 +1024,7 @@ class IPCHandlers {
         return { success: true, users };
       } catch (error) {
         console.error('Get users with presence error:', error);
-        return { success: false, error: error.message };
+        return buildErrorResponse(error, { scope: 'presence', action: 'getUsersWithPresence', entity: 'user' });
       }
     });
   }
@@ -921,7 +1037,7 @@ class IPCHandlers {
         return { success: true, value };
       } catch (error) {
         console.error('Get setting error:', error);
-        return { success: false, error: error.message };
+        return buildErrorResponse(error, { scope: 'settings', action: 'get', entity: 'setting' });
       }
     });
 
@@ -932,7 +1048,7 @@ class IPCHandlers {
         return { success: true, settings };
       } catch (error) {
         console.error('Get settings error:', error);
-        return { success: false, error: error.message };
+        return buildErrorResponse(error, { scope: 'settings', action: 'getAll', entity: 'setting' });
       }
     });
 
@@ -942,7 +1058,7 @@ class IPCHandlers {
         return { success: true };
       } catch (error) {
         console.error('Set setting error:', error);
-        return { success: false, error: error.message };
+        return buildErrorResponse(error, { scope: 'settings', action: 'set', entity: 'setting' });
       }
     });
   }
@@ -968,7 +1084,7 @@ class IPCHandlers {
         const online = await Promise.race([checkConnection, timeout]);
         return { success: true, online, timestamp: new Date().toISOString() };
       } catch (error) {
-        return { success: false, online: false, error: error.message, timestamp: new Date().toISOString() };
+        return buildErrorResponse(error, { scope: 'system', action: 'checkOnline' }, { online: false, timestamp: new Date().toISOString() });
       }
     });
     ipcMain.handle('system:setNetworkDbPath', async (event, payload) => {
@@ -988,7 +1104,7 @@ class IPCHandlers {
         fs.writeFileSync(cfgPath, JSON.stringify(data));
         return { success: true, path: data.network_db_path };
       } catch (error) {
-        return { success: false, error: error.message };
+        return buildErrorResponse(error, { scope: 'system', action: 'setNetworkDbPath' });
       }
     });
     ipcMain.handle('system:getNetworkDbPath', async () => {
@@ -1010,7 +1126,7 @@ class IPCHandlers {
         const res = await DatabaseService.deleteDatabase();
         return res;
       } catch (error) {
-        return { success: false, error: error.message };
+        return buildErrorResponse(error, { scope: 'system', action: 'deleteDatabase', entity: 'database' });
       }
     });
     ipcMain.handle('db:update', async (event, updates = {}) => {
@@ -1021,7 +1137,7 @@ class IPCHandlers {
         const res = await DatabaseService.updateDatabase(updates);
         return res;
       } catch (error) {
-        return { success: false, error: error.message };
+        return buildErrorResponse(error, { scope: 'system', action: 'updateDatabase', entity: 'database' });
       }
     });
   }
@@ -1041,7 +1157,7 @@ class IPCHandlers {
         return { success: true };
       } catch (error) {
         console.error('Open main window error:', error);
-        return { success: false, error: error.message };
+        return buildErrorResponse(error, { scope: 'window', action: 'openMain' });
       }
     });
   }
@@ -1053,7 +1169,7 @@ class IPCHandlers {
         return { success: true, stats };
       } catch (error) {
         console.error('Get dashboard stats error:', error);
-        return { success: false, error: error.message };
+        return buildErrorResponse(error, { scope: 'dashboard', action: 'getStats' });
       }
     });
   }
