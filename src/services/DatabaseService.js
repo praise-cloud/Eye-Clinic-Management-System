@@ -508,6 +508,200 @@ class DatabaseService {
         return { success: result.changes > 0 };
     }
 
+    async getAllPharmacyDrugs(filters = {}) {
+        const db = await this.getDatabase();
+        let query = 'SELECT * FROM pharmacy_drugs';
+        const params = [];
+
+        if (filters.status) {
+            query += ' WHERE status = ?';
+            params.push(filters.status);
+        }
+
+        if (filters.search) {
+            const term = `%${filters.search}%`;
+            query += params.length ? ' AND' : ' WHERE';
+            query += ' (drug_name LIKE ? OR drug_code LIKE ? OR strength LIKE ?)';
+            params.push(term, term, term);
+        }
+
+        query += ' ORDER BY drug_name ASC';
+        return await db.all(query, params);
+    }
+
+    async getPharmacyDrugById(id) {
+        const db = await this.getDatabase();
+        const query = 'SELECT * FROM pharmacy_drugs WHERE id = ?';
+        return await db.get(query, [id]);
+    }
+
+    async getPharmacyDrugByCode(drugCode) {
+        const db = await this.getDatabase();
+        const query = 'SELECT * FROM pharmacy_drugs WHERE drug_code = ?';
+        return await db.get(query, [drugCode]);
+    }
+
+    async createPharmacyDrug(drugData) {
+        const db = await this.getDatabase();
+        const id = require('uuid').v4();
+
+        const query = `
+            INSERT INTO pharmacy_drugs (
+                id, drug_code, drug_name, drug_form, strength, pack_size,
+                unit_price, current_quantity, minimum_quantity, status,
+                supplier_name, supplier_contact, expiry_date, last_updated_by,
+                notes, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        `;
+
+        const params = [
+            id,
+            drugData.drug_code,
+            drugData.drug_name,
+            drugData.drug_form,
+            drugData.strength,
+            drugData.pack_size,
+            drugData.unit_price,
+            drugData.current_quantity || 0,
+            drugData.minimum_quantity || 0,
+            drugData.status || 'active',
+            drugData.supplier_name || null,
+            drugData.supplier_contact || null,
+            drugData.expiry_date || null,
+            drugData.last_updated_by || null,
+            drugData.notes || null
+        ];
+
+        await db.run(query, params);
+        return { id, ...drugData };
+    }
+
+    async updatePharmacyDrug(id, drugData) {
+        const db = await this.getDatabase();
+
+        const query = `
+            UPDATE pharmacy_drugs
+            SET drug_code = ?, drug_name = ?, drug_form = ?, strength = ?,
+                pack_size = ?, unit_price = ?, current_quantity = ?,
+                minimum_quantity = ?, status = ?, supplier_name = ?,
+                supplier_contact = ?, expiry_date = ?, last_updated_by = ?,
+                notes = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        `;
+
+        const params = [
+            drugData.drug_code,
+            drugData.drug_name,
+            drugData.drug_form,
+            drugData.strength,
+            drugData.pack_size,
+            drugData.unit_price,
+            drugData.current_quantity,
+            drugData.minimum_quantity,
+            drugData.status,
+            drugData.supplier_name,
+            drugData.supplier_contact,
+            drugData.expiry_date,
+            drugData.last_updated_by,
+            drugData.notes,
+            id
+        ];
+
+        await db.run(query, params);
+        return { id, ...drugData };
+    }
+
+    async deletePharmacyDrug(id) {
+        const db = await this.getDatabase();
+        const query = 'DELETE FROM pharmacy_drugs WHERE id = ?';
+        const result = await db.run(query, [id]);
+        return { success: result.changes > 0 };
+    }
+
+    async createPharmacyDispensation({ drugId, patientId, quantity, userId, notes = null }) {
+        const db = await this.getDatabase();
+
+        await db.run('BEGIN TRANSACTION');
+        try {
+            const drug = await db.get('SELECT id, drug_name, current_quantity, unit_price FROM pharmacy_drugs WHERE id = ?', [drugId]);
+            if (!drug) {
+                throw new Error('Drug not found');
+            }
+
+            const numericQuantity = Number(quantity || 0);
+            if (!Number.isFinite(numericQuantity) || numericQuantity <= 0) {
+                throw new Error('Quantity must be greater than zero');
+            }
+
+            const currentQty = Number(drug.current_quantity || 0);
+            if (numericQuantity > currentQty) {
+                throw new Error('Insufficient stock for this dispensation');
+            }
+
+            const unitPrice = Number(drug.unit_price || 0);
+            const totalAmount = Math.max(0, numericQuantity * (isNaN(unitPrice) ? 0 : unitPrice));
+
+            const id = require('uuid').v4();
+
+            await db.run(
+                `INSERT INTO pharmacy_dispensations (id, drug_id, patient_id, quantity, total_amount, user_id, notes, created_at, updated_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+                [id, drugId, patientId, numericQuantity, totalAmount, userId, notes || null]
+            );
+
+            const newQuantity = currentQty - numericQuantity;
+            await db.run(
+                `UPDATE pharmacy_drugs
+                 SET current_quantity = ?, last_updated_by = ?, updated_at = CURRENT_TIMESTAMP
+                 WHERE id = ?`,
+                [newQuantity, userId || null, drugId]
+            );
+
+            if (totalAmount > 0) {
+                const description = notes || `Pharmacy dispensation: ${numericQuantity} units of ${drug.drug_name}`;
+                await this.recordRevenue({
+                    source: 'pharmacy',
+                    source_id: id,
+                    amount: totalAmount,
+                    userId,
+                    description,
+                    meta: {
+                        drugId,
+                        patientId,
+                        quantity: numericQuantity
+                    }
+                });
+            }
+
+            await db.run('COMMIT');
+
+            const updatedDrug = await db.get('SELECT * FROM pharmacy_drugs WHERE id = ?', [drugId]);
+            return {
+                id,
+                drug: updatedDrug,
+                total_amount: totalAmount,
+                quantity: numericQuantity
+            };
+        } catch (error) {
+            try {
+                await db.run('ROLLBACK');
+            } catch { }
+            throw error;
+        }
+    }
+
+    async getPharmacyDispensationsByPatient(patientId) {
+        const db = await this.getDatabase();
+        const query = `
+            SELECT d.*, pd.drug_name, pd.drug_code, pd.strength
+            FROM pharmacy_dispensations d
+            JOIN pharmacy_drugs pd ON d.drug_id = pd.id
+            WHERE d.patient_id = ?
+            ORDER BY d.created_at DESC
+        `;
+        return await db.all(query, [patientId]);
+    }
+
     async logActivity(userId, actionType, entityType, entityId, description, ipAddress = null, userAgent = null) {
         const db = await this.getDatabase();
         const id = require('uuid').v4();

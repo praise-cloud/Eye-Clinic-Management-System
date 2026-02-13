@@ -148,6 +148,42 @@ class Database {
                 FOREIGN KEY (last_updated_by) REFERENCES users (id)
             )`,
 
+            `CREATE TABLE IF NOT EXISTS pharmacy_drugs (
+                id TEXT PRIMARY KEY,
+                drug_code TEXT UNIQUE NOT NULL,
+                drug_name TEXT NOT NULL,
+                drug_form TEXT NOT NULL CHECK (drug_form IN ('tablet', 'capsule', 'syrup', 'injection', 'cream', 'drops', 'other')),
+                strength TEXT NOT NULL,
+                pack_size INTEGER NOT NULL,
+                unit_price DECIMAL(10, 2) NOT NULL,
+                current_quantity INTEGER DEFAULT 0,
+                minimum_quantity INTEGER DEFAULT 0,
+                status TEXT DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'out_of_stock')),
+                supplier_name TEXT,
+                supplier_contact TEXT,
+                expiry_date DATE,
+                last_updated_by TEXT,
+                notes TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (last_updated_by) REFERENCES users (id)
+            )`,
+
+            `CREATE TABLE IF NOT EXISTS pharmacy_dispensations (
+                id TEXT PRIMARY KEY,
+                drug_id TEXT NOT NULL,
+                patient_id TEXT NOT NULL,
+                quantity INTEGER NOT NULL,
+                total_amount DECIMAL(10, 2) NOT NULL,
+                user_id TEXT NOT NULL,
+                notes TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (drug_id) REFERENCES pharmacy_drugs (id),
+                FOREIGN KEY (patient_id) REFERENCES patients (id),
+                FOREIGN KEY (user_id) REFERENCES users (id)
+            )`,
+
             // Revenue table for financial tracking
             `CREATE TABLE IF NOT EXISTS revenue (
                 id TEXT PRIMARY KEY,

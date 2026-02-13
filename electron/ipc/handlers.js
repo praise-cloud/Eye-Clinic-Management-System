@@ -35,6 +35,8 @@ const mapDatabaseError = (error, context = {}) => {
       userMessage = 'A patient with this ID already exists. Please use a different patient ID.';
     } else if (key === 'inventory.item_code') {
       userMessage = 'An inventory item with this Unit Code already exists. Please use a different code.';
+    } else if (key === 'pharmacy_drugs.drug_code') {
+      userMessage = 'A drug with this code already exists in the pharmacy registry.';
     } else if (key === 'settings.key') {
       userMessage = 'A setting with this key already exists. Please use a different key name.';
     }
@@ -98,6 +100,10 @@ const mapDatabaseError = (error, context = {}) => {
       userMessage = 'The selected status is not valid. Choose a valid inventory status.';
     } else if (rawMessage.includes('patients.gender')) {
       userMessage = 'The selected gender is not valid.';
+    } else if (rawMessage.includes('pharmacy_drugs.drug_form')) {
+      userMessage = 'The selected presentation is not valid. Choose a valid drug form.';
+    } else if (rawMessage.includes('pharmacy_drugs.status')) {
+      userMessage = 'The selected status is not valid for this drug.';
     }
     return {
       code: 'constraint.check',
@@ -132,6 +138,7 @@ class IPCHandlers {
     this.registerTestHandlers();
     this.registerReportHandlers();
     this.registerInventoryHandlers();
+    this.registerPharmacyHandlers();
     this.registerAdminHandlers();
     this.registerFileHandlers();
     this.registerChatHandlers();
@@ -712,6 +719,144 @@ class IPCHandlers {
       } catch (error) {
         console.error('Update inventory quantity error:', error);
         return buildErrorResponse(error, { scope: 'inventory', action: 'updateQuantity', entity: 'inventory' });
+      }
+    });
+  }
+
+  registerPharmacyHandlers() {
+    ipcMain.handle('pharmacy:getDrugs', async (event, filters = {}) => {
+      try {
+        const drugs = await DatabaseService.getAllPharmacyDrugs(filters);
+        return { success: true, drugs };
+      } catch (error) {
+        console.error('Get pharmacy drugs error:', error);
+        return buildErrorResponse(error, { scope: 'pharmacy', action: 'getDrugs', entity: 'pharmacy_drug' });
+      }
+    });
+
+    ipcMain.handle('pharmacy:getDrugById', async (event, id) => {
+      try {
+        if (!id) return { success: false, error: 'Drug ID required' };
+        const drug = await DatabaseService.getPharmacyDrugById(id);
+        return drug
+          ? { success: true, drug }
+          : { success: false, error: 'Drug not found' };
+      } catch (error) {
+        console.error('Get pharmacy drug error:', error);
+        return buildErrorResponse(error, { scope: 'pharmacy', action: 'getDrugById', entity: 'pharmacy_drug' });
+      }
+    });
+
+    ipcMain.handle('pharmacy:createDrug', async (event, drugData) => {
+      try {
+        const required = ['drug_code', 'drug_name', 'drug_form', 'strength', 'pack_size', 'unit_price'];
+        for (const f of required) {
+          if (!drugData[f]) return { success: false, error: `${f} required` };
+        }
+
+        const drug = await DatabaseService.createPharmacyDrug(drugData);
+        if (currentUser?.id) {
+          await DatabaseService.logActivity(
+            currentUser.id,
+            'create',
+            'pharmacy_drug',
+            drug.id,
+            `Pharmacy drug ${drug.drug_name} created`
+          );
+        }
+        BrowserWindow.getAllWindows().forEach(w =>
+          w.webContents.send('data:update', { table: 'pharmacy', action: 'create', record: drug })
+        );
+        return { success: true, drug };
+      } catch (error) {
+        console.error('Create pharmacy drug error:', error);
+        return buildErrorResponse(error, { scope: 'pharmacy', action: 'createDrug', entity: 'pharmacy_drug' });
+      }
+    });
+
+    ipcMain.handle('pharmacy:updateDrug', async (event, { id, drugData }) => {
+      try {
+        if (!id) return { success: false, error: 'Drug ID required' };
+        const drug = await DatabaseService.updatePharmacyDrug(id, drugData);
+        if (currentUser?.id) {
+          await DatabaseService.logActivity(
+            currentUser.id,
+            'update',
+            'pharmacy_drug',
+            id,
+            `Pharmacy drug ${id} updated`
+          );
+        }
+        BrowserWindow.getAllWindows().forEach(w =>
+          w.webContents.send('data:update', { table: 'pharmacy', action: 'update', record: drug })
+        );
+        return { success: true, drug };
+      } catch (error) {
+        console.error('Update pharmacy drug error:', error);
+        return buildErrorResponse(error, { scope: 'pharmacy', action: 'updateDrug', entity: 'pharmacy_drug' });
+      }
+    });
+
+    ipcMain.handle('pharmacy:deleteDrug', async (event, id) => {
+      try {
+        if (!id) return { success: false, error: 'Drug ID required' };
+        const result = await DatabaseService.deletePharmacyDrug(id);
+        if (result.success && currentUser?.id) {
+          await DatabaseService.logActivity(
+            currentUser.id,
+            'delete',
+            'pharmacy_drug',
+            id,
+            `Pharmacy drug ${id} deleted`
+          );
+        }
+        if (result.success) {
+          BrowserWindow.getAllWindows().forEach(w =>
+            w.webContents.send('data:update', { table: 'pharmacy', action: 'delete', recordId: id })
+          );
+        }
+        return result;
+      } catch (error) {
+        console.error('Delete pharmacy drug error:', error);
+        return buildErrorResponse(error, { scope: 'pharmacy', action: 'deleteDrug', entity: 'pharmacy_drug' });
+      }
+    });
+
+    ipcMain.handle('pharmacy:dispense', async (event, { drugId, patientId, quantity, notes }) => {
+      try {
+        if (!drugId || !patientId) return { success: false, error: 'Drug and patient are required' };
+        const qtyNumber = Number(quantity || 0);
+        if (!Number.isFinite(qtyNumber) || qtyNumber <= 0) {
+          return { success: false, error: 'Quantity must be greater than zero' };
+        }
+
+        const userId = currentUser?.id || null;
+        const dispensation = await DatabaseService.createPharmacyDispensation({
+          drugId,
+          patientId,
+          quantity: qtyNumber,
+          userId,
+          notes: notes || null
+        });
+
+        if (userId) {
+          await DatabaseService.logActivity(
+            userId,
+            'create',
+            'pharmacy_dispensation',
+            dispensation.id,
+            `Pharmacy dispensation recorded for drug ${drugId}`
+          );
+        }
+
+        BrowserWindow.getAllWindows().forEach(w =>
+          w.webContents.send('data:update', { table: 'pharmacy', action: 'dispense', record: dispensation })
+        );
+
+        return { success: true, dispensation };
+      } catch (error) {
+        console.error('Pharmacy dispense error:', error);
+        return buildErrorResponse(error, { scope: 'pharmacy', action: 'dispense', entity: 'pharmacy_dispensation' });
       }
     });
   }

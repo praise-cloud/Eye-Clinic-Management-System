@@ -52,6 +52,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getExpiringItems: (days) => ipcRenderer.invoke('inventory:getExpiring', days),
     searchInventory: (searchTerm) => ipcRenderer.invoke('inventory:search', searchTerm),
 
+    // Pharmacy APIs
+    getPharmacyDrugs: (filters) => ipcRenderer.invoke('pharmacy:getDrugs', filters),
+    getPharmacyDrug: (id) => ipcRenderer.invoke('pharmacy:getDrugById', id),
+    createPharmacyDrug: (drugData) => ipcRenderer.invoke('pharmacy:createDrug', drugData),
+    updatePharmacyDrug: (id, drugData) => ipcRenderer.invoke('pharmacy:updateDrug', { id, drugData }),
+    deletePharmacyDrug: (id) => ipcRenderer.invoke('pharmacy:deleteDrug', id),
+    dispensePharmacyDrug: (drugId, patientId, quantity, notes) => ipcRenderer.invoke('pharmacy:dispense', { drugId, patientId, quantity, notes }),
+
     // Admin APIs
     getAllUsersDetailed: () => ipcRenderer.invoke('admin:getAllUsers'),
     getUserStatistics: (userId) => ipcRenderer.invoke('admin:getUserStats', userId),

@@ -7,6 +7,7 @@ import PatientsContent from './content/PatientsContent'
 import TestsContent from './content/TestsContent'
 import ReportsContent from './content/ReportsContent'
 import InventoryContent from './content/InventoryContent'
+import PharmacyContent from './content/PharmacyContent'
 import SettingsContent from './content/SettingsContent'
 import AddPatientModal from './modals/AddPatientModal'
 import UploadTestModal from './modals/UploadTestModal'
@@ -41,6 +42,7 @@ const MainApp = () => {
   const getActiveSection = () => {
     const path = location.pathname;
     if (path.startsWith('/inventory')) return 'inventory';
+    if (path.startsWith('/pharmacy')) return 'pharmacy';
     if (path.startsWith('/patients')) return 'patients';
     if (path.startsWith('/messages')) return 'messages';
     if (path.startsWith('/tests')) return 'tests';
@@ -145,6 +147,7 @@ const MainApp = () => {
         <Route path="/inventory/create" element={<CreateInventoryItemScreen />} />
         <Route path="/inventory/edit/:id" element={<CreateInventoryItemScreen />} />
         <Route path="/inventory/view/:id" element={<ViewInventoryItemScreen />} />
+        <Route path="/pharmacy" element={<PharmacyContent />} />
         <Route path="/patients/:id" element={<PatientDetailsPage />} />
         <Route path="/settings" element={<SettingsContent />} />
       </Routes>
