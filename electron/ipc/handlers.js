@@ -146,6 +146,8 @@ class IPCHandlers {
     this.registerSystemHandlers();
     this.registerWindowHandlers();
     this.registerDashboardHandlers();
+    this.registerPrescriptionHandlers();
+    this.registerNotificationHandlers();
     console.log('IPC handlers - All registration methods called');
   }
 

@@ -237,6 +237,35 @@ class Database {
                 last_seen DATETIME DEFAULT CURRENT_TIMESTAMP,
                 session_id TEXT,
                 FOREIGN KEY (user_id) REFERENCES users (id)
+            )`,
+
+            // Prescriptions table
+            `CREATE TABLE IF NOT EXISTS prescriptions (
+                id TEXT PRIMARY KEY,
+                patient_id TEXT NOT NULL,
+                doctor_id TEXT NOT NULL,
+                drug_id TEXT NOT NULL,
+                quantity INTEGER NOT NULL,
+                instructions TEXT,
+                status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'dispensed', 'cancelled')),
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (patient_id) REFERENCES patients (id),
+                FOREIGN KEY (doctor_id) REFERENCES users (id),
+                FOREIGN KEY (drug_id) REFERENCES pharmacy_drugs (id)
+            )`,
+
+            // Notifications table
+            `CREATE TABLE IF NOT EXISTS notifications (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                title TEXT NOT NULL,
+                message TEXT NOT NULL,
+                type TEXT NOT NULL,
+                related_id TEXT,
+                status TEXT DEFAULT 'unread' CHECK (status IN ('read', 'unread')),
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users (id)
             )`
         ];
 
@@ -313,16 +342,16 @@ class Database {
         }
 
         try {
-        // Add gender column if missing (with default for existing rows)
-        await this.run(`
+            // Add gender column if missing (with default for existing rows)
+            await this.run(`
             ALTER TABLE users ADD COLUMN gender TEXT NOT NULL DEFAULT 'other'
         `);
-        console.log('Migration: added gender column with default');
+            console.log('Migration: added gender column with default');
         } catch (e) {
-        // Ignore if column already exists
-        if (!e.message.includes('duplicate column name')) {
-            console.warn('Gender migration skipped:', e.message);
-        }
+            // Ignore if column already exists
+            if (!e.message.includes('duplicate column name')) {
+                console.warn('Gender migration skipped:', e.message);
+            }
         }
     }
 
@@ -397,7 +426,7 @@ class Database {
 
     async updateUser(userId, userData) {
         const { first_name, last_name, email, role, phone_number, gender, password } = userData;
-        
+
         let query = `
             UPDATE users 
             SET first_name = ?, last_name = ?, email = ?, role = ?, phone_number = ?, gender = ?, updated_at = CURRENT_TIMESTAMP
@@ -427,7 +456,7 @@ class Database {
     async updateUserStatus(userId, isActive) {
         const status = isActive ? 'active' : 'inactive';
         const query = `UPDATE users SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`;
-        
+
         try {
             await this.run(query, [status, userId]);
             return { id: userId, status };
@@ -439,7 +468,7 @@ class Database {
 
     async deleteUser(userId) {
         const query = `DELETE FROM users WHERE id = ?`;
-        
+
         try {
             const result = await this.run(query, [userId]);
             return { success: result.changes > 0 };
@@ -514,7 +543,7 @@ class Database {
     // Generic database operations
     async run(query, params = []) {
         return new Promise((resolve, reject) => {
-            this.db.run(query, params, function(err) {
+            this.db.run(query, params, function (err) {
                 if (err) {
                     reject(err);
                 } else {

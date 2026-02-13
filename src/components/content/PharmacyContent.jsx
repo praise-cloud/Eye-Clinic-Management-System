@@ -588,16 +588,31 @@ const PharmacyContent = () => {
               )}
               <div className="space-y-4">
                 <div>
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Patient ID</label>
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Client</label>
                   <input
+                    list="pharmacy-client-list"
                     type="text"
                     name="patient_id"
                     value={dispenseData.patient_id}
                     onChange={handleDispenseChange}
                     className="mt-2 w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/60 focus:border-transparent"
-                    placeholder="Paste the patient ID from the clinical record"
+                    placeholder="Start typing to search a client or paste client ID"
                     required
                   />
+                  <datalist id="pharmacy-client-list">
+                    {patients.map((p) => {
+                      const name = (p.name || `${p.first_name || ''} ${p.last_name || ''}`.trim()) || 'Unnamed';
+                      const code = p.patient_id || '';
+                      return (
+                        <option key={p.id} value={p.id}>
+                          {name}{code ? ` • ${code}` : ''}
+                        </option>
+                      );
+                    })}
+                  </datalist>
+                  <p className="mt-1 text-xs text-slate-400">
+                    Linked to the clinical client record. Stored using the internal client ID.
+                  </p>
                 </div>
                 <div>
                   <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Quantity</label>

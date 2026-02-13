@@ -1,5 +1,18 @@
 import React, { useState } from 'react'
-import { Logo, ChartIcon, ChatIcon, UsersIcon, DocumentIcon, InventoryIcon, LogoutIcon } from '../Icons'
+import {
+  Logo,
+  UsersIcon,
+  InventoryIcon,
+  DocumentIcon,
+  ScheduleIcon,
+  ReportIcon,
+  LogoutIcon,
+  PharmacyIcon,
+  ChartIcon,
+  GearIcon,
+  DrugIcon,
+  PackageIcon
+} from '../Icons';
 import useUser from '../../hooks/useUser'
 import { useSystemConfig } from '../../context/SystemConfigContext'
 import LogoutModal from '../modals/LogoutModal'
@@ -22,7 +35,7 @@ const Sidebar = ({ activeSection, onSectionClick, currentUser }) => {
   const adminSidebarItems = [
     { id: 'overview', name: 'Overview', icon: <ChartIcon className="w-5 h-5" /> },
     { id: 'users', name: 'User Management', icon: <UsersIcon className="w-5 h-5" /> },
-    { id: 'system-settings', name: 'System Settings', icon: <DocumentIcon className="w-5 h-5" /> },
+    { id: 'system-settings', name: 'System Settings', icon: <GearIcon className="w-5 h-5" /> },
     { id: 'logout', name: 'Logout', icon: <LogoutIcon className="w-5 h-5" /> },
   ];
 
@@ -30,9 +43,9 @@ const Sidebar = ({ activeSection, onSectionClick, currentUser }) => {
     { id: 'dashboard', name: 'Dashboard', icon: <ChartIcon className="w-5 h-5" /> },
     { id: 'messages', name: 'Messages', icon: <ChatIcon className="w-5 h-5" /> },
     { id: 'tests', name: 'Test', icon: <DocumentIcon className="w-5 h-5" /> },
-    { id: 'inventory', name: 'Inventory', icon: <InventoryIcon className="w-5 h-5" />, roles: ['admin', 'assistant'] },
-    { id: 'pharmacy', name: 'Pharmacy', icon: <InventoryIcon className="w-5 h-5" />, roles: ['assistant'] },
-    { id: 'settings', name: 'Settings', icon: <DocumentIcon className="w-5 h-5" /> },
+    { id: 'inventory', name: 'Inventory', icon: <PackageIcon className="w-5 h-5" />, roles: ['admin', 'doctor', 'receptionist'] },
+    { id: 'pharmacy', name: 'Pharmacy', icon: <DrugIcon className="w-5 h-5" />, roles: ['assistant'] },
+    { id: 'settings', name: 'Settings', icon: <GearIcon className="w-5 h-5" /> },
     { id: 'logout', name: 'Logout', icon: <LogoutIcon className="w-5 h-5" /> },
   ];
 

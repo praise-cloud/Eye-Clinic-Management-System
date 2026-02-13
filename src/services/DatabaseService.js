@@ -702,6 +702,105 @@ class DatabaseService {
         return await db.all(query, [patientId]);
     }
 
+    // Prescription Management
+    async createPrescription({ patientId, doctorId, drugId, quantity, instructions }) {
+        const db = await this.getDatabase();
+        const id = require('uuid').v4();
+        const query = `
+            INSERT INTO prescriptions (id, patient_id, doctor_id, drug_id, quantity, instructions, status, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, 'pending', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        `;
+        await db.run(query, [id, patientId, doctorId, drugId, quantity, instructions || null]);
+
+        // Fetch the created prescription with drug details
+        const result = await db.get(`
+            SELECT p.*, d.drug_name, d.drug_code, d.strength, u.first_name as doctor_first_name, u.last_name as doctor_last_name
+            FROM prescriptions p
+            JOIN pharmacy_drugs d ON p.drug_id = d.id
+            JOIN users u ON p.doctor_id = u.id
+            WHERE p.id = ?
+        `, [id]);
+
+        return result;
+    }
+
+    async getPrescriptionsByPatient(patientId) {
+        const db = await this.getDatabase();
+        const query = `
+            SELECT p.*, d.drug_name, d.drug_code, d.strength, u.first_name as doctor_first_name, u.last_name as doctor_last_name
+            FROM prescriptions p
+            JOIN pharmacy_drugs d ON p.drug_id = d.id
+            JOIN users u ON p.doctor_id = u.id
+            WHERE p.patient_id = ?
+            ORDER BY p.created_at DESC
+        `;
+        return await db.all(query, [patientId]);
+    }
+
+    async getPendingPrescriptions() {
+        const db = await this.getDatabase();
+        const query = `
+            SELECT p.*, d.drug_name, d.drug_code, d.strength, 
+                   u.first_name as doctor_first_name, u.last_name as doctor_last_name,
+                   pat.first_name as patient_first_name, pat.last_name as patient_last_name
+            FROM prescriptions p
+            JOIN pharmacy_drugs d ON p.drug_id = d.id
+            JOIN users u ON p.doctor_id = u.id
+            JOIN patients pat ON p.patient_id = pat.id
+            WHERE p.status = 'pending'
+            ORDER BY p.created_at DESC
+        `;
+        return await db.all(query);
+    }
+
+    async updatePrescriptionStatus(id, status, userId) {
+        const db = await this.getDatabase();
+        const query = `
+            UPDATE prescriptions
+            SET status = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        `;
+        await db.run(query, [status, id]);
+        return { id, status };
+    }
+
+    // Notification Management
+    async createNotification({ userId, title, message, type, relatedId }) {
+        const db = await this.getDatabase();
+        const id = require('uuid').v4();
+        const query = `
+            INSERT INTO notifications (id, user_id, title, message, type, related_id, status, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, 'unread', CURRENT_TIMESTAMP)
+        `;
+        await db.run(query, [id, userId, title, message, type, relatedId || null]);
+        return { id, userId, title, message, type, relatedId };
+    }
+
+    async getNotificationsByUser(userId) {
+        const db = await this.getDatabase();
+        const query = `
+            SELECT * FROM notifications
+            WHERE user_id = ?
+            ORDER BY created_at DESC
+            LIMIT 50
+        `;
+        return await db.all(query, [userId]);
+    }
+
+    async markNotificationRead(id) {
+        const db = await this.getDatabase();
+        const query = `UPDATE notifications SET status = 'read' WHERE id = ?`;
+        await db.run(query, [id]);
+        return { id, status: 'read' };
+    }
+
+    async markAllNotificationsRead(userId) {
+        const db = await this.getDatabase();
+        const query = `UPDATE notifications SET status = 'read' WHERE user_id = ?`;
+        await db.run(query, [userId]);
+        return { success: true };
+    }
+
     async logActivity(userId, actionType, entityType, entityId, description, ipAddress = null, userAgent = null) {
         const db = await this.getDatabase();
         const id = require('uuid').v4();
