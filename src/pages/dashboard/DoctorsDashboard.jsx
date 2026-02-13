@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CLIENT_DATA } from '../../utils/constants.js';
-import { DeleteIcon, EditIcon, ViewIcon } from '../../components/Icons';
+import { DeleteIcon, EditIcon, ViewIcon, DrugIcon } from '../../components/Icons';
 import AddPatientModal from '../../components/modals/AddPatientModal';
 import PatientQuickViewModal from '../../components/modals/PatientQuickViewModal';
+import PrescribeModal from '../../components/modals/PrescribeModal';
 import useUser from '../../hooks/useUser';
 
 const DoctorsDashboard = ({ activeSection }) => {
@@ -21,8 +22,13 @@ const DoctorsDashboard = ({ activeSection }) => {
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [clientList, setClientList] = useState([]);
   const [quickViewPatient, setQuickViewPatient] = useState(null);
+  const [prescribePatient, setPrescribePatient] = useState(null);
   const [showAddPatientModal, setShowAddPatientModal] = useState(false);
   const [syncStatus, setSyncStatus] = useState('checking');
+  const [dashboardStats, setDashboardStats] = useState({
+    totalFulfilledPrescriptions: 0,
+    pendingEvaluations: 4 // Mocked or fetched from elsewhere
+  });
 
   // Load patients from database
   const loadPatients = async () => {
@@ -57,8 +63,32 @@ const DoctorsDashboard = ({ activeSection }) => {
     }
   };
 
+  const fetchDashboardStats = async () => {
+    try {
+      if (!window.electronAPI?.getDashboardStats) return;
+      const res = await window.electronAPI.getDashboardStats();
+      if (res?.success && res.stats) {
+        setDashboardStats(prev => ({
+          ...prev,
+          totalFulfilledPrescriptions: res.stats.totalFulfilledPrescriptions || 0
+        }));
+      }
+    } catch (err) {
+      console.error('Error fetching dashboard stats:', err);
+    }
+  };
+
   useEffect(() => {
     loadPatients();
+    fetchDashboardStats();
+
+    if (window.electronAPI?.onIpcEvent) {
+      const unsubscribe = window.electronAPI.onIpcEvent('data:update', () => {
+        loadPatients();
+        fetchDashboardStats();
+      });
+      return unsubscribe;
+    }
   }, []);
 
   // Filter logic
@@ -120,17 +150,18 @@ const DoctorsDashboard = ({ activeSection }) => {
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
             </svg>
-            <span className="font-bold">Add Patient</span>
+            <span className="font-bold">Add Client</span>
           </button>
         </div>
       </div>
 
       {/* Analytics Micro-Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         {[
           { label: 'Today\'s Caseload', value: filteredClients.length, color: 'indigo', icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z' },
-          { label: 'Pending Evaluations', value: '4', color: 'amber', icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z' },
-          { label: 'Diagnostic Yield', value: '94%', color: 'emerald', icon: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z' },
+          { label: 'Pending Evaluations', value: dashboardStats.pendingEvaluations, color: 'amber', icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z' },
+          { label: 'Fulfilled Drugs', value: dashboardStats.totalFulfilledPrescriptions, color: 'emerald', icon: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' },
+          { label: 'Diagnostic Yield', value: '94%', color: 'rose', icon: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z' },
         ].map((stat, i) => (
           <div key={i} className="card-premium p-6 flex items-center gap-5">
             <div className={`w-14 h-14 rounded-2xl bg-${stat.color}-50 dark:bg-${stat.color}-900/20 flex items-center justify-center text-${stat.color}-600 dark:text-${stat.color}-400`}>
@@ -159,7 +190,7 @@ const DoctorsDashboard = ({ activeSection }) => {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="input-premium pl-12 py-4"
-              placeholder="Search by name, patient ID, or diagnostic reason..."
+              placeholder="Search by name, client ID, or diagnostic reason..."
             />
           </div>
           <div className="flex gap-4 w-full lg:w-auto">
@@ -227,6 +258,9 @@ const DoctorsDashboard = ({ activeSection }) => {
                         </button>
                         <button onClick={() => handleEdit(client)} className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400 hover:bg-emerald-500 hover:text-white transition-all shadow-sm">
                           <EditIcon />
+                        </button>
+                        <button onClick={() => setPrescribePatient(client)} className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400 hover:bg-amber-500 hover:text-white transition-all shadow-sm" title="Prescribe Drug">
+                          <DrugIcon className="w-5 h-5" />
                         </button>
                         <button onClick={() => setDeleteConfirm(client)} className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400 hover:bg-rose-500 hover:text-white transition-all shadow-sm">
                           <DeleteIcon />
@@ -297,7 +331,7 @@ const DoctorsDashboard = ({ activeSection }) => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
               </svg>
             </div>
-            <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight leading-tight">Revoke Patient Record?</h3>
+            <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight leading-tight">Revoke Client Record?</h3>
             <p className="text-sm text-slate-500 font-medium mt-2 leading-relaxed">This will permanently purge the record of <b>{deleteConfirm.name}</b> from the clinical database.</p>
             <div className="flex gap-3 mt-10">
               <button onClick={() => setDeleteConfirm(null)} className="flex-1 py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-xl text-xs font-black tracking-widest uppercase hover:bg-slate-200 transition-all">Cancel</button>
@@ -311,6 +345,14 @@ const DoctorsDashboard = ({ activeSection }) => {
         <PatientQuickViewModal
           patient={quickViewPatient}
           onClose={() => setQuickViewPatient(null)}
+        />
+      )}
+
+      {prescribePatient && (
+        <PrescribeModal
+          currentUser={user}
+          initialPatientId={prescribePatient.id}
+          onClose={() => setPrescribePatient(null)}
         />
       )}
 

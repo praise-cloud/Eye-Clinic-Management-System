@@ -4,12 +4,13 @@ import { DeleteIcon, EditIcon, ViewIcon } from '../../components/Icons';
 import AddPatientModal from '../../components/modals/AddPatientModal';
 import PatientQuickViewModal from '../../components/modals/PatientQuickViewModal';
 import useUser from '../../hooks/useUser';
+import usePrescriptions from '../../hooks/usePrescriptions';
 
 const AssistantDashboardScreen = () => {
     const { user } = useUser();
     const navigate = useNavigate();
     const [statsData, setStatsData] = useState([
-        { label: 'Total Patients', number: '0', icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z', color: 'indigo' },
+        { label: 'Total Clients', number: '0', icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z', color: 'indigo' },
         { label: "Today's Intake", number: '0', icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z', color: 'emerald' },
         { label: 'Pending Tests', number: '0', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4', color: 'amber' },
         { label: 'Clinical Revenue', number: '₦0', icon: 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z', color: 'rose' },
@@ -24,6 +25,8 @@ const AssistantDashboardScreen = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [showAddPatientModal, setShowAddPatientModal] = useState(false);
+    const [notification, setNotification] = useState(null);
+    const { prescriptions: pendingPrescriptions, fetchPendingPrescriptions, updateStatus, loading: prescriptionsLoading } = usePrescriptions();
 
     const loadPatients = async () => {
         try {
@@ -64,7 +67,7 @@ const AssistantDashboardScreen = () => {
                 const stats = result.stats;
                 const currency = new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN', minimumFractionDigits: 0 });
                 setStatsData([
-                    { label: 'Total Patients', number: String(stats.totalPatients || 0), icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z', color: 'indigo' },
+                    { label: 'Total Clients', number: String(stats.totalPatients || 0), icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z', color: 'indigo' },
                     { label: "Today's Intake", number: String(stats.todayAppointments || 0), icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z', color: 'emerald' },
                     { label: 'Pending Tests', number: String(stats.pendingTests || stats.pendingAppointments || 0), icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4', color: 'amber' },
                     { label: 'Clinical Revenue', number: currency.format(Number(stats.monthlyRevenue || 0)), icon: 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z', color: 'rose' },
@@ -76,15 +79,28 @@ const AssistantDashboardScreen = () => {
     };
 
     useEffect(() => {
+        if (notification) {
+            const timer = setTimeout(() => setNotification(null), 5000);
+            return () => clearTimeout(timer);
+        }
+    }, [notification]);
+
+    useEffect(() => {
         loadPatients();
         fetchStats();
+        fetchPendingPrescriptions();
         if (window.electronAPI?.onIpcEvent) {
-            const unsubscribe = window.electronAPI.onIpcEvent('data:update', () => {
+            const unsubscribe = window.electronAPI.onIpcEvent('data:update', (payload) => {
                 fetchStats();
+                if (payload && payload.table === 'prescriptions') {
+                    fetchPendingPrescriptions();
+                }
             });
-            return () => unsubscribe?.();
+            return () => {
+                unsubscribe?.();
+            };
         }
-    }, []);
+    }, [fetchPendingPrescriptions]);
 
     const handleDelete = async () => {
         if (!deleteConfirm) return;
@@ -98,7 +114,6 @@ const AssistantDashboardScreen = () => {
             setDeleteConfirm(null);
         }
     };
-
 
     const filteredPatients = patients.filter(patient =>
         searchTerm === '' ||
@@ -115,7 +130,7 @@ const AssistantDashboardScreen = () => {
             {/* Context Header */}
             <div>
                 <h1 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">Clinical Administration</h1>
-                <p className="text-slate-500 font-medium mt-1">Operational overview and patient intake control</p>
+                <p className="text-slate-500 font-medium mt-1">Operational overview and client intake control</p>
             </div>
 
             {/* Performance Metrics */}
@@ -133,6 +148,114 @@ const AssistantDashboardScreen = () => {
                         </div>
                     </div>
                 ))}
+            </div>
+
+            {/* Pending Prescriptions Section */}
+            <div className="space-y-6">
+                <div className="flex items-center justify-between px-2">
+                    <div>
+                        <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">Pending Prescriptions</h2>
+                        <p className="text-sm text-slate-500 font-medium">Pharmacy fulfillment queue from clinical staff</p>
+                    </div>
+                    {pendingPrescriptions.length > 0 && (
+                        <div className="px-3 py-1 bg-amber-500 text-white rounded-lg text-[10px] font-black uppercase tracking-widest animate-pulse">
+                            {pendingPrescriptions.length} Waiting
+                        </div>
+                    )}
+                </div>
+
+                {notification && (
+                    <div className={`mx-2 mb-6 p-4 rounded-xl flex items-center gap-3 animate-premium-fade shadow-sm ${notification.type === 'success'
+                        ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 border border-emerald-100 dark:border-emerald-900/30'
+                        : 'bg-rose-50 dark:bg-rose-900/20 text-rose-600 border border-rose-100 dark:border-rose-900/30'
+                        }`}>
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            {notification.type === 'success' ? (
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                            ) : (
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                            )}
+                        </svg>
+                        <span className="font-bold text-sm">{notification.message}</span>
+                    </div>
+                )}
+
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                    {prescriptionsLoading ? (
+                        <div className="col-span-full py-12 flex flex-col items-center justify-center gap-4 card-premium">
+                            <div className="w-8 h-8 border-4 border-amber-500 border-t-transparent rounded-full animate-spin" />
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Accessing Pharmacy Queue...</p>
+                        </div>
+                    ) : pendingPrescriptions.length > 0 ? (
+                        pendingPrescriptions.map((p) => (
+                            <div key={p.id} className="card-premium p-5 flex flex-col gap-4 group hover:border-amber-400/50 transition-all duration-300 animate-premium-slide">
+                                <div className="flex justify-between items-start">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 rounded-xl bg-amber-50 dark:bg-amber-900/10 text-amber-600 flex items-center justify-center font-black text-xs">
+                                            {p.drug_name[0]}
+                                        </div>
+                                        <div>
+                                            <p className="text-sm font-bold text-slate-900 dark:text-white leading-tight">{p.drug_name}</p>
+                                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{p.strength}</p>
+                                        </div>
+                                    </div>
+                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{new Date(p.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                </div>
+                                <div className="space-y-2">
+                            <div className="flex justify-between text-xs">
+                                <span className="font-bold text-slate-500 uppercase tracking-tight">Client:</span>
+                                <span className="font-black text-slate-900 dark:text-white">{p.patient_first_name} {p.patient_last_name}</span>
+                            </div>
+                                    <div className="flex justify-between text-xs">
+                                        <span className="font-bold text-slate-500 uppercase tracking-tight">Quantity:</span>
+                                        <span className="font-black text-indigo-500">×{p.quantity} Units</span>
+                                    </div>
+                                </div>
+                                <div className="p-3 bg-slate-50 dark:bg-slate-950/40 rounded-xl border border-slate-100 dark:border-slate-800">
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 leading-none">Usage Route</p>
+                                    <p className="text-xs text-slate-600 dark:text-slate-400 italic font-medium leading-relaxed">{p.instructions || 'Standard dosage instructions apply.'}</p>
+                                </div>
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={async () => {
+                                            try {
+                                                const success = await updateStatus(p.id, 'dispensed', user?.id);
+                                                if (success) {
+                                                    setNotification({ type: 'success', message: `Successfully dispensed ${p.drug_name} for ${p.patient_first_name}.` });
+                                                    fetchStats();
+                                                } else {
+                                                    setNotification({ type: 'error', message: 'Failed to dispense medication. Please check stock levels.' });
+                                                }
+                                            } catch (err) {
+                                                setNotification({ type: 'error', message: err.message || 'Dispensing failed due to a system error.' });
+                                            }
+                                        }}
+                                        className="flex-1 py-2.5 bg-indigo-500 text-white rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-indigo-600 transition-all shadow-md active:scale-95 disabled:opacity-50"
+                                        disabled={prescriptionsLoading}
+                                    >
+                                        {prescriptionsLoading ? 'Processing...' : 'Dispensed'}
+                                    </button>
+                                    <button
+                                        onClick={() => updateStatus(p.id, 'cancelled', user?.id)}
+                                        className="px-4 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-500 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-rose-50 hover:text-rose-500 transition-all active:scale-95"
+                                    >
+                                        Cancel
+                                    </button>
+                                </div>
+                            </div>
+                        ))
+                    ) : (
+                        <div className="col-span-full card-premium p-12 text-center border-dashed">
+                            <div className="w-16 h-16 bg-slate-50 dark:bg-slate-800/50 rounded-2xl flex items-center justify-center text-slate-200 mx-auto mb-4">
+                                <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                                </svg>
+                            </div>
+                            <p className="text-sm font-bold text-slate-400 uppercase tracking-widest">No Pending Prescriptions</p>
+                            <p className="text-xs text-slate-400 mt-1">Queue is currently clear.</p>
+                        </div>
+                    )}
+                </div>
             </div>
 
             {/* Main Operational Card */}
@@ -165,7 +288,7 @@ const AssistantDashboardScreen = () => {
                     <table className="min-w-full text-left">
                         <thead>
                             <tr className="bg-slate-50/50 dark:bg-slate-800/30 border-b border-slate-100 dark:border-slate-800 font-black text-[10px] text-slate-400 uppercase tracking-widest">
-                                <th className="px-8 py-5">Patient Dossier</th>
+                                <th className="px-8 py-5">Client Dossier</th>
                                 <th className="px-8 py-5">Intake Date</th>
                                 <th className="px-8 py-5">Diagnostic Focus</th>
                                 <th className="px-8 py-5">Telemetry</th>
@@ -210,7 +333,7 @@ const AssistantDashboardScreen = () => {
                                             <button
                                                 onClick={() => navigate(`/patients/${patient.id}`)}
                                                 className="w-9 h-9 rounded-xl flex items-center justify-center bg-slate-100 dark:bg-slate-800 text-slate-400 hover:bg-emerald-500 hover:text-white transition-all shadow-sm"
-                                                title="Full Patient Record"
+                                                title="Full Client Record"
                                             >
                                                 <EditIcon />
                                             </button>

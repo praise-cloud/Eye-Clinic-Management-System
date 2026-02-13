@@ -110,6 +110,22 @@ contextBridge.exposeInMainWorld('electronAPI', {
         const subscription = (event, data) => callback(data);
         ipcRenderer.on('tests:imported', subscription);
         return () => ipcRenderer.removeListener('tests:imported', subscription);
+    },
+
+    // Prescription APIs
+    createPrescription: (data) => ipcRenderer.invoke('prescriptions:create', data),
+    getPrescriptionsByPatient: (patientId) => ipcRenderer.invoke('prescriptions:getByPatient', patientId),
+    getPendingPrescriptions: () => ipcRenderer.invoke('prescriptions:getPending'),
+    updatePrescriptionStatus: (data) => ipcRenderer.invoke('prescriptions:updateStatus', data),
+
+    // Notification APIs
+    getNotifications: (userId) => ipcRenderer.invoke('notifications:getAll', userId),
+    markNotificationRead: (id) => ipcRenderer.invoke('notifications:markRead', id),
+    markAllNotificationsRead: (userId) => ipcRenderer.invoke('notifications:markAllRead', userId),
+    onNewNotification: (callback) => {
+        const subscription = (event, data) => callback(data);
+        ipcRenderer.on('notifications:new', subscription);
+        return () => ipcRenderer.removeListener('notifications:new', subscription);
     }
 });
 

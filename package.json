@@ -4,7 +4,7 @@
   "description": "Visual Field Test Management System for Eye Clinics",
   "main": "electron/main.js",
   "scripts": {
-    "dev": "concurrently \"vite --port 3000\" \"wait-on http://localhost:3000 && cross-env NODE_ENV=development electron .\"",
+    "dev": "concurrently \"vite --port 5173\" \"wait-on http://localhost:5173 && cross-env NODE_ENV=development electron .\"",
     "build": "vite build",
     "make": "electron-builder",
     "build-renderer": "vite build",

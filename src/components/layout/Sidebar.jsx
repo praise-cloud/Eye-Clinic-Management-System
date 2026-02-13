@@ -4,14 +4,12 @@ import {
   UsersIcon,
   InventoryIcon,
   DocumentIcon,
-  ScheduleIcon,
-  ReportIcon,
   LogoutIcon,
-  PharmacyIcon,
   ChartIcon,
   GearIcon,
   DrugIcon,
-  PackageIcon
+  PackageIcon,
+  ChatIcon
 } from '../Icons';
 import useUser from '../../hooks/useUser'
 import { useSystemConfig } from '../../context/SystemConfigContext'
@@ -35,6 +33,7 @@ const Sidebar = ({ activeSection, onSectionClick, currentUser }) => {
   const adminSidebarItems = [
     { id: 'overview', name: 'Overview', icon: <ChartIcon className="w-5 h-5" /> },
     { id: 'users', name: 'User Management', icon: <UsersIcon className="w-5 h-5" /> },
+    { id: 'revenue-analysis', name: 'Financial Oversight', icon: <DrugIcon className="w-5 h-5" /> },
     { id: 'system-settings', name: 'System Settings', icon: <GearIcon className="w-5 h-5" /> },
     { id: 'logout', name: 'Logout', icon: <LogoutIcon className="w-5 h-5" /> },
   ];

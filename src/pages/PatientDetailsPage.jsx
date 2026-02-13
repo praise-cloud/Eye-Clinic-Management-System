@@ -5,6 +5,7 @@ import * as patientService from '../services/patientService';
 import * as testService from '../services/testService';
 import EditTestModal from '../components/modals/EditTestModal';
 import LoadingScreen from '../components/LoadingScreen';
+import usePrescriptions from '../hooks/usePrescriptions';
 
 const PatientDetailsPage = () => {
     const { id } = useParams();
@@ -21,6 +22,7 @@ const PatientDetailsPage = () => {
     const [showEditModal, setShowEditModal] = useState(false);
     const [viewingTest, setViewingTest] = useState(null);
     const [deleteConfirm, setDeleteConfirm] = useState(null);
+    const { prescriptions, fetchPatientPrescriptions, loading: prescriptionsLoading } = usePrescriptions();
     const activeRefs = useRef({});
     const setCardRef = useCallback((tid, node) => {
         if (node) activeRefs.current[tid] = node;
@@ -71,8 +73,14 @@ const PatientDetailsPage = () => {
                 setTestsLoading(false);
             }
         };
-        if (id) fetchPatientTests();
-    }, [id]);
+        const fetchPrescriptions = async () => {
+            await fetchPatientPrescriptions(id);
+        };
+        if (id) {
+            fetchPatientTests();
+            fetchPrescriptions();
+        }
+    }, [id, fetchPatientPrescriptions]);
 
     useEffect(() => {
         if (selectedTestId && tests.length) {
@@ -204,11 +212,11 @@ const PatientDetailsPage = () => {
                                                 </div>
                                             </div>
                                         </div>
-                                           <div className="flex py-4">
-                                             <span className={`inline-flex px-4 py-2 text-xs font-semibold rounded-full ${getResultColor(t.result)}`}>
+                                        <div className="flex py-4">
+                                            <span className={`inline-flex px-4 py-2 text-xs font-semibold rounded-full ${getResultColor(t.result)}`}>
                                                 {t.result}
                                             </span>
-                                           </div>
+                                        </div>
                                         <div className="flex flex-wrap items-center gap-2">
                                             <button
                                                 className="px-4 py-2 text-xs font-bold rounded-lg bg-slate-300 text-slate-700 hover:bg-slate-200"
@@ -236,15 +244,15 @@ const PatientDetailsPage = () => {
                                                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Modality</label>
                                                 <p className="text-sm font-bold text-slate-900 dark:text-white">{t.testType}</p>
                                             </div>
-                                        {t.imageData ? (
-                                            <div className="mt-2">
-                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Image</label>
-                                                <div className="rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800">
-                                                    <img src={t.imageData} alt={t.fileName || 'Test Image'} className={`w-full ${String(t.id) === String(editingTestId) ? 'h-80' : 'h-56'} object-cover transition-transform duration-300 group-hover:scale-[1.02]`} />
+                                            {t.imageData ? (
+                                                <div className="mt-2">
+                                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Image</label>
+                                                    <div className="rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800">
+                                                        <img src={t.imageData} alt={t.fileName || 'Test Image'} className={`w-full ${String(t.id) === String(editingTestId) ? 'h-80' : 'h-56'} object-cover transition-transform duration-300 group-hover:scale-[1.02]`} />
+                                                    </div>
+                                                    {t.fileName && <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-2">File: <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300">{t.fileName}</span></p>}
                                                 </div>
-                                                {t.fileName && <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-2">File: <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300">{t.fileName}</span></p>}
-                                            </div>
-                                        ) : null}
+                                            ) : null}
                                             <div>
                                                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Notes</label>
                                                 <p className="text-sm font-medium text-slate-600 dark:text-slate-400 truncate">{t.notes || '—'}</p>
@@ -253,6 +261,64 @@ const PatientDetailsPage = () => {
                                     </div>
                                 </div>
                             ))}
+                        </div>
+                    )}
+                </div>
+
+                {/* Medication History Section */}
+                <div>
+                    <div>
+                        <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">Medication History</h2>
+                        <p className="text-sm text-slate-500 font-medium mt-1">Prescribed drugs and medication history for this client</p>
+                    </div>
+                </div>
+                <div className="card-premium overflow-hidden">
+                    {prescriptionsLoading ? (
+                        <div className="flex justify-center items-center py-16">
+                            <div className="w-10 h-10 border-4 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
+                        </div>
+                    ) : prescriptions.length === 0 ? (
+                        <div className="p-10 text-center">
+                            <p className="text-sm font-bold text-slate-600 dark:text-slate-400">No prescription history found</p>
+                        </div>
+                    ) : (
+                        <div className="overflow-x-auto">
+                            <table className="min-w-full text-left">
+                                <thead>
+                                    <tr className="bg-slate-50/50 dark:bg-slate-800/30 border-b border-slate-100 dark:border-slate-800 font-black text-[10px] text-slate-400 uppercase tracking-widest">
+                                        <th className="px-8 py-5">Medication</th>
+                                        <th className="px-8 py-5">Quantity</th>
+                                        <th className="px-8 py-5">Prescribed By</th>
+                                        <th className="px-8 py-5">Status</th>
+                                        <th className="px-8 py-5">Instructions</th>
+                                        <th className="px-8 py-5 text-right">Date</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                    {prescriptions.map((p) => (
+                                        <tr key={p.id} className="hover:bg-slate-50/50 dark:hover:bg-amber-900/10 transition-colors">
+                                            <td className="px-8 py-6">
+                                                <p className="text-sm font-bold text-slate-900 dark:text-white leading-tight">{p.drug_name}</p>
+                                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">{p.strength}</p>
+                                            </td>
+                                            <td className="px-8 py-6 text-sm font-medium text-slate-600 dark:text-slate-400">{p.quantity} Units</td>
+                                            <td className="px-8 py-6 text-sm font-medium text-slate-600 dark:text-slate-400">Dr. {p.doctor_first_name} {p.doctor_last_name}</td>
+                                            <td className="px-8 py-6">
+                                                <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest ${p.status === 'pending' ? 'bg-amber-100 text-amber-700' :
+                                                        p.status === 'dispensed' ? 'bg-emerald-100 text-emerald-700' :
+                                                            'bg-rose-100 text-rose-700'
+                                                    }`}>
+                                                    {p.status}
+                                                </span>
+                                            </td>
+                                            <td className="px-8 py-6 text-xs text-slate-500 italic max-w-xs truncate">{p.instructions || 'No instructions'}</td>
+                                            <td className="px-8 py-6 text-[10px] font-black text-slate-400 text-right uppercase tracking-widest">
+                                                {new Date(p.created_at).toLocaleDateString()}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
                         </div>
                     )}
                 </div>

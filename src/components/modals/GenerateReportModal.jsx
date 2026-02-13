@@ -55,7 +55,7 @@ const GenerateReportModal = ({ onClose, currentUser }) => {
 
     try {
       if (!formData.patientId || !formData.reportType) {
-        throw new Error('Patient and report type are required')
+        throw new Error('Client and report type are required')
       }
 
       if (formData.dateFrom && formData.dateTo && formData.dateFrom > formData.dateTo) {
@@ -74,7 +74,7 @@ const GenerateReportModal = ({ onClose, currentUser }) => {
         setTimeout(() => {
           setGeneratedReport({
             title: formData.reportType,
-            patientName: patients.find(p => p.id === formData.patientId)?.name || 'Patient',
+            patientName: patients.find(p => p.id === formData.patientId)?.name || 'Client',
             generatedAt: new Date().toISOString(),
             pageCount: 3,
             content: 'PDF_DUMMY_CONTENT',

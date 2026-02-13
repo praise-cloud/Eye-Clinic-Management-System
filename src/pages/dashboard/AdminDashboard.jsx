@@ -13,6 +13,7 @@ const AdminDashboard = () => {
   const { isDark, toggleTheme } = useTheme();
   const { config, toggleConfig, updateMultipleConfig } = useSystemConfig();
   const [activeTab, setActiveTab] = useState('overview');
+  const [revenueLog, setRevenueLog] = useState([]);
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [configForm, setConfigForm] = useState({});
   const [userSearchTerm, setUserSearchTerm] = useState('');
@@ -37,6 +38,8 @@ const AdminDashboard = () => {
   const handleSectionClick = (section) => {
     if (section === 'system-settings') {
       setActiveTab('settings');
+    } else if (section === 'revenue-analysis') {
+      setActiveTab('finance');
     } else {
       setActiveTab(section);
     }
@@ -101,6 +104,24 @@ const AdminDashboard = () => {
       }
     } catch (error) {
       console.error('Error loading activity logs:', error);
+    }
+  };
+
+  const loadRevenueLogs = async () => {
+    if (!window.electronAPI || !window.electronAPI.getActivityLogs) return;
+    try {
+      const res = await window.electronAPI.getActivityLogs({});
+      if (res?.success && Array.isArray(res.logs)) {
+        // Filter for pharmacy related actions
+        const filtered = res.logs.filter(log =>
+          log.entity_type === 'prescription' ||
+          log.entity_type === 'pharmacy_dispensation' ||
+          log.action_type === 'dispense'
+        );
+        setRevenueLog(filtered);
+      }
+    } catch (error) {
+      console.error('Error loading revenue logs:', error);
     }
   };
 
@@ -232,12 +253,14 @@ const AdminDashboard = () => {
     fetchUsers();
     loadStats();
     loadActivityLogs();
+    loadRevenueLogs();
 
     if (window.electronAPI) {
       const unsubscribe = window.electronAPI.onIpcEvent('data:update', (payload) => {
         fetchUsers();
         loadStats();
         loadActivityLogs();
+        loadRevenueLogs();
       });
       return unsubscribe;
     }
@@ -506,6 +529,51 @@ const AdminDashboard = () => {
     );
   };
 
+  const renderFinancialOversight = () => (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="card-premium p-6 bg-emerald-50 dark:bg-emerald-900/10 border-emerald-100 dark:border-emerald-800">
+          <p className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest">Aggregate Monthly Revenue</p>
+          <h3 className="text-3xl font-black text-slate-900 dark:text-white mt-2">₦{stats.monthlyRevenue?.toLocaleString()}</h3>
+        </div>
+        <div className="card-premium p-6 bg-indigo-50 dark:bg-indigo-900/10 border-indigo-100 dark:border-indigo-800">
+          <p className="text-[10px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-widest">Active Transactions</p>
+          <h3 className="text-3xl font-black text-slate-900 dark:text-white mt-2">{revenueLog.length}</h3>
+        </div>
+      </div>
+
+      <div className="card-premium overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
+          <h3 className="text-lg font-bold text-gray-900 dark:text-white">Pharmacy Transaction Ledger</h3>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+            <thead className="bg-gray-100 dark:bg-gray-700 font-bold text-[10px] uppercase tracking-widest text-gray-500">
+              <tr>
+                <th className="px-6 py-4 text-left">Timestamp</th>
+                <th className="px-6 py-4 text-left">Entity</th>
+                <th className="px-6 py-4 text-left">Description</th>
+                <th className="px-6 py-4 text-left">Agent</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+              {revenueLog.map(log => (
+                <tr key={log.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                  <td className="px-6 py-4 text-xs font-medium text-gray-500">{new Date(log.timestamp).toLocaleString()}</td>
+                  <td className="px-6 py-4">
+                    <span className="px-2 py-1 bg-emerald-100 text-emerald-700 rounded text-[10px] font-bold uppercase">{log.entity_type}</span>
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-700 dark:text-gray-300">{log.description}</td>
+                  <td className="px-6 py-4 text-sm font-bold text-gray-900 dark:text-white">{log.first_name} {log.last_name}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+
   const renderSystemSettings = () => (
     <div className="space-y-10 max-w-5xl mx-auto pb-10">
       <div className="flex items-center justify-between mb-2">
@@ -693,6 +761,7 @@ const AdminDashboard = () => {
       <div>
         {activeTab === 'overview' && renderOverview()}
         {activeTab === 'users' && renderUserManagement()}
+        {activeTab === 'finance' && renderFinancialOversight()}
         {activeTab === 'settings' && renderSystemSettings()}
       </div>
 

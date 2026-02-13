@@ -178,9 +178,9 @@ const UploadTestModal = ({ onClose, currentUser }) => {
           <div className="space-y-8">
             {/* Subject Selection */}
             <div>
-              <label className="block text-[10px] font-black text-indigo-500 uppercase tracking-widest mb-4">Diagnostic Subject</label>
+              <label className="block text-[10px] font-black text-indigo-500 uppercase tracking-widest mb-4">Diagnostic Client</label>
               <div className="flex flex-col">
-                <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Select Registered Patient *</label>
+                <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Select Registered Client *</label>
                 <select
                   name="patientId"
                   value={formData.patientId}
@@ -188,7 +188,7 @@ const UploadTestModal = ({ onClose, currentUser }) => {
                   required
                   className="input-premium appearance-none"
                 >
-                  <option value="">Choose patient...</option>
+                  <option value="">Choose client...</option>
                   {patients.map(patient => (
                     <option key={patient.id} value={patient.id}>
                       {patient.name || `${patient.first_name || ''} ${patient.last_name || ''}`.trim()} — {patient.id}

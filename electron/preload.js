@@ -105,6 +105,23 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getOnlineUsers: () => ipcRenderer.invoke('presence:getOnlineUsers'),
     getUsersWithPresence: () => ipcRenderer.invoke('presence:getUsersWithPresence'),
 
+    // Prescription APIs
+    getPrescriptionsByPatient: (patientId) => ipcRenderer.invoke('prescriptions:getByPatient', patientId),
+    getPendingPrescriptions: () => ipcRenderer.invoke('prescriptions:getPending'),
+    createPrescription: (data) => ipcRenderer.invoke('prescriptions:create', data),
+    createMultiplePrescriptions: (data) => ipcRenderer.invoke('prescriptions:createMultiple', data),
+    updatePrescriptionStatus: (data) => ipcRenderer.invoke('prescriptions:updateStatus', data),
+
+    // Notification APIs
+    getNotifications: (userId) => ipcRenderer.invoke('notifications:getAll', userId),
+    markNotificationRead: (id) => ipcRenderer.invoke('notifications:markRead', id),
+    markAllNotificationsRead: (userId) => ipcRenderer.invoke('notifications:markAllRead', userId),
+    onNewNotification: (callback) => {
+        const subscription = (event, data) => callback(data);
+        ipcRenderer.on('notifications:new', subscription);
+        return () => ipcRenderer.removeListener('notifications:new', subscription);
+    },
+
     // Generic IPC event listeners
     onIpcEvent: (channel, callback) => {
         const subscription = (event, data) => callback(data);

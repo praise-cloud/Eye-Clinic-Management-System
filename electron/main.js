@@ -10,7 +10,7 @@ let dbInstance = null;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 1400,
+    width: 1500,
     height: 900,
     show: false,
     webPreferences: {
@@ -25,8 +25,10 @@ function createWindow() {
 
   // Ensure helpful logs for production mode
   if (isDev) {
-    console.log('Running in development mode. Loading from localhost:3000');
-    mainWindow.loadURL('http://localhost:3000');
+    console.log('Running in development mode. Loading from localhost:5173');
+    mainWindow.loadURL('http://localhost:5173');
+    // Open DevTools automatically to debug any white screens
+    mainWindow.webContents.openDevTools();
   } else {
     const indexPath = path.join(__dirname, '../dist/index.html');
     console.log('Running in production mode. Loading from:', indexPath);

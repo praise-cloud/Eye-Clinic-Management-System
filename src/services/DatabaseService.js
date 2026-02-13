@@ -724,6 +724,36 @@ class DatabaseService {
         return result;
     }
 
+    async createMultiplePrescriptions(patientId, doctorId, items) {
+        const db = await this.getDatabase();
+        await db.run('BEGIN TRANSACTION');
+        try {
+            const results = [];
+            for (const item of items) {
+                const id = require('uuid').v4();
+                await db.run(
+                    `INSERT INTO prescriptions (id, patient_id, doctor_id, drug_id, quantity, instructions, status, created_at, updated_at)
+                     VALUES (?, ?, ?, ?, ?, ?, 'pending', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+                    [id, patientId, doctorId, item.drugId, item.quantity, item.instructions || null]
+                );
+
+                const created = await db.get(`
+                    SELECT p.*, d.drug_name, d.drug_code, d.strength, u.first_name as doctor_first_name, u.last_name as doctor_last_name
+                    FROM prescriptions p
+                    JOIN pharmacy_drugs d ON p.drug_id = d.id
+                    JOIN users u ON p.doctor_id = u.id
+                    WHERE p.id = ?
+                `, [id]);
+                results.push(created);
+            }
+            await db.run('COMMIT');
+            return { success: true, prescriptions: results };
+        } catch (error) {
+            await db.run('ROLLBACK');
+            throw error;
+        }
+    }
+
     async getPrescriptionsByPatient(patientId) {
         const db = await this.getDatabase();
         const query = `
@@ -755,13 +785,96 @@ class DatabaseService {
 
     async updatePrescriptionStatus(id, status, userId) {
         const db = await this.getDatabase();
-        const query = `
-            UPDATE prescriptions
-            SET status = ?, updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
-        `;
-        await db.run(query, [status, id]);
-        return { id, status };
+
+        if (status === 'dispensed') {
+            await db.run('BEGIN TRANSACTION');
+            try {
+                // Fetch prescription detail with drug and patient info
+                const presc = await db.get(`
+                    SELECT p.*, d.drug_name, d.unit_price, d.current_quantity,
+                           pat.first_name as pat_fname, pat.last_name as pat_lname
+                    FROM prescriptions p
+                    JOIN pharmacy_drugs d ON p.drug_id = d.id
+                    JOIN patients pat ON p.patient_id = pat.id
+                    WHERE p.id = ?
+                `, [id]);
+
+                if (!presc) throw new Error('Prescription not found');
+                if (presc.status === 'dispensed') throw new Error('Prescription already dispensed');
+
+                const prescQty = Number(presc.quantity || 0);
+                const currentStock = Number(presc.current_quantity || 0);
+
+                if (prescQty > currentStock) {
+                    throw new Error(`Insufficient stock. Available: ${currentStock}, Required: ${prescQty}`);
+                }
+
+                // 1. Update Prescription Status
+                await db.run('UPDATE prescriptions SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [status, id]);
+
+                // 2. Deduct Stock
+                const newStock = currentStock - prescQty;
+                await db.run('UPDATE pharmacy_drugs SET current_quantity = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [newStock, presc.drug_id]);
+
+                // 3. Record Dispensation
+                const dispId = require('uuid').v4();
+                const totalAmount = prescQty * (Number(presc.unit_price) || 0);
+                await db.run(
+                    `INSERT INTO pharmacy_dispensations (id, drug_id, patient_id, quantity, total_amount, user_id, notes, created_at, updated_at)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+                    [dispId, presc.drug_id, presc.patient_id, prescQty, totalAmount, userId, `Fulfillment for prescription ${id}`]
+                );
+
+                // 4. Record Revenue
+                if (totalAmount > 0) {
+                    await this.recordRevenue({
+                        source: 'pharmacy',
+                        source_id: dispId,
+                        amount: totalAmount,
+                        userId,
+                        description: `Fulfillment: ${prescQty} units of ${presc.drug_name} for ${presc.pat_fname} ${presc.pat_lname}`,
+                        meta: { prescriptionId: id, drugId: presc.drug_id, patientId: presc.patient_id }
+                    });
+                }
+
+                // 5. Log Activity
+                await this.logActivity(
+                    userId,
+                    'dispense',
+                    'prescription',
+                    id,
+                    `Dispensed ${prescQty} units of ${presc.drug_name} to ${presc.pat_fname} ${presc.pat_lname}`
+                );
+
+                await db.run('COMMIT');
+                return { id, status, success: true };
+            } catch (error) {
+                console.error('Dispensing transaction failed:', error);
+                try {
+                    await db.run('ROLLBACK');
+                } catch (rbError) {
+                    console.error('Rollback failed:', rbError);
+                }
+                throw error;
+            }
+        } else {
+            const query = `
+                UPDATE prescriptions
+                SET status = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            `;
+            await db.run(query, [status, id]);
+
+            await this.logActivity(
+                userId,
+                'update',
+                'prescription',
+                id,
+                `Updated prescription status to ${status}`
+            );
+
+            return { id, status, success: true };
+        }
     }
 
     // Notification Management
@@ -856,6 +969,10 @@ class DatabaseService {
             "SELECT COUNT(*) as count FROM tests WHERE raw_data IS NULL OR TRIM(raw_data) = '' OR TRIM(raw_data) = '{}'"
         );
 
+        const fulfilledPrescriptionsRow = await db.get(
+            "SELECT COUNT(*) as count FROM prescriptions WHERE status = 'dispensed'"
+        );
+
         const monthTests = await db.all(
             "SELECT test_date, raw_data FROM tests WHERE strftime('%Y-%m', test_date) = strftime('%Y-%m','now','localtime')"
         );
@@ -869,7 +986,7 @@ class DatabaseService {
         }
 
         const revenueRow = await db.get(
-            "SELECT COALESCE(SUM(amount), 0) as total FROM revenue WHERE strftime('%Y-%m', timestamp) = strftime('%Y-%m','now','localtime')"
+            "SELECT COALESCE(SUM(amount), 0) as total FROM revenue WHERE strftime('%Y-%m', timestamp) = strftime('%Y-%m','now','utc')"
         );
         const revenueTotal = revenueRow && typeof revenueRow.total === 'number'
             ? revenueRow.total
@@ -897,6 +1014,7 @@ class DatabaseService {
             totalInventory: inventoryRow?.count || 0,
             todayAppointments: todayAppointmentsRow?.count || 0,
             pendingTests: pendingTestsRow?.count || 0,
+            totalFulfilledPrescriptions: fulfilledPrescriptionsRow?.count || 0,
             pendingAppointments,
             monthlyRevenue
         };

@@ -314,7 +314,7 @@ const DashboardContent = ({ activeSection }) => {
                   </div>
                   <div>
                     <h3 className="text-2xl font-black tracking-tight">{viewingClient.name}</h3>
-                    <p className="text-white/70 font-bold uppercase text-[10px] tracking-widest mt-1">Patient Profile</p>
+                    <p className="text-white/70 font-bold uppercase text-[10px] tracking-widest mt-1">Client Profile</p>
                   </div>
                 </div>
                 <button
@@ -329,11 +329,11 @@ const DashboardContent = ({ activeSection }) => {
             <div className="p-8 space-y-6 bg-white dark:bg-slate-900">
               <div className="grid grid-cols-2 gap-6">
                 <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Registration ID</label>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Client ID</label>
                   <p className="text-sm font-bold text-slate-900 dark:text-white">#{viewingClient.id.toString().slice(-6)}</p>
                 </div>
                 <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Patient Contact</label>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Client Contact</label>
                   <p className="text-sm font-bold text-slate-900 dark:text-white">{viewingClient.phone}</p>
                 </div>
               </div>

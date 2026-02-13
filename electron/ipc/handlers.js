@@ -863,6 +863,164 @@ class IPCHandlers {
     });
   }
 
+  registerPrescriptionHandlers() {
+    ipcMain.handle('prescriptions:create', async (event, prescriptionData) => {
+      try {
+        const required = ['patientId', 'doctorId', 'drugId', 'quantity'];
+        for (const f of required) {
+          if (!prescriptionData[f]) return { success: false, error: `${f} required` };
+        }
+
+        const prescription = await DatabaseService.createPrescription(prescriptionData);
+
+        // Notify assistants about the new prescription
+        const assistants = await DatabaseService.getAllUsers();
+        const assistantUsers = assistants.filter(u => u.role === 'assistant');
+
+        for (const assistant of assistantUsers) {
+          await DatabaseService.createNotification({
+            userId: assistant.id,
+            title: 'New Prescription',
+            message: `New prescription for ${prescription.drug_name} has been created for a patient.`,
+            type: 'prescription_new',
+            relatedId: prescription.id
+          });
+
+          // Trigger real-time notification
+          BrowserWindow.getAllWindows().forEach(w =>
+            w.webContents.send('notifications:new', { userId: assistant.id })
+          );
+        }
+
+        BrowserWindow.getAllWindows().forEach(w =>
+          w.webContents.send('data:update', { table: 'prescriptions', action: 'create', record: prescription })
+        );
+
+        return { success: true, prescription };
+      } catch (error) {
+        console.error('Create prescription error:', error);
+        return buildErrorResponse(error, { scope: 'prescriptions', action: 'create', entity: 'prescription' });
+      }
+    });
+
+    ipcMain.handle('prescriptions:createMultiple', async (event, { patientId, doctorId, items }) => {
+      try {
+        if (!patientId || !doctorId || !items || !Array.isArray(items)) {
+          return { success: false, error: 'patientId, doctorId and items array required' };
+        }
+
+        const result = await DatabaseService.createMultiplePrescriptions(patientId, doctorId, items);
+
+        // Notify assistants about the new prescriptions
+        const assistants = await DatabaseService.getAllUsers();
+        const assistantUsers = assistants.filter(u => u.role === 'assistant');
+
+        for (const prescription of result.prescriptions) {
+          for (const assistant of assistantUsers) {
+            await DatabaseService.createNotification({
+              userId: assistant.id,
+              title: 'New Prescription',
+              message: `New prescription for ${prescription.drug_name} has been created.`,
+              type: 'prescription_new',
+              relatedId: prescription.id
+            });
+
+            BrowserWindow.getAllWindows().forEach(w =>
+              w.webContents.send('notifications:new', { userId: assistant.id })
+            );
+          }
+        }
+
+        BrowserWindow.getAllWindows().forEach(w =>
+          w.webContents.send('data:update', { table: 'prescriptions', action: 'createMultiple', records: result.prescriptions })
+        );
+
+        return result;
+      } catch (error) {
+        console.error('Create multiple prescriptions error:', error);
+        return buildErrorResponse(error, { scope: 'prescriptions', action: 'createMultiple', entity: 'prescription' });
+      }
+    });
+
+    ipcMain.handle('prescriptions:getByPatient', async (event, patientId) => {
+      try {
+        if (!patientId) return { success: false, error: 'Patient ID required' };
+        const prescriptions = await DatabaseService.getPrescriptionsByPatient(patientId);
+        return { success: true, prescriptions };
+      } catch (error) {
+        console.error('Get patient prescriptions error:', error);
+        return buildErrorResponse(error, { scope: 'prescriptions', action: 'getByPatient', entity: 'prescription' });
+      }
+    });
+
+    ipcMain.handle('prescriptions:getPending', async () => {
+      try {
+        const prescriptions = await DatabaseService.getPendingPrescriptions();
+        return { success: true, prescriptions };
+      } catch (error) {
+        console.error('Get pending prescriptions error:', error);
+        return buildErrorResponse(error, { scope: 'prescriptions', action: 'getPending', entity: 'prescription' });
+      }
+    });
+
+    ipcMain.handle('prescriptions:updateStatus', async (event, { id, status, userId }) => {
+      try {
+        if (!id || !status) return { success: false, error: 'ID and status required' };
+        const result = await DatabaseService.updatePrescriptionStatus(id, status, userId);
+
+        BrowserWindow.getAllWindows().forEach(w => {
+          w.webContents.send('data:update', { table: 'prescriptions', action: 'update', recordId: id, status });
+          // If dispensed, also notify pharmacy listeners to refresh stock levels
+          if (status === 'dispensed') {
+            w.webContents.send('data:update', { table: 'pharmacy', action: 'update' });
+          }
+        });
+
+        return { success: true, ...result };
+      } catch (error) {
+        console.error('Update prescription status error:', error);
+        return buildErrorResponse(error, { scope: 'prescriptions', action: 'updateStatus', entity: 'prescription' });
+      }
+    });
+  }
+
+  registerNotificationHandlers() {
+    ipcMain.handle('notifications:getAll', async (event, userId) => {
+      try {
+        const id = userId || currentUser?.id;
+        if (!id) return { success: false, error: 'User ID required' };
+        const notifications = await DatabaseService.getNotificationsByUser(id);
+        return { success: true, notifications };
+      } catch (error) {
+        console.error('Get notifications error:', error);
+        return buildErrorResponse(error, { scope: 'notifications', action: 'getAll', entity: 'notification' });
+      }
+    });
+
+    ipcMain.handle('notifications:markRead', async (event, id) => {
+      try {
+        if (!id) return { success: false, error: 'Notification ID required' };
+        const result = await DatabaseService.markNotificationRead(id);
+        return { success: true, ...result };
+      } catch (error) {
+        console.error('Mark notification read error:', error);
+        return buildErrorResponse(error, { scope: 'notifications', action: 'markRead', entity: 'notification' });
+      }
+    });
+
+    ipcMain.handle('notifications:markAllRead', async (event, userId) => {
+      try {
+        const id = userId || currentUser?.id;
+        if (!id) return { success: false, error: 'User ID required' };
+        await DatabaseService.markAllNotificationsRead(id);
+        return { success: true };
+      } catch (error) {
+        console.error('Mark all notifications read error:', error);
+        return buildErrorResponse(error, { scope: 'notifications', action: 'markAllRead', entity: 'notification' });
+      }
+    });
+  }
+
   registerAdminHandlers() {
     ipcMain.handle('admin:getAllUsers', async () => {
       try {
@@ -1296,7 +1454,7 @@ class IPCHandlers {
         if (win) {
           const isDev = process.env.NODE_ENV === 'development';
           if (isDev) {
-            await win.loadURL('http://localhost:3000/');
+            await win.loadURL('http://localhost:5173/');
           } else {
             await win.loadFile(path.join(__dirname, '../../dist/index.html'));
           }

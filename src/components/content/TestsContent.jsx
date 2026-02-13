@@ -27,7 +27,7 @@ const TestsContent = ({ clientName, clientId, additionalTests = DEFAULT_ADDITION
     return {
       id: test.id,
       patientId: test.patientId || test.patient_id,
-      patientName: test.patientName || clientName || 'Unknown Patient',
+      patientName: test.patientName || clientName || 'Unknown Client',
       testType: test.testType || 'Unknown',
       eye: test.eye || 'both',
       result: test.result || 'Pending',
@@ -151,7 +151,7 @@ const TestsContent = ({ clientName, clientId, additionalTests = DEFAULT_ADDITION
             <thead className="bg-gray-50 dark:bg-gray-700 py-5">
               <tr>
                 {(!clientId && !clientName) && (
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Patient Name</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Client Name</th>
                 )}
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Test Type</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Eye</th>
