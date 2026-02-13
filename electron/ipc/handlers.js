@@ -833,7 +833,7 @@ class IPCHandlers {
         }
 
         const userId = currentUser?.id || null;
-        const dispensation = await DatabaseService.createPharmacyDispensation({
+        const result = await DatabaseService.createPharmacyDispensation({
           drugId,
           patientId,
           quantity: qtyNumber,
@@ -846,16 +846,19 @@ class IPCHandlers {
             userId,
             'create',
             'pharmacy_dispensation',
-            dispensation.id,
+            result.dispensation.id,
             `Pharmacy dispensation recorded for drug ${drugId}`
           );
         }
 
-        BrowserWindow.getAllWindows().forEach(w =>
-          w.webContents.send('data:update', { table: 'pharmacy', action: 'dispense', record: dispensation })
-        );
+        BrowserWindow.getAllWindows().forEach(w => {
+          w.webContents.send('data:update', { table: 'pharmacy', action: 'dispense', record: result.dispensation });
+          if (result.linkedPrescriptionId) {
+            w.webContents.send('data:update', { table: 'prescriptions', action: 'update', recordId: result.linkedPrescriptionId, status: 'dispensed' });
+          }
+        });
 
-        return { success: true, dispensation };
+        return { success: true, dispensation: result.dispensation };
       } catch (error) {
         console.error('Pharmacy dispense error:', error);
         return buildErrorResponse(error, { scope: 'pharmacy', action: 'dispense', entity: 'pharmacy_dispensation' });
@@ -939,6 +942,17 @@ class IPCHandlers {
       } catch (error) {
         console.error('Create multiple prescriptions error:', error);
         return buildErrorResponse(error, { scope: 'prescriptions', action: 'createMultiple', entity: 'prescription' });
+      }
+    });
+
+    ipcMain.handle('prescriptions:getById', async (event, id) => {
+      try {
+        if (!id) return { success: false, error: 'Prescription ID required' };
+        const prescription = await DatabaseService.getPrescriptionById(id);
+        return { success: true, prescription };
+      } catch (error) {
+        console.error('Get prescription by ID error:', error);
+        return buildErrorResponse(error, { scope: 'prescriptions', action: 'getById', entity: 'prescription' });
       }
     });
 

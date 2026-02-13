@@ -80,6 +80,18 @@ const PatientDetailsPage = () => {
             fetchPatientTests();
             fetchPrescriptions();
         }
+
+        // Listen for real-time updates
+        if (window.electronAPI && window.electronAPI.onIpcEvent) {
+            const unsubscribe = window.electronAPI.onIpcEvent('data:update', (payload) => {
+                // Refresh if the update might affect this patient's data
+                if (!payload || payload.patient_id === id || ['prescriptions', 'tests', 'patients'].includes(payload.table)) {
+                    fetchPatientTests();
+                    fetchPrescriptions();
+                }
+            });
+            return unsubscribe;
+        }
     }, [id, fetchPatientPrescriptions]);
 
     useEffect(() => {
@@ -305,8 +317,8 @@ const PatientDetailsPage = () => {
                                             <td className="px-8 py-6 text-sm font-medium text-slate-600 dark:text-slate-400">Dr. {p.doctor_first_name} {p.doctor_last_name}</td>
                                             <td className="px-8 py-6">
                                                 <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest ${p.status === 'pending' ? 'bg-amber-100 text-amber-700' :
-                                                        p.status === 'dispensed' ? 'bg-emerald-100 text-emerald-700' :
-                                                            'bg-rose-100 text-rose-700'
+                                                    p.status === 'dispensed' ? 'bg-emerald-100 text-emerald-700' :
+                                                        'bg-rose-100 text-rose-700'
                                                     }`}>
                                                     {p.status}
                                                 </span>

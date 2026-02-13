@@ -107,6 +107,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
     // Prescription APIs
     getPrescriptionsByPatient: (patientId) => ipcRenderer.invoke('prescriptions:getByPatient', patientId),
+    getPrescriptionById: (id) => ipcRenderer.invoke('prescriptions:getById', id),
     getPendingPrescriptions: () => ipcRenderer.invoke('prescriptions:getPending'),
     createPrescription: (data) => ipcRenderer.invoke('prescriptions:create', data),
     createMultiplePrescriptions: (data) => ipcRenderer.invoke('prescriptions:createMultiple', data),

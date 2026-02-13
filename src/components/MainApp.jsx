@@ -21,6 +21,7 @@ import AdminDashboard from '../pages/dashboard/AdminDashboard'
 import CreateInventoryItemScreen from '../pages/CreateInventoryItemScreen'
 import ViewInventoryItemScreen from '../pages/ViewInventoryItemScreen'
 import PatientDetailsPage from '../pages/PatientDetailsPage'
+import DispenseModal from './modals/DispenseModal'
 
 
 const MainApp = () => {
@@ -34,6 +35,7 @@ const MainApp = () => {
     generateReport: false,
     newMessage: false
   });
+  const [dispensePrescriptionId, setDispensePrescriptionId] = useState(null);
 
   // Create a ref to trigger patient list refresh
   const patientsContentRef = useRef(null);
@@ -77,7 +79,12 @@ const MainApp = () => {
     navigate(`/${section === 'dashboard' ? '' : section}`);
   };
 
-  const handleActionClick = () => {
+  const handleActionClick = (type, data) => {
+    if (type === 'dispense') {
+      setDispensePrescriptionId(data);
+      return;
+    }
+
     const modalMap = {
       patients: 'addPatient',
       tests: 'uploadTest',
@@ -178,6 +185,17 @@ const MainApp = () => {
       {modals.uploadTest && <UploadTestModal onClose={() => closeModal('uploadTest')} />}
       {modals.generateReport && <GenerateReportModal onClose={() => closeModal('generateReport')} />}
       {modals.newMessage && <NewMessageModal onClose={() => closeModal('newMessage')} />}
+
+      {dispensePrescriptionId && (
+        <DispenseModal
+          prescriptionId={dispensePrescriptionId}
+          onClose={() => setDispensePrescriptionId(null)}
+          onDispensed={() => {
+            // Trigger stats refresh or other updates if needed
+            // The status update already emits 'data:update'
+          }}
+        />
+      )}
     </>
   );
 }

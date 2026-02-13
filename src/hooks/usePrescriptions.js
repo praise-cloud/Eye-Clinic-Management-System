@@ -42,6 +42,26 @@ export default function usePrescriptions() {
         }
     }, []);
 
+    const fetchPrescriptionById = useCallback(async (id) => {
+        setLoading(true);
+        setError(null);
+        try {
+            const result = await window.electronAPI.getPrescriptionById(id);
+            if (result.success) {
+                return result.prescription;
+            } else {
+                setError(result.error);
+                return null;
+            }
+        } catch (err) {
+            console.error('Error fetching prescription by ID:', err);
+            setError(err.message);
+            return null;
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
     const createPrescription = useCallback(async (data) => {
         setError(null);
         try {
@@ -114,6 +134,7 @@ export default function usePrescriptions() {
         error,
         fetchPatientPrescriptions,
         fetchPendingPrescriptions,
+        fetchPrescriptionById,
         createPrescription,
         createMultiplePrescriptions,
         updateStatus

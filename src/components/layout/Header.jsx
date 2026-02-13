@@ -44,8 +44,9 @@ const Header = ({ activeSection, currentUser, searchTerm, onSearchChange, onSect
 
   const handleNotificationClick = (n) => {
     markAsRead(n.id);
-    if (n.type === 'prescription_new' && onSectionClick) {
-      onSectionClick('pharmacy');
+    if (n.type === 'prescription_new') {
+      if (onSectionClick) onSectionClick('pharmacy');
+      if (onActionClick) onActionClick('dispense', n.related_id);
     }
     setShowNotifications(false);
   };

@@ -673,11 +673,30 @@ class DatabaseService {
                 });
             }
 
+            // Check for any pending prescriptions for this patient and drug
+            let linkedPrescriptionId = null;
+            const pendingPrescription = await db.get(
+                "SELECT id FROM prescriptions WHERE patient_id = ? AND drug_id = ? AND status = 'pending' ORDER BY created_at ASC LIMIT 1",
+                [patientId, drugId]
+            );
+
+            if (pendingPrescription) {
+                linkedPrescriptionId = pendingPrescription.id;
+                await db.run(
+                    "UPDATE prescriptions SET status = 'dispensed', updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                    [linkedPrescriptionId]
+                );
+            }
+
             await db.run('COMMIT');
 
             const updatedDrug = await db.get('SELECT * FROM pharmacy_drugs WHERE id = ?', [drugId]);
+
             return {
                 id,
+                dispensation: { id, drug_id: drugId, patient_id: patientId, quantity: numericQuantity, total_amount: totalAmount, user_id: userId, notes: notes || null, created_at: new Date().toISOString() },
+                linkedPrescriptionId,
+                success: true,
                 drug: updatedDrug,
                 total_amount: totalAmount,
                 quantity: numericQuantity
@@ -781,6 +800,21 @@ class DatabaseService {
             ORDER BY p.created_at DESC
         `;
         return await db.all(query);
+    }
+
+    async getPrescriptionById(id) {
+        const db = await this.getDatabase();
+        const query = `
+            SELECT p.*, d.drug_name, d.drug_code, d.strength, d.unit_price, d.current_quantity,
+                   u.first_name as doctor_first_name, u.last_name as doctor_last_name,
+                   pat.first_name as patient_first_name, pat.last_name as patient_last_name
+            FROM prescriptions p
+            JOIN pharmacy_drugs d ON p.drug_id = d.id
+            JOIN users u ON p.doctor_id = u.id
+            JOIN patients pat ON p.patient_id = pat.id
+            WHERE p.id = ?
+        `;
+        return await db.get(query, [id]);
     }
 
     async updatePrescriptionStatus(id, status, userId) {
@@ -986,7 +1020,7 @@ class DatabaseService {
         }
 
         const revenueRow = await db.get(
-            "SELECT COALESCE(SUM(amount), 0) as total FROM revenue WHERE strftime('%Y-%m', timestamp) = strftime('%Y-%m','now','utc')"
+            "SELECT COALESCE(SUM(amount), 0) as total FROM revenue WHERE strftime('%Y-%m', timestamp) = strftime('%Y-%m','now','localtime')"
         );
         const revenueTotal = revenueRow && typeof revenueRow.total === 'number'
             ? revenueRow.total

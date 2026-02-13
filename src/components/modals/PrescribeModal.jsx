@@ -4,7 +4,7 @@ import usePrescriptions from '../../hooks/usePrescriptions'
 
 const PrescribeModal = ({ onClose, currentUser, initialPatientId = '' }) => {
     const { drugs, fetchDrugs, loading: drugsLoading } = usePharmacy()
-    const { createMultiplePrescriptions } = usePrescriptions()
+    const { createMultiplePrescriptions, createPrescription } = usePrescriptions()
     const [patients, setPatients] = useState([])
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState('')
@@ -79,42 +79,89 @@ const PrescribeModal = ({ onClose, currentUser, initialPatientId = '' }) => {
 
     const handleSubmit = async (e) => {
         e.preventDefault()
-        if (items.length === 0) {
-            setError('Please add at least one medication to the list')
-            return
-        }
-        if (!formData.patientId) {
-            setError('Please select a patient')
-            return
-        }
 
-        setLoading(true)
-        setError('')
-
-        try {
-            const result = await createMultiplePrescriptions(
-                formData.patientId,
-                currentUser?.id,
-                items.map(i => ({
-                    drugId: i.drugId,
-                    quantity: i.quantity,
-                    instructions: i.instructions
-                }))
-            )
-
-            if (result) {
-                setSuccess(true)
-                setTimeout(() => {
-                    onClose()
-                }, 1500)
-            } else {
-                throw new Error('Failed to create prescriptions')
+        // Mode 1: Multi-prescription commit
+        if (items.length > 0) {
+            if (!formData.patientId) {
+                setError('Please select a patient')
+                return
             }
-        } catch (err) {
-            setError(err.message)
-        } finally {
-            setLoading(false)
+
+            setLoading(true)
+            setError('')
+
+            try {
+                const result = await createMultiplePrescriptions(
+                    formData.patientId,
+                    currentUser?.id,
+                    items.map(i => ({
+                        drugId: i.drugId,
+                        quantity: i.quantity,
+                        instructions: i.instructions
+                    }))
+                )
+
+                if (result) {
+                    setSuccess(true)
+                    setTimeout(() => onClose(), 1500)
+                } else {
+                    throw new Error('Failed to create prescriptions')
+                }
+            } catch (err) {
+                setError(err.message)
+            } finally {
+                setLoading(false)
+            }
+            return
         }
+
+        // Mode 2: Single direct prescription
+        if (formData.drugId && formData.quantity) {
+            if (!formData.patientId) {
+                setError('Please select a patient')
+                return
+            }
+
+            const selectedDrug = drugs.find(d => d.id === formData.drugId)
+            if (selectedDrug && formData.quantity > selectedDrug.current_quantity) {
+                setError(`Insufficient stock. Only ${selectedDrug.current_quantity} available.`)
+                return
+            }
+
+            setLoading(true)
+            setError('')
+
+            try {
+                const result = await createPrescription({
+                    patientId: formData.patientId,
+                    doctorId: currentUser?.id,
+                    drugId: formData.drugId,
+                    quantity: parseInt(formData.quantity, 10),
+                    instructions: formData.instructions || ''
+                })
+
+                if (result) {
+                    setSuccess(true)
+                    setTimeout(() => onClose(), 1500)
+                } else {
+                    throw new Error('Failed to create prescription')
+                }
+            } catch (err) {
+                setError(err.message)
+            } finally {
+                setLoading(false)
+            }
+            return
+        }
+
+        setError('Please add a medication to the queue or select one to prescribe immediately')
+    }
+
+    const getButtonText = () => {
+        if (loading) return 'Processing...'
+        if (items.length > 0) return `Commit ${items.length} Prescriptions`
+        if (formData.drugId) return 'Prescribe Now'
+        return 'Prescribe'
     }
 
     return (
@@ -271,10 +318,10 @@ const PrescribeModal = ({ onClose, currentUser, initialPatientId = '' }) => {
                         </button>
                         <button
                             onClick={handleSubmit}
-                            disabled={loading || success || items.length === 0}
-                            className="flex-1 btn btn-primary py-3 text-[10px] font-black tracking-widest uppercase shadow-xl hover:scale-[1.02] active:scale-95 transition-all text-white bg-indigo-500 disabled:opacity-50"
+                            disabled={loading || success || (!items.length && !formData.drugId)}
+                            className={`flex-1 btn btn-primary py-3 text-[10px] font-black tracking-widest uppercase shadow-xl hover:scale-[1.02] active:scale-95 transition-all text-white ${items.length > 0 ? 'bg-indigo-500' : 'bg-emerald-500'} disabled:opacity-50`}
                         >
-                            {loading ? 'Processing...' : `Commit ${items.length} Prescriptions`}
+                            {getButtonText()}
                         </button>
                     </div>
                 </div>

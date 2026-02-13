@@ -36,6 +36,14 @@ const PharmacyContent = () => {
   useEffect(() => {
     fetchDrugs();
     fetchPatients();
+
+    if (window.electronAPI && window.electronAPI.onIpcEvent) {
+      const unsubscribe = window.electronAPI.onIpcEvent('data:update', () => {
+        fetchDrugs();
+        fetchPatients();
+      });
+      return unsubscribe;
+    }
   }, [fetchDrugs, fetchPatients]);
 
   const filteredDrugs = useMemo(() => {
