@@ -1,172 +1,137 @@
-# Eye Clinic Management System
+# Eye Clinic Management System (Korenye Eye Clinic)
 
-A comprehensive desktop application for managing eye clinic operations, built with Electron, React, and SQLite, with optional Supabase sync.
-
----
-
-## Table of Contents
-1. Features
-2. Quick Start & Setup
-3. Build & Packaging
-4. Delivery Checklist
-5. Pre-Delivery Audit
-6. Fixes & Cleanup
-7. Troubleshooting & Quick Fixes
-8. Database & Sync
-9. Real-Time Chat
-10. Dark Mode
-11. Project Structure
-12. Technology Stack
-13. License & Support
+A state-of-the-art, offline-first desktop application designed for comprehensive eye clinic management. Built with **Electron (v38)**, **React (v19)**, and **SQLite**, the system provides visual field test management, patient records, pharmacy inventory, and advanced reporting.
 
 ---
 
-## 1. Features
-- User Management: Admin, Doctor, Assistant roles
-- Patient Management: Complete records/history
-- Test Results: Visual field data
-- Reports: Generate/export patient reports
-- Inventory: Equipment/supplies tracking
-- Real-time Chat: Internal staff communication
-- Offline-First: Works without internet, syncs when online
-- Cloud Sync: Optional Supabase integration
-- Dark Mode: System-aware theme switching
-- Secure Authentication: Bcrypt password hashing
-- Data Backup: Automatic local backups
+## 🏗️ System Architecture
+
+The application utilizes a multi-process architecture to ensure performance, security, and a seamless desktop experience.
+
+```mermaid
+graph TD
+    subgraph "Main Process (Node.js)"
+        M[main.js] --> DB[(SQLite: eye_clinic.db)]
+        M --> IPC_H[IPCHandlers.js]
+        IPC_H --> DS[DatabaseService.js]
+        IPC_H --> FS[FileService.js]
+        M --> PL[preload.js]
+    end
+
+    subgraph "Renderer Process (Chromium)"
+        R[React App] --> V[Vite Dev Server / Dist]
+        R --> E_API[window.electronAPI]
+        E_API -- "Invokes IPC" --> PL
+    end
+
+    PL -- "Exposes API" --> E_API
+```
+
+### Key Components:
+- **Main Process**: Handles system events, file system access, and database management.
+- **Renderer Process**: A modern React-based UI powered by Vite and Tailwind CSS.
+- **IPC Bridge**: Secure communication between the UI and system services via a context-isolated `preload.js` script.
+- **Database**: Local SQLite storage for high reliability and data privacy.
 
 ---
 
-## 2. Quick Start & Setup
+## 📊 Database Schema (ERD)
+
+The system manages complex medical and operational data through a robust relational schema.
+
+```mermaid
+erDiagram
+    USERS ||--o{ ACTIVITY_LOGS : "performs"
+    USERS ||--o{ CHAT : "sends/receives"
+    USERS ||--o{ INVENTORY : "updates"
+    PATIENTS ||--o{ TESTS : "undergoes"
+    PATIENTS ||--o{ REPORTS : "has"
+    PATIENTS ||--o{ PHARMACY_DISPENSATIONS : "receives"
+    TESTS ||--o{ REPORTS : "included_in"
+    PHARMACY_DRUGS ||--o{ PHARMACY_DISPENSATIONS : "is_dispensed"
+    
+    USERS {
+        text id PK
+        text first_name
+        text last_name
+        text email
+        text role "admin, doctor, assistant"
+        text status "active, inactive"
+    }
+    
+    PATIENTS {
+        text id PK
+        text patient_id UK
+        text first_name
+        text last_name
+        date dob
+        text gender
+    }
+```
+
+---
+
+## ✨ Core Features
+
+### 👨‍⚕️ Medical Management
+- **Patient Records**: Centralized management of patient demographic data and medical history.
+- **Visual Field Tests**: Dedicated module for uploading and analyzing test data from clinical machines.
+- **Automated Reporting**: Generation of professional PDF reports using `jspdf` and `pdf-lib`.
+
+### 📦 Operational Modules
+- **Pharmacy & Inventory**: Real-time tracking of medical supplies, medications, and equipment with low-stock alerts.
+- **Internal Chat**: Secure internal messaging system allowing staff to communicate instantly across the clinic.
+- **Revenue Tracking**: Financial overview and tracking of clinic income from services and dispensations.
+
+### 🔐 Security & Reliability
+- **Role-Based Access (RBAC)**: Distinct interfaces and permissions for Administrators, Doctors, and Assistants.
+- **Audit Logs**: Deep tracking of all critical system actions for security and accountability.
+- **Offline-First**: Full functionality without an internet connection, ensuring the clinic never stops operating.
+- **Automated Backups**: Integrated backup service to prevent data loss.
+
+---
+
+## 🚀 Getting Started
+
 ### Prerequisites
-- Node.js >= 18.x
-- npm >= 9.x
-- Windows OS (primary target)
+- **Node.js**: v18 or higher.
+- **Operating System**: Optimized for Windows 10/11.
 
 ### Installation
+1. Clone the repository.
+2. Run `npm install` to install dependencies.
+3. Run `npm run dev` to start the application in development mode.
+
+### Database Initialization
+On the first launch, the system automatically initializes the SQLite database. For manual setup:
 ```bash
-git clone <repository-url>
-cd eye-clinic
-npm install
-cp .env.example .env
-# Edit .env with your Supabase credentials (optional)
-npm run dev
-```
-
-### Setup Guides
-- Environment setup, database initialization, and Supabase configuration are handled automatically or via scripts. See below for details.
-
-#### Environment Configuration
-- Copy `.env.example` to `.env` and add Supabase credentials if using cloud sync.
-- Default admin user: `admin@clinic.com` / `admin123` (change password after first login).
-
-#### Supabase Setup
-- Create a Supabase project, get API keys, and run the provided SQL schema.
-- Add credentials to `.env`.
-
-#### Database Setup
-- Local SQLite database is created automatically on first run.
-- Manual setup: Run `node init-database.js` if needed.
-
----
-
-## 3. Build & Packaging
-### Build Instructions
-```bash
-npm run build
-npm run dist
-```
-- Windows installer: `release/Eye Clinic Management Setup 1.0.0.exe`
-- Mac/Linux builds available via respective scripts.
-- See troubleshooting below for build issues.
-
----
-
-## 4. Delivery Checklist
-- Remove `.env` from git history if committed.
-- Build production version and clean previous builds.
-- Test installer and verify data persistence.
-- Deliver installer and documentation files to client.
-
----
-
-## 5. Pre-Delivery Audit
-- Check for exposed credentials in `.env`.
-- Ensure database schema is complete and matches code.
-- Remove test/debug files from production build.
-- Fix duplicate code and missing icons in main.js.
-- Regenerate Supabase keys if needed.
-
----
-
-## 6. Fixes & Cleanup
-- All major issues (schema mismatch, missing files, duplicate code) have been fixed.
-- Temporary and debug files have been removed or moved to scripts.
-- Database schema now uses UUIDs and correct field names.
-
----
-
-## 7. Troubleshooting & Quick Fixes
-- Remove `.env` from git and add to `.gitignore`.
-- Move test files to scripts folder.
-- Fix duplicate code and missing icons in main.js.
-- Create `.env.production` for production builds.
-- Clean and rebuild if encountering errors.
-
----
-
-## 8. Database & Sync
-- Local SQLite database is offline-first and auto-created.
-- Supabase sync is optional and enabled via `.env`.
-- Schema synchronization is handled; see project SQL files for details.
-- Sync logic: Bidirectional, newest record wins, auto-sync every 5 minutes.
-
----
-
-## 9. Real-Time Chat
-- Chat syncs instantly across devices using Supabase real-time subscriptions.
-- Offline support: Messages queue and sync when online.
-- Multi-device, auto-reconnect, and broadcast features included.
-
----
-
-## 10. Dark Mode
-- UI supports dark mode via Tailwind CSS.
-- Add `dark:` prefix to className attributes for dark mode support.
-- See code comments for specific class mappings.
-
----
-
-## 11. Project Structure
-```
-eye-clinic/
-├── src/                    # Frontend source
-│   ├── components/         # React components
-│   ├── pages/              # Page components
-│   ├── services/           # Frontend services
-│   └── utils/              # Utility functions
-├── services/               # Backend services
-│   ├── DatabaseService.js
-│   ├── FileService.js
-│   └── IPCHandlers.js
-├── main.js                 # Electron main process
-├── preload.js              # Electron preload
-├── database.js             # SQLite database
-└── package.json            # Dependencies
+npm run setup-db
 ```
 
 ---
 
-## 12. Technology Stack
-- Frontend: React 18, Vite, Tailwind CSS, React Router
-- Backend: Electron, SQLite3, Supabase (optional), Bcrypt
-- Key Libraries: electron-builder, uuid, better-sqlite3
+## 📁 Project Structure
+
+- `electron/`: Core Electron application logic, including IPC handlers and window management.
+- `src/`: React frontend source code.
+    - `components/`: Reusable UI elements and complex modals.
+    - `pages/`: Role-specific dashboards and feature pages.
+    - `services/`: Frontend wrappers for IPC calls.
+    - `hooks/`: Custom React hooks for global state and keyboard shortcuts.
+- `database.js`: Primary SQLite database controller and schema definitions.
+- `services/`: (Backend) Services for data persistence and file management.
 
 ---
 
-## 13. License & Support
-- Proprietary - All rights reserved
-- For support: support@example.com
+## 🛠️ Technology Stack
+
+- **Framework**: Electron + React (via Vite)
+- **Styling**: Tailwind CSS
+- **Database**: SQLite3
+- **PDF Core**: jsPDF, pdf-lib
+- **Testing**: Jest, React Testing Library
+- **Utilities**: Bcrypt.js (Security), UUID (Identifiers), Puppeteer (Screen capture)
 
 ---
 
-All documentation, setup, troubleshooting, and delivery instructions are now consolidated in this README for easy reference.
+Developed for **KORENE EYE CLINIC NIG. LTD.** All rights reserved.

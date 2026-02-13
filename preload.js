@@ -81,7 +81,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
         ipcRenderer.on(channel, subscription);
         return () => ipcRenderer.removeListener(channel, subscription);
     },
-    syncToSupabase: () => ipcRenderer.invoke('presence:syncToSupabase'),
 
     // File APIs
     selectFile: (options) => ipcRenderer.invoke('file:select', options),

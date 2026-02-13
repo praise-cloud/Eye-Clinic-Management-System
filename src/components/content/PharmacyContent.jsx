@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import usePharmacy from '../../hooks/usePharmacy';
+import usePatients from '../../hooks/usePatients';
 
 const defaultForm = {
   drug_code: '',
@@ -19,6 +20,7 @@ const defaultForm = {
 
 const PharmacyContent = () => {
   const { drugs, loading, error, fetchDrugs, addDrug, updateDrug, deleteDrug, dispenseDrug } = usePharmacy();
+  const { patients, fetchPatients } = usePatients();
   const [searchTerm, setSearchTerm] = useState('');
   const [notification, setNotification] = useState(null);
   const [showForm, setShowForm] = useState(false);
@@ -33,7 +35,8 @@ const PharmacyContent = () => {
 
   useEffect(() => {
     fetchDrugs();
-  }, [fetchDrugs]);
+    fetchPatients();
+  }, [fetchDrugs, fetchPatients]);
 
   const filteredDrugs = useMemo(() => {
     if (!searchTerm) return drugs;
@@ -648,4 +651,3 @@ const PharmacyContent = () => {
 };
 
 export default PharmacyContent;
-
