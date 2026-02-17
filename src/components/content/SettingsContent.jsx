@@ -372,7 +372,7 @@ const SettingsContent = () => {
                     if (!window.electronAPI?.importDb) return;
                     const res = await window.electronAPI.importDb(chosen);
                     if (res?.success) {
-                      setSuccessMessage('Database context switched successfully.');
+                      setSuccessMessage('Database context switched successfully.');x
                       setShowSuccess(true);
                       setTimeout(() => setShowSuccess(false), 4000);
                     }
