@@ -1,6 +1,6 @@
 const { ipcMain, BrowserWindow, app } = require('electron');
 const path = require('path');
-const fs = require('fs');
+const fs = require('fs-extra');
 const { v4: uuidv4 } = require('uuid');
 const DatabaseService = require('../../src/services/DatabaseService');
 const FileService = require('../../src/services/FileService');
