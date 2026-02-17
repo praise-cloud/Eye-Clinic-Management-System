@@ -365,7 +365,7 @@ const SettingsContent = () => {
                     if (!window.electronAPI?.selectFile) return;
                     const result = await window.electronAPI.selectFile({
                       title: 'Choose SQLite database',
-                      filters: [{ name: 'SQLite', extensions: ['db', 'sqlite'] }]
+                      filters: [{ name: 'SQLite', extensions: ['db', 'sqlite','bak'] }]
                     });
                     const chosen = result?.filePath || result?.path || result?.file || null;
                     if (!chosen) return;
