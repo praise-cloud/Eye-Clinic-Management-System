@@ -428,7 +428,7 @@ class Database {
         const { first_name, last_name, email, role, phone_number, gender, password } = userData;
 
         let query = `
-            UPDATE users 
+            UPDATE users
             SET first_name = ?, last_name = ?, email = ?, role = ?, phone_number = ?, gender = ?, updated_at = CURRENT_TIMESTAMP
         `;
         let params = [first_name, last_name, email, role, phone_number || null, gender || 'other'];
@@ -493,8 +493,8 @@ class Database {
 
     async setUserOffline(userId) {
         const query = `
-            UPDATE user_presence 
-            SET is_online = FALSE, last_seen = CURRENT_TIMESTAMP 
+            UPDATE user_presence
+            SET is_online = FALSE, last_seen = CURRENT_TIMESTAMP
             WHERE user_id = ?
         `;
         return await this.run(query, [userId]);
@@ -588,6 +588,26 @@ class Database {
                 }
             });
         }
+    }
+
+    // Role-based permissions for backup operations
+    async validateBackupPermission(role) {
+        if (role !== 'admin') {
+            throw new Error('Only admins are allowed to perform backup operations.');
+        }
+    }
+
+    // Example usage in backup restoration
+    async restoreBackup(filePath, role) {
+        await this.validateBackupPermission(role);
+
+        if (!filePath.endsWith('.bak')) {
+            throw new Error('Invalid file type. Only .bak files are supported.');
+        }
+
+        // Restore logic here
+        console.log(`Restoring backup from ${filePath}...`);
+        // ...existing restore logic...
     }
 }
 

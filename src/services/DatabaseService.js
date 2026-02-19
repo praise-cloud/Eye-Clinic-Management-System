@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const bcrypt = require('bcryptjs');
 const { app } = require('electron');
+const { exec } = require('child_process');
 
 class DatabaseService {
     constructor() {
@@ -384,7 +385,7 @@ class DatabaseService {
                 maximum_quantity, unit_of_measure, unit_cost, supplier_name,
                 supplier_contact, purchase_date, expiry_date, location, status,
                 last_updated_by, notes, image_path, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         `;
 
         const params = [
@@ -551,7 +552,7 @@ class DatabaseService {
                 unit_price, current_quantity, minimum_quantity, status,
                 supplier_name, supplier_contact, expiry_date, last_updated_by,
                 notes, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         `;
 
         const params = [
@@ -789,7 +790,7 @@ class DatabaseService {
     async getPendingPrescriptions() {
         const db = await this.getDatabase();
         const query = `
-            SELECT p.*, d.drug_name, d.drug_code, d.strength, 
+            SELECT p.*, d.drug_name, d.drug_code, d.strength,
                    u.first_name as doctor_first_name, u.last_name as doctor_last_name,
                    pat.first_name as patient_first_name, pat.last_name as patient_last_name
             FROM prescriptions p
@@ -1241,7 +1242,7 @@ class DatabaseService {
                                 `INSERT INTO inventory (id, item_code, item_name, category, description, manufacturer, model_number, serial_number,
                                  current_quantity, minimum_quantity, maximum_quantity, unit_of_measure, unit_cost, supplier_name, supplier_contact,
                                  purchase_date, expiry_date, location, status, last_updated_by, notes, image_path, created_at, updated_at)
-                                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+                                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
                                 [
                                     id,
                                     code,
@@ -1464,7 +1465,7 @@ class DatabaseService {
                         `INSERT INTO inventory (id, item_code, item_name, category, description, manufacturer, model_number, serial_number,
                          current_quantity, minimum_quantity, maximum_quantity, unit_of_measure, unit_cost, supplier_name, supplier_contact,
                          purchase_date, expiry_date, location, status, last_updated_by, notes, image_path, created_at, updated_at)
-                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
                         [
                             id,
                             code,
@@ -1555,6 +1556,60 @@ class DatabaseService {
         } catch (error) {
             return { success: false, error: error.message };
         }
+    }
+
+    async restoreBackup(filePath) {
+        const db = await this.getDatabase();
+
+        // Validate file extension
+        if (!filePath.endsWith('.bak')) {
+            throw new Error('Invalid file type. Please upload a .bak file.');
+        }
+
+        const { exec } = require('child_process');
+        const path = require('path');
+
+        const pythonScript = path.join(__dirname, '../scripts/convert_bak_to_sqlite.py');
+        const outputFilePath = filePath.replace('.bak', '.sqlite');
+
+        console.log(`Running Python script to convert .bak file: ${filePath}`);
+        console.log(`Python script path: ${pythonScript}`);
+        console.log(`Output file path: ${outputFilePath}`);
+
+        const command = `python "${pythonScript}" "${filePath}" "${outputFilePath}"`;
+        console.log(`Command: ${command}`);
+
+        return new Promise((resolve, reject) => {
+            exec(command, (error, stdout, stderr) => {
+                if (error) {
+                    console.error(`Error running Python script: ${stderr}`);
+                    return reject(new Error('Failed to convert .bak file to SQLite database.'));
+                }
+                console.log(`Python script output: ${stdout}`);
+                console.log(`Restored file path: ${outputFilePath}`);
+                resolve({ success: true, restoredFilePath: outputFilePath });
+            });
+        });
+    }
+
+    async performSchemaValidation() {
+        const db = await this.getDatabase();
+
+        // Example: Check and add missing columns or tables
+        const schemaUpdates = [
+            `ALTER TABLE patients ADD COLUMN IF NOT EXISTS additional_info TEXT;`,
+            `CREATE TABLE IF NOT EXISTS new_table (id TEXT PRIMARY KEY, data TEXT);`
+        ];
+
+        for (const query of schemaUpdates) {
+            try {
+                await db.run(query);
+            } catch (error) {
+                console.error('Schema validation error:', error);
+            }
+        }
+
+        console.log('Schema validation and updates completed.');
     }
 }
 

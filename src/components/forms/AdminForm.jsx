@@ -102,8 +102,40 @@ const AdminForm = ({ formData, onChange }) => {
           required
         />
       </div>
+
+      {/* Add role-based validation for .bak file handling */}
+      <div>
+        <button
+          type="button"
+          onClick={handleBackupRestore}
+          className="input-premium py-3 text-sm font-bold"
+        >
+          Restore Backup
+        </button>
+      </div>
     </div>
   )
 }
 
 export default AdminForm
+
+// Add role-based validation for .bak file handling
+const handleBackupRestore = async (file, role) => {
+  try {
+    if (!file.name.endsWith('.bak')) {
+      alert('Invalid file type. Only .bak files are supported.');
+      return;
+    }
+
+    if (role !== 'admin') {
+      alert('Only admins are allowed to perform backup operations.');
+      return;
+    }
+
+    // Proceed with backup restoration
+    console.log(`Restoring backup for role: ${role}`)
+  } catch (error) {
+    console.error(error);
+    alert(error.message);
+  }
+}

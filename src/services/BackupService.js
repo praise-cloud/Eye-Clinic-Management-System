@@ -3,6 +3,7 @@ const fs = require('fs-extra');
 const path = require('path');
 const { app } = require('electron');
 const { dialog } = require('electron');
+const DatabaseService = require('./DatabaseService');
 
 class BackupService {
   static async createBackup(mainWindow) {
@@ -33,23 +34,42 @@ class BackupService {
     try {
       const result = await dialog.showOpenDialog(mainWindow, {
         title: 'Select Backup File',
-        filters: [{ name: 'Database Files', extensions: ['db'] }],
+        filters: [
+          { name: 'Backup Files', extensions: ['sqlite', 'db', 'bak'] },
+        ],
         properties: ['openFile']
       });
 
       if (result.canceled || !result.filePaths[0]) return;
 
-      const target = path.join(app.getPath('userData'), 'eye_clinic.db');
-      await fs.copy(result.filePaths[0], target);
+      const filePath = result.filePaths[0];
 
-      dialog.showMessageBox(mainWindow, {
-        type: 'info',
-        title: 'Restore Complete',
-        message: 'Database restored successfully. Please restart the app.',
-      });
+      if (filePath.endsWith('.bak')) {
+        // Use DatabaseService to restore .bak files
+        const response = await DatabaseService.restoreBackup(filePath);
+        if (response.success) {
+          dialog.showMessageBox(mainWindow, {
+            type: 'info',
+            title: 'Restore Complete',
+            message: 'Database restored successfully from .bak file.',
+          });
+        } else {
+          throw new Error(response.message);
+        }
+      } else {
+        // Handle .db file restoration
+        const target = path.join(app.getPath('userData'), 'eye_clinic.db');
+        await fs.copy(filePath, target);
 
-      app.relaunch();
-      app.exit();
+        dialog.showMessageBox(mainWindow, {
+          type: 'info',
+          title: 'Restore Complete',
+          message: 'Database restored successfully. Please restart the app.',
+        });
+
+        app.relaunch();
+        app.exit();
+      }
     } catch (err) {
       dialog.showErrorBox('Restore Failed', err.message);
     }

@@ -7,6 +7,7 @@ import { useSystemConfig } from '../../context/SystemConfigContext';
 import * as patientService from '../../services/patientService';
 import * as inventoryService from '../../services/inventoryService';
 import * as testService from '../../services/testService';
+import path from 'path';
 
 const AdminDashboard = () => {
   const { user, logout } = useUser();
@@ -279,35 +280,56 @@ const AdminDashboard = () => {
 
   const handleAdminImportDb = async () => {
     try {
-      if (!window.electronAPI?.selectFile || !window.electronAPI?.importDb) return;
       setAdminLoading(true);
       const result = await window.electronAPI.selectFile({
-        title: 'Choose database or data file',
-        filters: [{ name: 'Data Files', extensions: ['db', 'sqlite', 'csv', 'json', 'bat'] }]
+        title: 'Choose SQLite or Backup File',
+        filters: [
+          { name: 'Database Files', extensions: ['sqlite', 'db', 'bak'] },
+        ],
       });
-      const chosen = result?.filePath || result?.path || result?.file || null;
+
+      let chosen = result?.filePath || result?.path || result?.file || null;
       if (!chosen) {
-        setAdminLoading(false);
+        setAdminMessage('No file selected.');
         return;
       }
+
+      if (chosen.endsWith('.bak')) {
+        const pythonScriptPath = path.join(__dirname, '../../scripts/convert_bak_to_sqlite.py');
+        const outputFilePath = chosen.replace('.bak', '.sqlite');
+
+        console.log(`Executing Python script: ${pythonScriptPath}`);
+        console.log(`Input file: ${chosen}, Output file: ${outputFilePath}`);
+
+        const restoreResult = await window.electronAPI.runPythonScript(pythonScriptPath, [chosen, outputFilePath]);
+        console.log('Python script result:', restoreResult);
+
+        if (!restoreResult?.success) {
+          setAdminMessage(restoreResult?.error || 'Failed to convert the .bak file to SQLite.');
+          return;
+        }
+
+        // Validate the resulting SQLite file
+        const isValid = await window.electronAPI.validateSQLiteFile(outputFilePath);
+        if (!isValid) {
+          setAdminMessage('The converted SQLite file is invalid.');
+          return;
+        }
+
+        chosen = outputFilePath;
+      }
+
       const res = await window.electronAPI.importDb(chosen);
       if (res?.success) {
-        if (res.mode === 'switch') {
-          setNetworkDbPath(res.path);
-          setAdminMessage('Now using selected database via LAN. Restart app on all computers.');
-        } else {
-          const counts = res.imported || {};
-          setAdminMessage(`Imported: users ${counts.users || 0}, patients ${counts.patients || 0}, tests ${counts.tests || 0}, inventory ${counts.inventory || 0}, chat ${counts.chat || 0}`);
-        }
+        setAdminMessage('Database or Backup imported successfully. Please restart the application.');
       } else {
-        setAdminMessage(res?.error || 'Import failed');
+        setAdminMessage(res?.error || 'Failed to import the database or backup.');
       }
-    } catch (err) {
-      console.error('Admin import error:', err);
-      setAdminMessage('Failed to import database');
+    } catch (error) {
+      console.error('Error importing database:', error);
+      setAdminMessage('An error occurred while importing the database.');
     } finally {
       setAdminLoading(false);
-      setTimeout(() => setAdminMessage(null), 5000);
     }
   };
 
@@ -368,7 +390,44 @@ const AdminDashboard = () => {
     }
   };
 
+  const handleToggleConfig = async (configKey) => {
+    if (!window.electronAPI?.toggleConfig) return;
+    setAdminLoading(true);
+    const res = await window.electronAPI.toggleConfig(configKey);
+    if (res?.success) {
+      setAdminMessage(`Config ${configKey} toggled successfully`);
+    } else {
+      setAdminMessage(res?.error || 'Failed to toggle config');
+    }
+    setAdminLoading(false);
+    setTimeout(() => setAdminMessage(null), 5000);
+  };
 
+  const handleRestoreBackup = async () => {
+    try {
+      if (!window.electronAPI || !window.electronAPI.restoreBackup) {
+        throw new Error('Backup restoration is not supported in this environment.');
+      }
+
+      setAdminLoading(true);
+      const result = await window.electronAPI.restoreBackup({
+        filters: [
+          { name: 'Backup Files', extensions: ['sqlite', 'db', 'bak'] },
+        ],
+      });
+
+      if (result?.success) {
+        setAdminMessage('Backup restored successfully. Please restart the application.');
+      } else {
+        setAdminMessage(result?.error || 'Failed to restore backup.');
+      }
+    } catch (error) {
+      console.error('Error restoring backup:', error);
+      setAdminMessage('An error occurred while restoring the backup.');
+    } finally {
+      setAdminLoading(false);
+    }
+  };
 
   const StatCard = ({ title, value, icon, color = 'blue' }) => (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border-l-4 border-blue-500">
@@ -715,7 +774,7 @@ const AdminDashboard = () => {
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
                     </div>
                     <p className="text-sm font-bold text-slate-900 dark:text-white leading-tight">Import External Intelligence</p>
-                    <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest mt-1">Legacy CSV/JSON/SQL Migration</p>
+                    <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest mt-1">Supports .bak, CSV, JSON, SQL</p>
                   </button>
 
                   <button
@@ -955,6 +1014,12 @@ const AdminDashboard = () => {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {adminMessage && (
+        <div className="mt-4 text-sm text-green-600">
+          {adminMessage}
         </div>
       )}
     </Layout>
