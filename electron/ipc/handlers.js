@@ -1597,6 +1597,211 @@ class IPCHandlers {
       }
     });
 
+    ipcMain.handle('database:importExternalBatchWithSync', async (event, filePaths = []) => {
+      try {
+        const fs = require('fs');
+        if (!currentUser || String(currentUser.role || '').toLowerCase() !== 'admin') {
+          return { success: false, error: 'Only admin can import databases' };
+        }
+        if (!Array.isArray(filePaths) || filePaths.length === 0) {
+          return { success: false, error: 'No files provided' };
+        }
+
+        const normalized = filePaths
+          .map((p) => String(p || '').trim())
+          .filter((p) => p.length > 0);
+        const uniqueFiles = Array.from(new Set(normalized));
+
+        let totalBytes = 0;
+        for (const p of uniqueFiles) {
+          if (fs.existsSync(p)) {
+            totalBytes += fs.statSync(p).size;
+          }
+        }
+
+        const perFile = [];
+        const aggregate = {
+          imported: { users: 0, patients: 0, tests: 0, inventory: 0, chat: 0, reports: 0 },
+          tables_created: 0,
+          tables_modified: 0,
+          sync_errors: 0
+        };
+
+        for (const filePath of uniqueFiles) {
+          if (!fs.existsSync(filePath)) {
+            perFile.push({ filePath, success: false, error: 'File not found' });
+            continue;
+          }
+
+          const analysis = await analyzeBakFile(filePath);
+          if (!analysis?.success) {
+            perFile.push({ filePath, success: false, error: analysis?.error || 'Analysis failed', analysis });
+            continue;
+          }
+
+          let importPath = filePath;
+          if (analysis.conversion_triggered && analysis.converted_file) {
+            importPath = analysis.converted_file;
+          }
+
+          const importResult = await DatabaseService.importExternalDatabase(importPath);
+          if (!importResult?.success) {
+            perFile.push({
+              filePath,
+              importPath,
+              success: false,
+              error: importResult?.error || 'Import failed',
+              analysis,
+              import: importResult
+            });
+            continue;
+          }
+
+          const syncRes = importResult?.schemaSyncResult?.results || {};
+          const imported = importResult?.imported || {};
+          aggregate.tables_created += (syncRes.created || []).length;
+          aggregate.tables_modified += (syncRes.modified || []).length;
+          aggregate.sync_errors += (syncRes.errors || []).length;
+          Object.keys(aggregate.imported).forEach((k) => {
+            aggregate.imported[k] += Number(imported[k] || 0);
+          });
+
+          perFile.push({
+            filePath,
+            importPath,
+            success: true,
+            analysis,
+            import: importResult
+          });
+        }
+
+        const successCount = perFile.filter((r) => r.success).length;
+        const failCount = perFile.length - successCount;
+        return {
+          success: failCount === 0,
+          summary: {
+            total_files: perFile.length,
+            success_files: successCount,
+            failed_files: failCount,
+            total_input_size_gb: Number((totalBytes / (1024 * 1024 * 1024)).toFixed(2)),
+            large_batch_notice: totalBytes >= 50 * 1024 * 1024 * 1024,
+            ...aggregate
+          },
+          results: perFile
+        };
+      } catch (error) {
+        console.error('[IPC] Batch import error:', error);
+        return { success: false, error: error.message };
+      }
+    });
+
+    ipcMain.handle('database:getDoctorCaseStudies', async (event, options = {}) => {
+      try {
+        if (!currentUser || String(currentUser.role || '').toLowerCase() !== 'admin') {
+          return { success: false, error: 'Only admin can view case studies' };
+        }
+
+        const { search = '', doctor = 'all', limit = 50, offset = 0 } = options || {};
+        const db = await DatabaseService.getDatabase();
+
+        const hasCaseHistory = await db.get("SELECT name FROM sqlite_master WHERE type='table' AND name='CaseHistory'");
+        if (!hasCaseHistory?.name) {
+          return { success: false, error: 'CaseHistory table not found. Import legacy data first.' };
+        }
+        const hasPatients = await db.get("SELECT name FROM sqlite_master WHERE type='table' AND name='PatientRegister'");
+        const hasUsers = await db.get("SELECT name FROM sqlite_master WHERE type='table' AND name='MyUsers'");
+
+        const baseFrom = `
+          FROM "CaseHistory" ch
+          ${hasPatients?.name ? 'LEFT JOIN "PatientRegister" pr ON TRIM(pr."PatientID") = TRIM(ch."PatientID")' : ''}
+          ${hasUsers?.name ? 'LEFT JOIN "MyUsers" mu ON TRIM(mu."UserID") = TRIM(ch."USERID")' : ''}
+        `;
+
+        const where = [`TRIM(COALESCE(ch."PatientID", '')) NOT IN ('', '---------')`];
+        const params = [];
+        if (doctor && doctor !== 'all') {
+          where.push(`(TRIM(COALESCE(ch."DoctorName", '')) = ? OR TRIM(COALESCE(mu."FullName", '')) = ? OR TRIM(COALESCE(ch."USERID", '')) = ?)`);
+          params.push(doctor, doctor, doctor);
+        }
+        if (search && String(search).trim().length > 0) {
+          const like = `%${String(search).trim()}%`;
+          where.push(`(
+            ch."PatientID" LIKE ? OR
+            ch."DoctorName" LIKE ? OR
+            ch."DIAGNOSIS" LIKE ? OR
+            ch."CASEHISTORY" LIKE ? OR
+            ch."FOLLOWUPEXAM" LIKE ?
+            ${hasPatients?.name ? ' OR pr."Names" LIKE ?' : ''}
+            ${hasUsers?.name ? ' OR mu."FullName" LIKE ?' : ''}
+          )`);
+          params.push(like, like, like, like, like);
+          if (hasPatients?.name) params.push(like);
+          if (hasUsers?.name) params.push(like);
+        }
+
+        const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+        const safeLimit = Number.isFinite(Number(limit)) ? Math.max(1, Math.min(Number(limit), 500)) : 50;
+        const safeOffset = Number.isFinite(Number(offset)) ? Math.max(0, Number(offset)) : 0;
+
+        const rows = await db.all(
+          `
+            SELECT
+              ch."ID" as case_id,
+              ch."PatientID" as patient_id,
+              ${hasPatients?.name ? 'pr."Names" as patient_name,' : "'' as patient_name,"}
+              ch."TreatmentDate" as treatment_date,
+              ch."NextVisitDate" as next_visit_date,
+              ch."DoctorName" as doctor_name,
+              ${hasUsers?.name ? 'mu."FullName" as doctor_user_name,' : "'' as doctor_user_name,"}
+              ch."DIAGNOSIS" as diagnosis,
+              ch."CASEHISTORY" as case_history,
+              ch."FOLLOWUPEXAM" as follow_up_exam,
+              ch."FINALRXOD" as final_rx_od,
+              ch."FINALRXOS" as final_rx_os,
+              ch."USERID" as user_id,
+              ch."STAMPDATE" as stamp_date
+            ${baseFrom}
+            ${whereSql}
+            ORDER BY COALESCE(ch."STAMPDATE", ch."TreatmentDate") DESC
+            LIMIT ? OFFSET ?
+          `,
+          [...params, safeLimit, safeOffset]
+        );
+
+        const totalRow = await db.get(
+          `
+            SELECT COUNT(*) as total
+            ${baseFrom}
+            ${whereSql}
+          `,
+          params
+        );
+
+        const doctors = await db.all(
+          `
+            SELECT doctor FROM (
+              SELECT DISTINCT TRIM("DoctorName") as doctor FROM "CaseHistory" WHERE TRIM(COALESCE("DoctorName", '')) <> ''
+              ${hasUsers?.name ? 'UNION SELECT DISTINCT TRIM("FullName") as doctor FROM "MyUsers" WHERE TRIM(COALESCE("FullName", \'\')) <> \'\'' : ''}
+              UNION SELECT DISTINCT TRIM("USERID") as doctor FROM "CaseHistory" WHERE TRIM(COALESCE("USERID", '')) <> ''
+            ) d
+            WHERE TRIM(COALESCE(doctor, '')) <> ''
+            ORDER BY doctor ASC
+          `
+        );
+
+        return {
+          success: true,
+          data: rows || [],
+          total: totalRow?.total || 0,
+          doctors: (doctors || []).map((d) => d.doctor),
+          pagination: { limit: safeLimit, offset: safeOffset }
+        };
+      } catch (error) {
+        console.error('[IPC] getDoctorCaseStudies error:', error);
+        return { success: false, error: error.message };
+      }
+    });
+
     // Handler for fetching table data for dynamic display
     ipcMain.handle('database:getTableData', async (event, options = {}) => {
       try {

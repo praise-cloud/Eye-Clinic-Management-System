@@ -8,6 +8,14 @@ const fs = require('fs-extra');
  * between imported databases and the main app database
  */
 class SchemaSyncService {
+    escapeIdentifier(identifier) {
+        return `"${String(identifier).replace(/"/g, '""')}"`;
+    }
+
+    isSqlcmdArtifactTableName(tableName) {
+        return /^\(\d+\s+rows\s+affected\)$/i.test(String(tableName || '').trim());
+    }
+
     /**
      * Get all tables from a database
      */
@@ -36,7 +44,8 @@ class SchemaSyncService {
             const db = new sqlite3.Database(dbPath, (err) => {
                 if (err) return reject(err);
 
-                db.all(`PRAGMA table_info(${tableName})`, (err, columns) => {
+                const safeTable = this.escapeIdentifier(tableName);
+                db.all(`PRAGMA table_info(${safeTable})`, (err, columns) => {
                     db.close();
                     if (err) reject(err);
                     else resolve(columns || []);
@@ -53,7 +62,9 @@ class SchemaSyncService {
             const db = new sqlite3.Database(dbPath, (err) => {
                 if (err) return reject(err);
 
-                db.all(`SELECT * FROM ${tableName} LIMIT ${limit}`, (err, rows) => {
+                const safeTable = this.escapeIdentifier(tableName);
+                const safeLimit = Number.isFinite(Number(limit)) ? Math.max(1, Math.min(Number(limit), 100000)) : 10000;
+                db.all(`SELECT * FROM ${safeTable} LIMIT ${safeLimit}`, (err, rows) => {
                     db.close();
                     if (err) reject(err);
                     else resolve(rows || []);
@@ -76,6 +87,9 @@ class SchemaSyncService {
             };
 
             for (const tableName of importedTables) {
+                if (this.isSqlcmdArtifactTableName(tableName)) {
+                    continue;
+                }
                 const schema = await this.getTableSchema(importedDbPath, tableName);
                 const columns = schema.map(col => ({
                     name: col.name,
@@ -88,7 +102,8 @@ class SchemaSyncService {
                 const countResult = await new Promise((resolve) => {
                     const db = new sqlite3.Database(importedDbPath, (err) => {
                         if (err) return resolve(0);
-                        db.get(`SELECT COUNT(*) as count FROM ${tableName}`, (err, row) => {
+                        const safeTable = this.escapeIdentifier(tableName);
+                        db.get(`SELECT COUNT(*) as count FROM ${safeTable}`, (err, row) => {
                             db.close();
                             resolve(row?.count || 0);
                         });
@@ -105,7 +120,8 @@ class SchemaSyncService {
 
                 if (existingTable) {
                     // Table exists - check for schema differences
-                    const existingSchema = await appDb.all(`PRAGMA table_info(${tableName})`);
+                    const safeTable = this.escapeIdentifier(tableName);
+                    const existingSchema = await appDb.all(`PRAGMA table_info(${safeTable})`);
                     const existingColumns = new Set(existingSchema.map(col => col.name));
                     const importedColumns = new Set(columns.map(col => col.name));
 
@@ -264,11 +280,10 @@ class SchemaSyncService {
 
             // Prepare insert statement
             const placeholders = columns.map(() => '?').join(',');
-            const columnList = columns.map(col => `"${col}"`).join(',');
-            const insertSQL = `INSERT INTO "${tableName}" (${columnList}) VALUES (${placeholders})`;
+            const columnList = columns.map(col => `"${String(col).replace(/"/g, '""')}"`).join(',');
+            const safeTable = this.escapeIdentifier(tableName);
+            const insertSQL = `INSERT INTO ${safeTable} (${columnList}) VALUES (${placeholders})`;
 
-            // Import data
-            await appDb.run('BEGIN TRANSACTION');
             let imported = 0;
 
             for (const row of data) {
@@ -289,12 +304,8 @@ class SchemaSyncService {
                 }
             }
 
-            await appDb.run('COMMIT');
             return { success: true, tableName, rowsImported: imported };
         } catch (error) {
-            try {
-                await appDb.run('ROLLBACK');
-            } catch {}
             console.error(`Error importing data for ${tableName}:`, error);
             throw error;
         }
@@ -305,8 +316,9 @@ class SchemaSyncService {
      */
     async getTableMetadata(appDb, tableName) {
         try {
-            const schema = await appDb.all(`PRAGMA table_info(${tableName})`);
-            const countResult = await appDb.get(`SELECT COUNT(*) as count FROM ${tableName}`);
+            const safeTable = this.escapeIdentifier(tableName);
+            const schema = await appDb.all(`PRAGMA table_info(${safeTable})`);
+            const countResult = await appDb.get(`SELECT COUNT(*) as count FROM ${safeTable}`);
 
             return {
                 tableName,

@@ -100,7 +100,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
     // Comprehensive database import with auto-conversion and schema sync
     importExternalWithSync: (filePath) => ipcRenderer.invoke('database:importExternalWithSync', filePath),
+    importExternalBatchWithSync: (filePaths) => ipcRenderer.invoke('database:importExternalBatchWithSync', filePaths),
     getTableData: (options) => ipcRenderer.invoke('database:getTableData', options),
+    getDoctorCaseStudies: (options) => ipcRenderer.invoke('database:getDoctorCaseStudies', options),
 
     // Utility APIs
     getCurrentUser: () => ipcRenderer.invoke('auth:getCurrentUser'),

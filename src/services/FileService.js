@@ -6,11 +6,14 @@ class FileService {
     // Select file dialog
     async selectFile(options = {}) {
         try {
+            const properties = Array.isArray(options.properties) && options.properties.length
+                ? options.properties
+                : ['openFile'];
             const result = await dialog.showOpenDialog({
                 title: options.title || 'Select File',
                 defaultPath: options.defaultPath,
                 filters: options.filters || [{ name: 'All Files', extensions: ['*'] }],
-                properties: ['openFile']
+                properties
             });
 
             if (result.canceled) {
@@ -18,7 +21,7 @@ class FileService {
             }
 
             const filePath = result.filePaths[0];
-            return { success: true, filePath };
+            return { success: true, filePath, filePaths: result.filePaths || [] };
         } catch (error) {
             console.error('File select error:', error);
             return { error: error.message };
