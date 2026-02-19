@@ -91,8 +91,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
     selectFile: (options) => ipcRenderer.invoke('file:select', options),
     saveFile: (options) => ipcRenderer.invoke('file:save', options),
     importDb: (path) => ipcRenderer.invoke('file:importDb', path),
+    restoreBackup: (filePath) => ipcRenderer.invoke('file:restoreBackup', filePath),
+    runPythonScript: (scriptPath, args) => ipcRenderer.invoke('file:runPythonScript', { scriptPath, args }),
+    validateSQLiteFile: (filePath) => ipcRenderer.invoke('file:validateSQLiteFile', filePath),
+    analyzeBakFile: (filePath) => ipcRenderer.invoke('file:analyzeBakFile', filePath),
     deleteDb: () => ipcRenderer.invoke('db:delete'),
     updateDb: (updates) => ipcRenderer.invoke('db:update', updates),
+
+    // Comprehensive database import with auto-conversion and schema sync
+    importExternalWithSync: (filePath) => ipcRenderer.invoke('database:importExternalWithSync', filePath),
+    getTableData: (options) => ipcRenderer.invoke('database:getTableData', options),
 
     // Utility APIs
     getCurrentUser: () => ipcRenderer.invoke('auth:getCurrentUser'),

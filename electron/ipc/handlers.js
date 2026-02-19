@@ -1235,6 +1235,432 @@ class IPCHandlers {
         return buildErrorResponse(error, { scope: 'file', action: 'importDb', entity: 'database' });
       }
     });
+
+    ipcMain.handle('file:restoreBackup', async (event, filePath) => {
+      try {
+        if (!currentUser || String(currentUser.role || '').toLowerCase() !== 'admin') {
+          return { success: false, error: 'Only admin can restore backups' };
+        }
+        if (!filePath || typeof filePath !== 'string') {
+          return { success: false, error: 'File path required' };
+        }
+        const result = await DatabaseService.restoreBackup(filePath);
+        return result;
+      } catch (error) {
+        console.error('Backup restore error:', error);
+        return buildErrorResponse(error, { scope: 'file', action: 'restoreBackup', entity: 'backup' });
+      }
+    });
+
+    ipcMain.handle('file:runPythonScript', async (event, data) => {
+      try {
+        if (!currentUser || String(currentUser.role || '').toLowerCase() !== 'admin') {
+          return { success: false, error: 'Only admin can run scripts' };
+        }
+        const { scriptPath, args = [] } = data || {};
+        if (!scriptPath || typeof scriptPath !== 'string') {
+          return { success: false, error: 'Script path required' };
+        }
+
+        const { exec } = require('child_process');
+        const command = `python "${scriptPath}" ${args.map(a => `"${a}"`).join(' ')}`;
+
+        return new Promise((resolve) => {
+          exec(command, (error, stdout, stderr) => {
+            if (error) {
+              console.error(`Python script error: ${stderr}`);
+              resolve({ success: false, error: stderr || error.message });
+            } else {
+              console.log(`Python script output: ${stdout}`);
+              resolve({ success: true, output: stdout });
+            }
+          });
+        });
+      } catch (error) {
+        console.error('Python script execution error:', error);
+        return buildErrorResponse(error, { scope: 'file', action: 'runPythonScript', entity: 'script' });
+      }
+    });
+
+    ipcMain.handle('file:validateSQLiteFile', async (event, filePath) => {
+      try {
+        const fs = require('fs');
+        const sqlite3 = require('sqlite3').verbose();
+
+        if (!fs.existsSync(filePath)) {
+          return { success: false, error: 'File not found' };
+        }
+
+        return new Promise((resolve) => {
+          const db = new sqlite3.Database(filePath, (err) => {
+            if (err) {
+              resolve({ success: false, error: 'Invalid SQLite database' });
+            } else {
+              db.all("SELECT name FROM sqlite_master LIMIT 1", (err, rows) => {
+                db.close();
+                if (err) {
+                  resolve({ success: false, error: 'Cannot read database' });
+                } else {
+                  resolve({ success: true, valid: true });
+                }
+              });
+            }
+          });
+        });
+      } catch (error) {
+        console.error('SQLite validation error:', error);
+        return { success: false, error: error.message };
+      }
+    });
+
+    // Handler for automatic BAK to SQLite conversion
+    ipcMain.handle('file:convertBakFileAutomatic', async (event, filePath) => {
+      try {
+        const { spawn } = require('child_process');
+        const fs = require('fs');
+        const path = require('path');
+
+        if (!filePath || !fs.existsSync(filePath)) {
+          return { success: false, error: 'File not found' };
+        }
+
+        // Generate output filename (replace .BAK with .sqlite)
+        const outputPath = filePath.replace(/\.bak$/i, '.sqlite');
+
+        // Find the Python script
+        const pythonScript = path.join(__dirname, '../../scripts/restore_bak_to_sqlite.py');
+        if (!fs.existsSync(pythonScript)) {
+          return { success: false, error: 'Conversion script not found' };
+        }
+
+        return new Promise((resolve) => {
+          const process = spawn('python', [pythonScript, filePath, outputPath]);
+          let stdout = '';
+          let stderr = '';
+
+          process.stdout.on('data', (data) => {
+            stdout += data.toString();
+          });
+
+          process.stderr.on('data', (data) => {
+            stderr += data.toString();
+          });
+
+          process.on('close', (code) => {
+            if (code === 0 && fs.existsSync(outputPath)) {
+              // Verify the file is a valid SQLite database
+              const sqlite3 = require('sqlite3').verbose();
+              const db = new sqlite3.Database(outputPath, (err) => {
+                if (err) {
+                  resolve({ success: false, error: 'Conversion failed: Invalid output file' });
+                } else {
+                  db.all("SELECT name FROM sqlite_master WHERE type='table'", (err, tables) => {
+                    db.close();
+                    if (err || !tables || tables.length === 0) {
+                      resolve({ success: false, error: 'Conversion produced empty database' });
+                    } else {
+                      resolve({
+                        success: true,
+                        convertedPath: outputPath,
+                        tables: tables.map(t => t.name),
+                        message: `Successfully converted ${path.basename(filePath)} to SQLite`
+                      });
+                    }
+                  });
+                }
+              });
+            } else {
+              resolve({ success: false, error: stderr || `Conversion failed with code ${code}` });
+            }
+          });
+
+          // Timeout after 10 minutes
+          setTimeout(() => {
+            process.kill();
+            resolve({ success: false, error: 'Conversion timeout' });
+          }, 600000);
+        });
+      } catch (error) {
+        console.error('BAK conversion error:', error);
+        return { success: false, error: error.message };
+      }
+    });
+
+    ipcMain.handle('file:analyzeBakFile', async (event, filePath) => {
+      try {
+        const fs = require('fs');
+        const path = require('path');
+        const sqlite3 = require('sqlite3').verbose();
+
+        if (!filePath || typeof filePath !== 'string') {
+          return { success: false, error: 'File path required' };
+        }
+
+        if (!fs.existsSync(filePath)) {
+          return { success: false, error: 'File does not exist' };
+        }
+
+        // Get file info
+        const stat_info = fs.statSync(filePath);
+        const analysis = {
+          success: true,
+          file: {
+            path: filePath,
+            name: path.basename(filePath),
+            size_bytes: stat_info.size,
+            size_mb: (stat_info.size / (1024 * 1024)).toFixed(2)
+          },
+          format_detected: null,
+          details: {},
+          conversion_triggered: false,
+          converted_file: null
+        };
+
+        // Check if this is a .bak file - if so, trigger automatic conversion
+        const fileExt = path.extname(filePath).toLowerCase();
+        if (fileExt === '.bak') {
+          console.log(`BAK file detected: ${filePath}, triggering automatic conversion...`);
+          try {
+            const conversionResult = await event.sender.invoke('file:convertBakFileAutomatic', filePath);
+            if (conversionResult.success) {
+              analysis.conversion_triggered = true;
+              analysis.converted_file = conversionResult.convertedPath;
+              analysis.format_detected = 'SQL Server Backup (Auto-converted to SQLite)';
+              analysis.details.conversion = {
+                status: 'success',
+                converted_path: conversionResult.convertedPath,
+                message: conversionResult.message,
+                tables: conversionResult.tables || []
+              };
+              return analysis;
+            } else {
+              analysis.format_detected = 'SQL Server Backup (Conversion Failed)';
+              analysis.details.conversion = {
+                status: 'error',
+                error: conversionResult.error
+              };
+              return analysis;
+            }
+          } catch (conversionErr) {
+            console.error('Conversion invocation error:', conversionErr);
+            analysis.format_detected = 'SQL Server Backup (Conversion Error)';
+            analysis.details.conversion = {
+              status: 'error',
+              error: conversionErr.message
+            };
+            return analysis;
+          }
+        }
+
+        // Try SQLite first
+        try {
+          await new Promise((resolve, reject) => {
+            const db = new sqlite3.Database(filePath, (err) => {
+              if (err) {
+                reject(err);
+              } else {
+                db.all("SELECT name FROM sqlite_master WHERE type='table';", (err, tables) => {
+                  if (err) {
+                    reject(err);
+                  } else {
+                    analysis.format_detected = 'SQLite Database';
+                    analysis.details.sqlite = {
+                      is_valid: true,
+                      tables: tables.map(t => t.name),
+                      table_count: tables.length
+                    };
+                    db.close();
+                    resolve();
+                  }
+                });
+              }
+            });
+          });
+          return analysis;
+        } catch (err) {
+          // Not SQLite, try text analysis
+        }
+
+        // Try text analysis
+        try {
+          const content = fs.readFileSync(filePath, { encoding: 'utf-8', flag: 'r' }).substring(0, 5000);
+          const lines = content.split('\n').slice(0, 50);
+
+          analysis.details.text = {
+            is_readable: true,
+            line_count: lines.length,
+            first_line: lines[0]?.substring(0, 200) || '',
+            sample_lines: lines.slice(0, 5).map(l => l.substring(0, 150))
+          };
+
+          // Detect format
+          if (content.includes('CREATE TABLE') || content.includes('INSERT INTO')) {
+            analysis.format_detected = 'SQL Dump File';
+            analysis.details.text.format_type = 'SQL';
+          } else if (lines[0] && (lines[0].includes(',') || lines[0].includes('\t') || lines[0].includes('|'))) {
+            analysis.format_detected = 'CSV or Delimited Text';
+            analysis.details.text.format_type = 'CSV';
+
+            // Detect separator
+            for (const sep of [',', '\t', '|', ';']) {
+              if (lines[0].includes(sep)) {
+                analysis.details.text.separator = sep === '\t' ? 'TAB' : sep;
+                analysis.details.text.columns = lines[0].split(sep).length;
+                break;
+              }
+            }
+          } else if (lines[0]?.trim().startsWith('{') || lines[0]?.trim().startsWith('[')) {
+            analysis.format_detected = 'JSON';
+            analysis.details.text.format_type = 'JSON';
+          } else if (lines[0]?.includes('<?xml') || lines[0]?.includes('<root>')) {
+            analysis.format_detected = 'XML';
+            analysis.details.text.format_type = 'XML';
+          }
+
+          return analysis;
+        } catch (err) {
+          // File might be binary or unreadable
+          analysis.details.binary_analysis = {
+            error: 'Could not read as text',
+            might_be_binary: true
+          };
+
+          // Try binary header analysis
+          const header = Buffer.alloc(16);
+          const fd = fs.openSync(filePath, 'r');
+          fs.readSync(fd, header, 0, 16, 0);
+          fs.closeSync(fd);
+
+          const hex = header.toString('hex').substring(0, 8);
+          if (hex.startsWith('53514c69')) { // 'SQLi' in hex
+            analysis.format_detected = 'SQLite Database (corrupted or locked)';
+          } else if (hex.startsWith('425a6832')) { // 'BZh2' - Bzip2
+            analysis.format_detected = 'Bzip2 Compressed Archive';
+          } else if (hex.startsWith('1f8b0808')) { // Gzip
+            analysis.format_detected = 'Gzip Compressed Archive';
+          } else if (hex.startsWith('504b0304')) { // ZIP
+            analysis.format_detected = 'ZIP Archive';
+          } else {
+            analysis.format_detected = 'Unknown Binary Format';
+          }
+
+          analysis.details.binary_analysis.header_hex = hex;
+          return analysis;
+        }
+      } catch (error) {
+        console.error('File analysis error:', error);
+        return { success: false, error: error.message };
+      }
+    });
+
+    // Comprehensive handler for importing external database with full schema sync
+    ipcMain.handle('database:importExternalWithSync', async (event, filePath) => {
+      try {
+        const path = require('path');
+        const fs = require('fs');
+        const DatabaseService = require('../src/services/DatabaseService');
+
+        if (!filePath || !fs.existsSync(filePath)) {
+          return { success: false, error: 'File not found' };
+        }
+
+        // Step 1: Analyze the file to detect format and trigger conversion if needed
+        console.log('[IPC] Step 1: Analyzing file format...');
+        const analysis = await ipcMain._invokeDefaultHandler('file:analyzeBakFile', filePath);
+
+        if (!analysis.success) {
+          return analysis;
+        }
+
+        // Step 2: If it's a BAK file and it was converted, use the converted file
+        let importPath = filePath;
+        if (analysis.conversion_triggered && analysis.converted_file) {
+          console.log('[IPC] Step 2: Using auto-converted SQLite file:', analysis.converted_file);
+          importPath = analysis.converted_file;
+        } else {
+          console.log('[IPC] Step 2: File is already compatible format');
+        }
+
+        // Step 3: Perform schema synchronization and data import
+        console.log('[IPC] Step 3: Starting import with schema synchronization...');
+        const dbService = new DatabaseService();
+        const importResult = await dbService.importExternalDatabase(importPath);
+
+        if (!importResult.success) {
+          return importResult;
+        }
+
+        // Step 4: Compile comprehensive results
+        const results = {
+          success: true,
+          analysis: analysis,
+          import: importResult,
+          summary: {
+            file_analyzed: analysis.file.name,
+            file_size_mb: analysis.file.size_mb,
+            was_converted: analysis.conversion_triggered ? 'YES (BAK → SQLite)' : 'NO',
+            format_detected: analysis.format_detected,
+            tables_created: importResult.schemaSyncResult?.results?.created?.length || 0,
+            tables_modified: importResult.schemaSyncResult?.results?.modified?.length || 0,
+            sync_errors: importResult.schemaSyncResult?.results?.errors?.length || 0,
+            records_imported: importResult.imported || {},
+            message: 'Database imported successfully with automatic schema synchronization'
+          }
+        };
+
+        console.log('[IPC] Step 4: Import complete', results.summary);
+        return results;
+      } catch (error) {
+        console.error('[IPC] Import error:', error);
+        return { success: false, error: error.message };
+      }
+    });
+
+    // Handler for fetching table data for dynamic display
+    ipcMain.handle('database:getTableData', async (event, options = {}) => {
+      try {
+        const { tableName, limit = 25, offset = 0 } = options;
+
+        if (!tableName || typeof tableName !== 'string') {
+          return { success: false, error: 'Table name required' };
+        }
+
+        const DatabaseService = require('../../src/services/DatabaseService');
+        const dbService = new DatabaseService();
+        const db = await dbService.getDatabase();
+
+        // Safely query the table with limit and offset
+        const rows = await new Promise((resolve, reject) => {
+          db.all(
+            `SELECT * FROM \`${tableName}\` LIMIT ? OFFSET ?`,
+            [limit, offset],
+            (err, rows) => {
+              if (err) reject(err);
+              else resolve(rows || []);
+            }
+          );
+        });
+
+        // Get row count
+        const countResult = await new Promise((resolve, reject) => {
+          db.get(`SELECT COUNT(*) as total FROM \`${tableName}\``, (err, row) => {
+            if (err) reject(err);
+            else resolve(row?.total || 0);
+          });
+        });
+
+        return {
+          success: true,
+          tableName,
+          data: rows,
+          count: rows.length,
+          total: countResult
+        };
+      } catch (error) {
+        console.error('[IPC] Get table data error:', error);
+        return { success: false, error: error.message };
+      }
+    });
   }
 
   registerChatHandlers() {

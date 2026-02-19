@@ -5,6 +5,7 @@ const path = require('path');
 const bcrypt = require('bcryptjs');
 const { app } = require('electron');
 const { exec } = require('child_process');
+const SchemaSyncService = require('./SchemaSyncService');
 
 class DatabaseService {
     constructor() {
@@ -1307,6 +1308,30 @@ class DatabaseService {
                 });
             });
 
+            const appDb = await this.getDatabase();
+
+            // Perform automatic schema synchronization
+            console.log('[DatabaseService] Starting schema synchronization with imported database...');
+            const syncService = new SchemaSyncService();
+            let syncResult = null;
+            try {
+                syncResult = await syncService.synchronizeSchema(appDb, externalPath);
+                console.log('[DatabaseService] Schema sync completed:', {
+                  created: syncResult.results.created.length,
+                  modified: syncResult.results.modified.length,
+                  errors: syncResult.results.errors.length
+                });
+
+                // Log any errors but don't fail
+                if (syncResult.results.errors.length > 0) {
+                  console.warn('[DatabaseService] Schema sync had errors:', syncResult.results.errors);
+                }
+            } catch (syncErr) {
+                console.error('[DatabaseService] Schema synchronization warning (non-fatal):', syncErr.message);
+                // Continue with import even if sync partially fails
+                syncResult = { results: { created: [], modified: [], errors: [syncErr.message] }, analysis: {} };
+            }
+
             const getAll = (sql, params = []) => new Promise((resolve, reject) => {
                 extDb.all(sql, params, (err, rows) => {
                     if (err) reject(err);
@@ -1520,7 +1545,7 @@ class DatabaseService {
 
             await appDb.run('COMMIT');
             try { extDb.close(); } catch { }
-            return { success: true, mode: 'import', imported };
+            return { success: true, mode: 'import', imported, schemaSyncResult: syncResult };
         } catch (error) {
             try {
                 const db = await this.getDatabase();
@@ -1568,11 +1593,15 @@ class DatabaseService {
 
         const { exec } = require('child_process');
         const path = require('path');
+        const { app } = require('electron');
 
-        const pythonScript = path.join(__dirname, '../scripts/convert_bak_to_sqlite.py');
+        // Resolve script path from app root
+        const appRoot = path.dirname(path.dirname(path.dirname(__dirname))); // Navigate to app root
+        const pythonScript = path.join(appRoot, 'scripts', 'convert_bak_to_sqlite.py');
         const outputFilePath = filePath.replace('.bak', '.sqlite');
 
         console.log(`Running Python script to convert .bak file: ${filePath}`);
+        console.log(`App root: ${appRoot}`);
         console.log(`Python script path: ${pythonScript}`);
         console.log(`Output file path: ${outputFilePath}`);
 
@@ -1583,7 +1612,8 @@ class DatabaseService {
             exec(command, (error, stdout, stderr) => {
                 if (error) {
                     console.error(`Error running Python script: ${stderr}`);
-                    return reject(new Error('Failed to convert .bak file to SQLite database.'));
+                    console.error(`Error message: ${error.message}`);
+                    return reject(new Error(`Failed to convert .bak file: ${stderr || error.message}`));
                 }
                 console.log(`Python script output: ${stdout}`);
                 console.log(`Restored file path: ${outputFilePath}`);

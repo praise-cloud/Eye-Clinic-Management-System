@@ -282,52 +282,141 @@ const AdminDashboard = () => {
     try {
       setAdminLoading(true);
       const result = await window.electronAPI.selectFile({
-        title: 'Choose SQLite or Backup File',
+        title: 'Choose SQLite or Backup File for Import',
         filters: [
-          { name: 'Database Files', extensions: ['sqlite', 'db', 'bak'] },
+          { name: 'Database Files', extensions: ['sqlite', 'db', 'bak', 'csv', 'json'] },
         ],
       });
 
-      let chosen = result?.filePath || result?.path || result?.file || null;
+      let filePath = result?.filePath || result?.path || result?.file || null;
+      if (!filePath) {
+        setAdminMessage('No file selected.');
+        return;
+      }
+
+      // Use the new comprehensive import handler that includes auto-conversion and schema sync
+      console.log('[AdminDashboard] Starting import with auto-conversion and schema sync:', filePath);
+      setAdminMessage('Processing... this may take a few minutes for large files.');
+
+      const importResult = await window.electronAPI.importExternalWithSync(filePath);
+
+      if (!importResult?.success) {
+        setAdminMessage(importResult?.error || 'Failed to import the database.');
+        return;
+      }
+
+      // Build success message with summary
+      const summary = importResult?.summary || {};
+      const detailedMessage = `
+✓ Import Successful!
+
+File: ${summary.file_analyzed}
+Size: ${summary.file_size_mb} MB
+Format: ${summary.format_detected}
+Auto-Conversion: ${summary.was_converted}
+
+Schema Changes:
+- Tables Created: ${summary.tables_created}
+- Tables Modified: ${summary.tables_modified}
+- Sync Errors: ${summary.sync_errors}
+
+Please restart the application to load all imported data.
+      `.trim();
+
+      setAdminMessage(detailedMessage);
+      console.log('[AdminDashboard] Import complete:', importResult);
+    } catch (error) {
+      console.error('[AdminDashboard] Import error:', error);
+      setAdminMessage('An error occurred while importing the database: ' + error.message);
+    } finally {
+      setAdminLoading(false);
+    }
+  };
+
+  const handleAnalyzeBakFile = async () => {
+    try {
+      setAdminLoading(true);
+      const result = await window.electronAPI.selectFile({
+        title: 'Select BAK file to analyze',
+        filters: [
+          { name: 'BAK Files', extensions: ['bak', 'db', 'sqlite', 'sql', 'csv'] },
+        ],
+      });
+
+      const chosen = result?.filePath || result?.path || result?.file || null;
       if (!chosen) {
         setAdminMessage('No file selected.');
         return;
       }
 
-      if (chosen.endsWith('.bak')) {
-        const pythonScriptPath = path.join(__dirname, '../../scripts/convert_bak_to_sqlite.py');
-        const outputFilePath = chosen.replace('.bak', '.sqlite');
+      console.log(`Analyzing file: ${chosen}`);
+      setAdminMessage('Analyzing file format... Please wait.');
 
-        console.log(`Executing Python script: ${pythonScriptPath}`);
-        console.log(`Input file: ${chosen}, Output file: ${outputFilePath}`);
+      const analysis = await window.electronAPI.analyzeBakFile(chosen);
 
-        const restoreResult = await window.electronAPI.runPythonScript(pythonScriptPath, [chosen, outputFilePath]);
-        console.log('Python script result:', restoreResult);
-
-        if (!restoreResult?.success) {
-          setAdminMessage(restoreResult?.error || 'Failed to convert the .bak file to SQLite.');
-          return;
-        }
-
-        // Validate the resulting SQLite file
-        const isValid = await window.electronAPI.validateSQLiteFile(outputFilePath);
-        if (!isValid) {
-          setAdminMessage('The converted SQLite file is invalid.');
-          return;
-        }
-
-        chosen = outputFilePath;
+      if (!analysis?.success) {
+        setAdminMessage(`Analysis Error: ${analysis?.error || 'Unknown error'}`);
+        return;
       }
 
-      const res = await window.electronAPI.importDb(chosen);
-      if (res?.success) {
-        setAdminMessage('Database or Backup imported successfully. Please restart the application.');
-      } else {
-        setAdminMessage(res?.error || 'Failed to import the database or backup.');
+      // Create a detailed report
+      let report = `📋 FILE ANALYSIS REPORT\n`;
+      report += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+
+      report += `📁 File Information:\n`;
+      report += `   Name: ${analysis.file?.name}\n`;
+      report += `   Size: ${analysis.file?.size_mb} MB (${analysis.file?.size_bytes} bytes)\n\n`;
+
+      report += `🔍 Format Detected: ${analysis.format_detected || 'Unknown'}\n\n`;
+
+      if (analysis.details?.sqlite?.is_valid) {
+        report += `✅ SQLite Database Found!\n`;
+        report += `   Tables: ${analysis.details.sqlite.table_count}\n`;
+        if (analysis.details.sqlite.tables?.length > 0) {
+          report += `   Tables: ${analysis.details.sqlite.tables.join(', ')}\n`;
+        }
+        report += `\n   ✓ This file can be imported directly!\n`;
+      } else if (analysis.details?.text?.format_type === 'SQL') {
+        report += `✅ SQL Dump File Detected!\n`;
+        report += `   First Line: ${analysis.details.text.first_line?.substring(0, 80)}\n`;
+        report += `\n   ✓ Will parse SQL and create SQLite database\n`;
+      } else if (analysis.details?.text?.format_type === 'CSV') {
+        report += `✅ CSV/Delimited File Detected!\n`;
+        report += `   Separator: ${analysis.details.text.separator || ','}\n`;
+        report += `   Columns: ${analysis.details.text.columns || 'Unknown'}\n`;
+        report += `   First Line: ${analysis.details.text.first_line?.substring(0, 80)}\n`;
+        report += `\n   ✓ Will extract data and create SQLite database\n`;
+      } else if (analysis.details?.text?.format_type === 'JSON') {
+        report += `ℹ️ JSON File Detected!\n`;
+        report += `   Note: JSON import may need special handling\n`;
+      } else if (analysis.format_detected === 'Bzip2 Compressed Archive' ||
+                 analysis.format_detected === 'Gzip Compressed Archive' ||
+                 analysis.format_detected === 'ZIP Archive') {
+        report += `📦 Compressed Archive Detected!\n`;
+        report += `   Type: ${analysis.format_detected}\n`;
+        report += `\n   ⚠️  Please extract the archive first\n`;
+      } else if (analysis.details?.binary_analysis) {
+        report += `⚠️  Unknown Binary Format\n`;
+        report += `   This may be a SQL Server backup or proprietary format\n`;
+        report += `\n   Recommendations:\n`;
+        report += `   1. Export from original system as CSV\n`;
+        report += `   2. Export from original system as SQL dump\n`;
+        report += `   3. Check if file is corrupted\n`;
+      } else if (analysis.details?.text?.is_readable) {
+        report += `📄 Text File Detected!\n`;
+        report += `   Format: Not clearly identified\n`;
+        report += `   First Line: ${analysis.details.text.first_line?.substring(0, 80)}\n`;
+        report += `\n   Try these formats:\n`;
+        report += `   • CSV (comma-separated or tab-separated)\n`;
+        report += `   • SQL dump file\n`;
       }
+
+      report += `\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+
+      setAdminMessage(report);
     } catch (error) {
-      console.error('Error importing database:', error);
-      setAdminMessage('An error occurred while importing the database.');
+      console.error('Error analyzing BAK file:', error);
+      setAdminMessage(`Analysis failed: ${error.message}`);
     } finally {
       setAdminLoading(false);
     }
@@ -764,7 +853,19 @@ const AdminDashboard = () => {
                   </p>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <button
+                    onClick={handleAnalyzeBakFile}
+                    disabled={adminLoading}
+                    className="p-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-left hover:border-cyan-500 hover:shadow-xl hover:shadow-cyan-500/5 transition-all group"
+                  >
+                    <div className="p-2 bg-cyan-50 dark:bg-cyan-900/30 rounded-lg text-cyan-600 dark:text-cyan-400 w-fit mb-4">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    </div>
+                    <p className="text-sm font-bold text-slate-900 dark:text-white leading-tight">Analyze BAK File Format</p>
+                    <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest mt-1">Detect & Diagnose File Type</p>
+                  </button>
+
                   <button
                     onClick={handleAdminImportDb}
                     disabled={adminLoading}
