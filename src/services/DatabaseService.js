@@ -1312,7 +1312,7 @@ class DatabaseService {
 
             // Perform automatic schema synchronization
             console.log('[DatabaseService] Starting schema synchronization with imported database...');
-            const syncService = new SchemaSyncService();
+            const syncService = SchemaSyncService;
             let syncResult = null;
             try {
                 syncResult = await syncService.synchronizeSchema(appDb, externalPath);
@@ -1383,10 +1383,10 @@ class DatabaseService {
                 return { success: true, mode: 'switch', path: externalPath };
             }
 
-            const appDb = await this.getDatabase();
             await appDb.run('BEGIN');
 
             let imported = { users: 0, patients: 0, tests: 0, inventory: 0, chat: 0, reports: 0 };
+            const dynamicImports = [];
 
             if (hasUsers) {
                 const users = await getAll('SELECT * FROM users');
@@ -1543,9 +1543,43 @@ class DatabaseService {
                 }
             }
 
+            // Import all additional tables that are not handled by legacy mapping logic.
+            const mappedSourceTables = new Set([
+                'users', 'staff', 'admins', 'employees',
+                'patients', 'clients', 'client', 'customer',
+                'tests', 'exams', 'examinations',
+                'inventory', 'items', 'stock',
+                'chat', 'messages'
+            ]);
+
+            const analyzedTables = syncResult?.analysis?.tables || [];
+            for (const tableMeta of analyzedTables) {
+                const sourceTableName = String(tableMeta?.tableName || '');
+                if (!sourceTableName) continue;
+                if (mappedSourceTables.has(sourceTableName.toLowerCase())) continue;
+                try {
+                    const importTableResult = await syncService.importTableData(appDb, externalPath, sourceTableName);
+                    dynamicImports.push({
+                        tableName: sourceTableName,
+                        rowsImported: importTableResult?.rowsImported || 0
+                    });
+                } catch (tableErr) {
+                    dynamicImports.push({
+                        tableName: sourceTableName,
+                        error: tableErr.message
+                    });
+                }
+            }
+
             await appDb.run('COMMIT');
             try { extDb.close(); } catch { }
-            return { success: true, mode: 'import', imported, schemaSyncResult: syncResult };
+            return {
+                success: true,
+                mode: 'import',
+                imported,
+                dynamicImports,
+                schemaSyncResult: syncResult
+            };
         } catch (error) {
             try {
                 const db = await this.getDatabase();

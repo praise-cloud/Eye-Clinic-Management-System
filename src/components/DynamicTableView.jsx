@@ -10,6 +10,7 @@ const DynamicTableView = ({ tableName, metadata, onClose }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [pagination, setPagination] = useState({ page: 0, pageSize: 25 });
+  const [totalRows, setTotalRows] = useState(0);
 
   useEffect(() => {
     loadTableData();
@@ -43,6 +44,7 @@ const DynamicTableView = ({ tableName, metadata, onClose }) => {
         setError(result?.error || 'Failed to load table data');
       } else {
         setTableData(result.data || []);
+        setTotalRows(Number(result.total || 0));
       }
     } catch (err) {
       console.error('Error loading table data:', err);
@@ -156,10 +158,14 @@ const DynamicTableView = ({ tableName, metadata, onClose }) => {
       {/* Pagination */}
       {!loading && tableData.length > 0 && (
         <div className="flex items-center justify-between mt-4">
+          {(() => {
+            const rowCount = Number(metadata?.rowCount ?? totalRows ?? 0);
+            return (
+              <>
           <div className="text-sm text-slate-600 dark:text-slate-400">
             Showing {pagination.page * pagination.pageSize + 1} to{' '}
-            {Math.min((pagination.page + 1) * pagination.pageSize, metadata?.rowCount || 0)} of{' '}
-            {metadata?.rowCount || 0} rows
+            {Math.min((pagination.page + 1) * pagination.pageSize, rowCount)} of{' '}
+            {rowCount} rows
           </div>
           <div className="flex gap-2">
             <button
@@ -171,12 +177,15 @@ const DynamicTableView = ({ tableName, metadata, onClose }) => {
             </button>
             <button
               onClick={() => setPagination({ ...pagination, page: pagination.page + 1 })}
-              disabled={(pagination.page + 1) * pagination.pageSize >= (metadata?.rowCount || 0)}
+              disabled={(pagination.page + 1) * pagination.pageSize >= rowCount}
               className="px-3 py-1 text-sm border border-slate-200 dark:border-slate-800 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors"
             >
               Next
             </button>
           </div>
+              </>
+            );
+          })()}
         </div>
       )}
     </div>

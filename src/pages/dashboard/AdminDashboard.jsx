@@ -8,6 +8,7 @@ import * as patientService from '../../services/patientService';
 import * as inventoryService from '../../services/inventoryService';
 import * as testService from '../../services/testService';
 import path from 'path';
+import DynamicTableView from '../../components/DynamicTableView';
 
 const AdminDashboard = () => {
   const { user, logout } = useUser();
@@ -35,6 +36,8 @@ const AdminDashboard = () => {
   const [networkDbPath, setNetworkDbPath] = useState('');
   const [adminLoading, setAdminLoading] = useState(false);
   const [adminMessage, setAdminMessage] = useState(null);
+  const [importedTables, setImportedTables] = useState([]);
+  const [selectedImportedTable, setSelectedImportedTable] = useState('');
 
   const handleSectionClick = (section) => {
     if (section === 'system-settings') {
@@ -307,6 +310,16 @@ const AdminDashboard = () => {
 
       // Build success message with summary
       const summary = importResult?.summary || {};
+      const schemaTables = importResult?.import?.schemaSyncResult?.analysis?.tables || [];
+      const normalizedTables = schemaTables
+        .map((t) => ({
+          tableName: t?.tableName || '',
+          rowCount: t?.rowCount || 0,
+          columnCount: t?.columnCount || 0
+        }))
+        .filter((t) => t.tableName);
+      setImportedTables(normalizedTables);
+      setSelectedImportedTable(normalizedTables[0]?.tableName || '');
       const detailedMessage = `
 ✓ Import Successful!
 
@@ -902,6 +915,36 @@ Please restart the application to load all imported data.
                     <p className="text-[10px] text-rose-400 dark:text-slate-500 font-bold uppercase tracking-widest mt-1">Hard reset current deployment</p>
                   </button>
                 </div>
+
+                {importedTables.length > 0 && (
+                  <div className="bg-slate-50 dark:bg-slate-900/50 p-6 rounded-2xl border border-slate-100 dark:border-slate-800">
+                    <div className="flex items-center justify-between gap-4 mb-4">
+                      <div>
+                        <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">Imported Tables Browser</h4>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">Preview synchronized tables and data after import.</p>
+                      </div>
+                      <select
+                        value={selectedImportedTable}
+                        onChange={(e) => setSelectedImportedTable(e.target.value)}
+                        className="px-4 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-sm font-semibold"
+                      >
+                        {importedTables.map((table) => (
+                          <option key={table.tableName} value={table.tableName}>
+                            {table.tableName}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {selectedImportedTable && (
+                      <DynamicTableView
+                        tableName={selectedImportedTable}
+                        metadata={importedTables.find((t) => t.tableName === selectedImportedTable) || null}
+                        onClose={() => setSelectedImportedTable('')}
+                      />
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           </div>
