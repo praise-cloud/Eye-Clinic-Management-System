@@ -44,6 +44,7 @@ const Sidebar = ({ activeSection, onSectionClick, currentUser }) => {
     { id: 'dashboard', name: 'Dashboard', icon: <ChartIcon className="w-5 h-5" /> },
     { id: 'messages', name: 'Messages', icon: <ChatIcon className="w-5 h-5" /> },
     { id: 'tests', name: 'Test', icon: <DocumentIcon className="w-5 h-5" /> },
+    { id: 'cvf', name: 'CVF Workspace', icon: <DocumentIcon className="w-5 h-5" />, roles: ['doctor', 'assistant'] },
     { id: 'inventory', name: 'Inventory', icon: <PackageIcon className="w-5 h-5" />, roles: ['admin', 'assistant'] },
     { id: 'pharmacy', name: 'Pharmacy', icon: <DrugIcon className="w-5 h-5" />, roles: ['assistant'] },
     { id: 'settings', name: 'Settings', icon: <GearIcon className="w-5 h-5" /> },

@@ -1703,8 +1703,9 @@ class IPCHandlers {
 
     safeHandle('henson:analyzeExport', async (event, filePath) => {
       try {
-        if (!currentUser || String(currentUser.role || '').toLowerCase() !== 'admin') {
-          return { success: false, error: 'Only admin can analyze Henson exports' };
+        const role = String(currentUser?.role || '').toLowerCase();
+        if (!['admin', 'doctor', 'assistant'].includes(role)) {
+          return { success: false, error: 'Only admin, doctor, or assistant can analyze Henson exports' };
         }
         return await HensonImportService.analyzeFile(filePath);
       } catch (error) {
@@ -1715,8 +1716,9 @@ class IPCHandlers {
 
     safeHandle('henson:importExport', async (event, payload = {}) => {
       try {
-        if (!currentUser || String(currentUser.role || '').toLowerCase() !== 'admin') {
-          return { success: false, error: 'Only admin can import Henson exports' };
+        const role = String(currentUser?.role || '').toLowerCase();
+        if (!['admin', 'doctor', 'assistant'].includes(role)) {
+          return { success: false, error: 'Only admin, doctor, or assistant can import Henson exports' };
         }
 
         const filePath = String(payload?.filePath || '').trim();
@@ -1765,8 +1767,9 @@ class IPCHandlers {
 
     safeHandle('henson:importFolder', async (event, payload = {}) => {
       try {
-        if (!currentUser || String(currentUser.role || '').toLowerCase() !== 'admin') {
-          return { success: false, error: 'Only admin can import Henson export folders' };
+        const role = String(currentUser?.role || '').toLowerCase();
+        if (!['admin', 'doctor', 'assistant'].includes(role)) {
+          return { success: false, error: 'Only admin, doctor, or assistant can import Henson export folders' };
         }
 
         const folderPath = String(payload?.folderPath || '').trim();

@@ -23,11 +23,12 @@ const Layout = ({ children, activeSection, onSectionClick, searchTerm, onSearchC
           onSectionClick={onSectionClick}
         />
         <main className="flex-1 overflow-auto p-8 animate-premium-fade">
-          {['dashboard', 'tests', 'settings', 'inventory'].includes(activeSection) && (
+          {['dashboard', 'tests', 'cvf', 'settings', 'inventory'].includes(activeSection) && (
             <div className="flex flex-col gap-1 mb-10">
               <h1 className="text-4xl font-extrabold text-slate-900 dark:text-white tracking-tight">
                 {activeSection === 'dashboard' && ''}
                 {activeSection === 'tests' && 'Clinical Tests'}
+                {activeSection === 'cvf' && 'CVF Workspace'}
                 {activeSection === 'settings' && 'System Settings'}
                 {activeSection === 'inventory' && 'Medical Inventory'}
               </h1>

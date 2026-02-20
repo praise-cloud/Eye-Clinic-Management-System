@@ -5,6 +5,7 @@ import DashboardContent from './content/DashboardContent'
 import MessagesContent from './content/MessagesContent'
 import PatientsContent from './content/PatientsContent'
 import TestsContent from './content/TestsContent'
+import CVFWorkspaceContent from './content/CVFWorkspaceContent'
 import ReportsContent from './content/ReportsContent'
 import InventoryContent from './content/InventoryContent'
 import PharmacyContent from './content/PharmacyContent'
@@ -48,6 +49,7 @@ const MainApp = () => {
     if (path.startsWith('/patients')) return 'patients';
     if (path.startsWith('/messages')) return 'messages';
     if (path.startsWith('/tests')) return 'tests';
+    if (path.startsWith('/cvf')) return 'cvf';
     if (path.startsWith('/reports')) return 'reports';
     if (path.startsWith('/settings')) return 'settings';
     return 'dashboard';
@@ -149,6 +151,7 @@ const MainApp = () => {
         <Route path="/messages" element={<MessagesContent />} />
         <Route path="/patients" element={<PatientsContent searchTerm={searchTerm} ref={patientsContentRef} />} />
         <Route path="/tests" element={<TestsContent />} />
+        <Route path="/cvf" element={<CVFWorkspaceContent />} />
         <Route path="/reports" element={<ReportsContent />} />
         <Route path="/inventory" element={<InventoryContent />} />
         <Route path="/inventory/create" element={<CreateInventoryItemScreen />} />

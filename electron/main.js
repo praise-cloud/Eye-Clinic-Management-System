@@ -5,7 +5,8 @@ if (!electron || !electron.app || !electron.BrowserWindow) {
   const electronBinary = typeof electron === 'string' ? electron : require('electron');
   const env = { ...process.env };
   delete env.ELECTRON_RUN_AS_NODE;
-  spawn(electronBinary, process.argv.slice(1), {
+  // Never forward arbitrary CLI args here; they can be interpreted as app paths.
+  spawn(electronBinary, ['.'], {
     env,
     stdio: 'inherit',
     detached: false
