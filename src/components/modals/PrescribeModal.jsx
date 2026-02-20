@@ -30,7 +30,7 @@ const PrescribeModal = ({ onClose, currentUser, initialPatientId = '' }) => {
                 setPatients(result.patients || [])
             }
         } catch (err) {
-            console.error('Failed to load patients:', err)
+            console.error('Failed to load clients:', err)
         }
     }
 
@@ -83,7 +83,7 @@ const PrescribeModal = ({ onClose, currentUser, initialPatientId = '' }) => {
         // Mode 1: Multi-prescription commit
         if (items.length > 0) {
             if (!formData.patientId) {
-                setError('Please select a patient')
+                setError('Please select a client')
                 return
             }
 
@@ -118,7 +118,7 @@ const PrescribeModal = ({ onClose, currentUser, initialPatientId = '' }) => {
         // Mode 2: Single direct prescription
         if (formData.drugId && formData.quantity) {
             if (!formData.patientId) {
-                setError('Please select a patient')
+                setError('Please select a client')
                 return
             }
 
@@ -197,9 +197,9 @@ const PrescribeModal = ({ onClose, currentUser, initialPatientId = '' }) => {
                     )}
 
                     <div className="space-y-6">
-                        {/* Patient Selection */}
+                        {/* Client Selection */}
                         <div>
-                            <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Select Patient *</label>
+                            <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Select Client *</label>
                             <select
                                 name="patientId"
                                 value={formData.patientId}
@@ -208,7 +208,7 @@ const PrescribeModal = ({ onClose, currentUser, initialPatientId = '' }) => {
                                 disabled={!!initialPatientId}
                                 className="input-premium appearance-none"
                             >
-                                <option value="">Choose patient...</option>
+                                <option value="">Choose client...</option>
                                 {patients.map(patient => (
                                     <option key={patient.id} value={patient.id}>
                                         {patient.first_name} {patient.last_name} — {patient.id}

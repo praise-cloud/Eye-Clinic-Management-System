@@ -56,10 +56,10 @@ const AddPatientModal = ({ onClose, currentUser, onPatientAdded, editPatientData
         onClose()
         if (onPatientAdded) onPatientAdded()
       } else {
-        throw new Error(result?.error || `Failed to ${editPatientData ? 'update' : 'add'} patient`)
+        throw new Error(result?.error || `Failed to ${editPatientData ? 'update' : 'add'} client`)
       }
     } catch (err) {
-      setError(err.message || `Failed to ${editPatientData ? 'update' : 'add'} patient`)
+      setError(err.message || `Failed to ${editPatientData ? 'update' : 'add'} client`)
     } finally {
       setLoading(false)
     }
@@ -72,10 +72,10 @@ const AddPatientModal = ({ onClose, currentUser, onPatientAdded, editPatientData
         <div className="p-8 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-950/30">
           <div>
             <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
-              {editPatientData ? 'Update Clinical Record' : 'Register New Patient'}
+              {editPatientData ? 'Update Clinical Record' : 'Register New Client'}
             </h2>
             <p className="text-xs text-slate-500 font-bold uppercase tracking-widest mt-1">
-              {editPatientData ? 'Modify existing patient information' : 'Create a new medical file for admission'}
+              {editPatientData ? 'Modify existing client information' : 'Create a new medical file for admission'}
             </p>
           </div>
           <button
@@ -103,7 +103,7 @@ const AddPatientModal = ({ onClose, currentUser, onPatientAdded, editPatientData
           <div className="space-y-8">
             {/* Essential Identity Section */}
             <div>
-              <label className="block text-[10px] font-black text-indigo-500 uppercase tracking-widest mb-4">Patient Identity & Demographics</label>
+              <label className="block text-[10px] font-black text-indigo-500 uppercase tracking-widest mb-4">Client Identity & Demographics</label>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">First Given Name *</label>
@@ -235,7 +235,7 @@ const AddPatientModal = ({ onClose, currentUser, onPatientAdded, editPatientData
                 <span>Processing...</span>
               </div>
             ) : (
-              editPatientData ? 'Update Patient Record' : 'Commit Patient Data'
+              editPatientData ? 'Update Client Record' : 'Commit Client Data'
             )}
           </button>
         </div>

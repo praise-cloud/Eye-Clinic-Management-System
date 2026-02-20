@@ -25,7 +25,7 @@ const PatientQuickViewModal = ({ patient, onClose }) => {
                         </div>
                         <div>
                             <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">
-                                Quick Patient View
+                                Quick Client View
                             </h2>
                             <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.2em] mt-0.5">
                                 ID: {patient.patient_id || 'REGISTERED'}
@@ -97,7 +97,7 @@ const PatientQuickViewModal = ({ patient, onClose }) => {
                         <div className="bg-slate-50 dark:bg-slate-800/50 p-6 rounded-2xl border border-slate-100 dark:border-slate-800">
                             <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Primary Consultation Reason</h4>
                             <p className="text-sm font-bold text-slate-700 dark:text-slate-200 leading-relaxed">
-                                {patient.reason_for_visit || 'No preliminary notes recorded for this patient.'}
+                                {patient.reason_for_visit || 'No preliminary notes recorded for this client.'}
                             </p>
                         </div>
                     </div>
@@ -109,7 +109,7 @@ const PatientQuickViewModal = ({ patient, onClose }) => {
                         onClick={handleFullProfile}
                         className="w-full btn btn-primary py-4 text-xs font-black tracking-widest uppercase shadow-xl shadow-indigo-200 dark:shadow-none transition-all hover:scale-[1.01] active:scale-95 flex items-center justify-center gap-3"
                     >
-                        <span>Access Full Patient Record</span>
+                        <span>Access Full Client Record</span>
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M14 5l7 7m0 0l-7 7m7-7H3" />
                         </svg>

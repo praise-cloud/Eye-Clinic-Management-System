@@ -127,3 +127,35 @@
 ### File Updated
 - `src/components/content/CVFWorkspaceContent.jsx`
 - `CVF_IMPLEMENTATION_LOG.md`
+
+## Update
+- Date: February 20, 2026 (CVF document attachment pass)
+
+### CVF Result -> Client Documents
+- Added a direct action in CVF Case Study Editor:
+  - `Attach CVF To Client Documents`
+- Action creates a report entry in `reports` table with:
+  - `report_type: cvf_case_study_attachment`
+  - JSON payload snapshot of CVF result, diagnosis, case study, notes, sign-off, and audit context
+
+### New IPC Bridge
+- Added renderer API:
+  - `attachCvfToPatientDocuments(testId, options)`
+- Added main-process handler:
+  - `tests:attachCvfToDocuments`
+- Role access for this action:
+  - `admin`, `doctor`, `assistant`
+
+### Patient Detail Documents View
+- Added `Client Documents` section in patient details page:
+  - Lists all `reports` for selected patient
+  - Shows CVF case-study attachments and regular reports
+  - Supports viewing CVF attachment content in-app
+  - Supports download/export action per document
+
+### Files Updated
+- `electron/preload.js`
+- `electron/ipc/handlers.js`
+- `src/components/content/CVFWorkspaceContent.jsx`
+- `src/pages/PatientDetailsPage.jsx`
+- `CVF_IMPLEMENTATION_LOG.md`

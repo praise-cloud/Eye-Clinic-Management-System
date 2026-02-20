@@ -153,7 +153,7 @@ const GenerateReportModal = ({ onClose, currentUser }) => {
                   <label className="block text-[10px] font-black text-indigo-500 uppercase tracking-widest mb-4">Target Intelligence</label>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="md:col-span-2">
-                      <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Clinical Subject (Patient) *</label>
+                      <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Clinical Subject (Client) *</label>
                       <select
                         name="patientId"
                         value={formData.patientId}

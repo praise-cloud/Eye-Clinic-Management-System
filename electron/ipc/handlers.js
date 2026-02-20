@@ -511,6 +511,88 @@ class IPCHandlers {
       }
     });
 
+    ipcMain.handle('tests:attachCvfToDocuments', async (event, { testId, options = {} } = {}) => {
+      try {
+        const role = String(currentUser?.role || '').toLowerCase();
+        if (!['admin', 'doctor', 'assistant'].includes(role)) {
+          return { success: false, error: 'Only admin, doctor, or assistant can attach CVF results to documents' };
+        }
+        if (!testId) return { success: false, error: 'Test ID required' };
+
+        const test = await DatabaseService.getTestById(testId);
+        if (!test) return { success: false, error: 'CVF test not found' };
+        if (!test.patient_id) return { success: false, error: 'CVF test is not linked to a patient' };
+
+        let raw = {};
+        try {
+          raw = typeof test.raw_data === 'string' ? JSON.parse(test.raw_data || '{}') : (test.raw_data || {});
+        } catch {
+          raw = {};
+        }
+
+        const isCvf = String(test.machine_type || '').toLowerCase() === 'henson_8000' || String(raw?.source || '').toLowerCase() === 'henson_8000';
+        if (!isCvf) {
+          return { success: false, error: 'Only Henson 8000 CVF tests can be attached from this action' };
+        }
+
+        const patient = await DatabaseService.getPatientById(test.patient_id);
+        const patientName = patient
+          ? `${patient.first_name || ''} ${patient.last_name || ''}`.trim()
+          : 'Unknown Patient';
+
+        const attachmentTitle = String(options?.title || '').trim() ||
+          `CVF Case Study Attachment - ${patientName || test.patient_id} - ${new Date(test.test_date || Date.now()).toLocaleDateString()}`;
+
+        const documentPayload = {
+          source: 'henson_8000',
+          kind: 'cvf_case_study_attachment',
+          attached_from_test_id: test.id,
+          attached_at: new Date().toISOString(),
+          attached_by: currentUser?.id || null,
+          attached_by_role: role || null,
+          patient_id: test.patient_id,
+          machine_type: test.machine_type || 'henson_8000',
+          eye: test.eye || 'both',
+          test_date: test.test_date || null,
+          result: raw?.result || 'Pending',
+          diagnosis: raw?.diagnosis || '',
+          caseStudy: raw?.caseStudy || '',
+          notes: raw?.notes || '',
+          signoff: raw?.signoff || null,
+          auditTrail: Array.isArray(raw?.auditTrail) ? raw.auditTrail : [],
+          snapshot: raw
+        };
+
+        const report = await DatabaseService.createReport({
+          patient_id: test.patient_id,
+          report_type: 'cvf_case_study_attachment',
+          title: attachmentTitle,
+          report_file: JSON.stringify(documentPayload)
+        });
+
+        BrowserWindow.getAllWindows().forEach((w) => w.webContents.send('data:update', {
+          table: 'reports',
+          action: 'create',
+          record: report
+        }));
+
+        if (currentUser?.id) {
+          await DatabaseService.logActivity(
+            currentUser.id,
+            'create',
+            'report',
+            report.id,
+            `Attached CVF result ${test.id} to patient documents for patient ${test.patient_id}`
+          );
+        }
+
+        return { success: true, report };
+      } catch (error) {
+        console.error('Attach CVF to documents error:', error);
+        return buildErrorResponse(error, { scope: 'tests', action: 'attachCvfToDocuments', entity: 'report' });
+      }
+    });
+
     ipcMain.handle('tests:getByPatient', async (event, patientId) => {
       try {
         if (!patientId) return { success: false, error: 'Patient ID required' };

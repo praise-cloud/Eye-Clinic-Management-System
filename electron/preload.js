@@ -135,6 +135,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     createTest: (testData) => ipcRenderer.invoke('tests:create', testData),
     updateTest: (id, testData) => ipcRenderer.invoke('tests:update', { id, testData }),
     deleteTest: (id) => ipcRenderer.invoke('tests:delete', id),
+    attachCvfToPatientDocuments: (testId, options) => ipcRenderer.invoke('tests:attachCvfToDocuments', { testId, options }),
 
     // Inventory APIs
     getInventoryItems: (filters) => ipcRenderer.invoke('inventory:getAll', filters),

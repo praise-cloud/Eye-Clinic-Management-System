@@ -68,7 +68,7 @@ const PatientsContent = forwardRef(({ searchTerm }, ref) => {
       <div className="p-8 border-b border-slate-100 dark:border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
           <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">Clinical Registry</h2>
-          <p className="text-sm text-slate-500 font-medium mt-1">Directory of all registered eye clinic patients</p>
+          <p className="text-sm text-slate-500 font-medium mt-1">Directory of all registered eye clinic clients</p>
         </div>
         <button
           onClick={handleExportCSV}
@@ -90,7 +90,7 @@ const PatientsContent = forwardRef(({ searchTerm }, ref) => {
           <table className="min-w-full text-left">
             <thead className="bg-slate-50/50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800">
               <tr>
-                <th className="px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Patient Profile</th>
+                <th className="px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Client Profile</th>
                 <th className="px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Age</th>
                 <th className="px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Contact</th>
                 <th className="px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Recent Visit</th>
@@ -133,7 +133,7 @@ const PatientsContent = forwardRef(({ searchTerm }, ref) => {
                         <button
                           onClick={() => navigate(`/patients/${patient.id}`)}
                           className="w-9 h-9 rounded-xl flex items-center justify-center bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-emerald-50 hover:text-emerald-600 dark:hover:bg-emerald-900/40 transition-all"
-                          title="Full Patient Record"
+                          title="Full Client Record"
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                         </button>

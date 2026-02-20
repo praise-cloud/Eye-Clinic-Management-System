@@ -111,7 +111,6 @@ const LoginScreen = ({ onLogin, onAddUser }) => {
                 <label htmlFor="password" className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
                   Encryption Key
                 </label>
-                <button type="button" className="text-[10px] font-black text-indigo-500 hover:text-indigo-600 uppercase tracking-widest transition-colors">Forgot?</button>
               </div>
               <div className="relative group">
                 <input

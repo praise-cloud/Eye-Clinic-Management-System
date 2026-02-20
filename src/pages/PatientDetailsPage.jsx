@@ -18,9 +18,13 @@ const PatientDetailsPage = () => {
     const [error, setError] = useState(null);
     const [tests, setTests] = useState([]);
     const [testsLoading, setTestsLoading] = useState(false);
+    const [resultView, setResultView] = useState('cards');
+    const [documents, setDocuments] = useState([]);
+    const [documentsLoading, setDocumentsLoading] = useState(false);
     const [editingTestId, setEditingTestId] = useState(null);
     const [showEditModal, setShowEditModal] = useState(false);
     const [viewingTest, setViewingTest] = useState(null);
+    const [viewingDocument, setViewingDocument] = useState(null);
     const [deleteConfirm, setDeleteConfirm] = useState(null);
     const { prescriptions, fetchPatientPrescriptions, loading: prescriptionsLoading } = usePrescriptions();
     const activeRefs = useRef({});
@@ -49,11 +53,11 @@ const PatientDetailsPage = () => {
                         address: p.address || ''
                     });
                 } else {
-                    setError(res.error || 'Patient not found');
+                    setError(res.error || 'Client not found');
                 }
             } catch (err) {
                 console.error('Error fetching patient:', err);
-                setError('Failed to load patient details');
+                setError('Failed to load client details');
             } finally {
                 setLoading(false);
             }
@@ -73,11 +77,47 @@ const PatientDetailsPage = () => {
                 setTestsLoading(false);
             }
         };
+        const fetchPatientDocuments = async () => {
+            setDocumentsLoading(true);
+            try {
+                const res = await window.electronAPI.getReports({ patientId: id });
+                if (!res?.success) {
+                    setDocuments([]);
+                    return;
+                }
+
+                const mapped = (res.reports || []).map((report) => {
+                    let payload = null;
+                    try {
+                        payload = typeof report.report_file === 'string'
+                            ? JSON.parse(report.report_file)
+                            : report.report_file;
+                    } catch {
+                        payload = null;
+                    }
+                    const isCvfAttachment = report.report_type === 'cvf_case_study_attachment'
+                        || payload?.kind === 'cvf_case_study_attachment';
+                    return {
+                        ...report,
+                        payload,
+                        isCvfAttachment
+                    };
+                }).sort((a, b) => new Date(b.report_date || b.created_at || 0) - new Date(a.report_date || a.created_at || 0));
+
+                setDocuments(mapped);
+            } catch (err) {
+                console.error('Error fetching patient documents:', err);
+                setDocuments([]);
+            } finally {
+                setDocumentsLoading(false);
+            }
+        };
         const fetchPrescriptions = async () => {
             await fetchPatientPrescriptions(id);
         };
         if (id) {
             fetchPatientTests();
+            fetchPatientDocuments();
             fetchPrescriptions();
         }
 
@@ -85,8 +125,9 @@ const PatientDetailsPage = () => {
         if (window.electronAPI && window.electronAPI.onIpcEvent) {
             const unsubscribe = window.electronAPI.onIpcEvent('data:update', (payload) => {
                 // Refresh if the update might affect this patient's data
-                if (!payload || payload.patient_id === id || ['prescriptions', 'tests', 'patients'].includes(payload.table)) {
+                if (!payload || payload.patient_id === id || ['prescriptions', 'tests', 'patients', 'reports'].includes(payload.table)) {
                     fetchPatientTests();
+                    fetchPatientDocuments();
                     fetchPrescriptions();
                 }
             });
@@ -156,8 +197,8 @@ const PatientDetailsPage = () => {
                 alert('Update failed: ' + res.error);
             }
         } catch (err) {
-            console.error('Error updating patient:', err);
-            alert('Error updating patient');
+            console.error('Error updating client:', err);
+            alert('Error updating client');
         }
     };
 
@@ -180,6 +221,28 @@ const PatientDetailsPage = () => {
         return 'text-gray-600 bg-gray-100';
     };
 
+    const downloadDocument = async (doc) => {
+        if (!doc) return;
+        if (doc.isCvfAttachment) {
+            const fileName = `cvf_case_study_${doc.patient_id || id}_${(doc.report_date || '').split('T')[0] || 'document'}.json`;
+            const json = JSON.stringify(doc.payload || {}, null, 2);
+            const blob = new Blob([json], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = fileName;
+            a.click();
+            URL.revokeObjectURL(url);
+            return;
+        }
+        try {
+            await window.electronAPI.exportReport(doc.id, 'pdf');
+        } catch (error) {
+            console.error('Failed to export document:', error);
+            alert('Failed to export document');
+        }
+    };
+
     return (
         <div className="bg-gray-50 dark:bg-gray-900 min-h-screen">
             <ClientDetailContent
@@ -190,8 +253,30 @@ const PatientDetailsPage = () => {
             <div className="mx-auto px-6 pb-12 space-y-6">
                 <div className="flex items-center justify-between">
                     <div>
-                        <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">Test Results</h2>
-                        <p className="text-sm text-slate-500 font-medium mt-1">All diagnostic tests for this patient</p>
+                        <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">Client Results</h2>
+                        <p className="text-sm text-slate-500 font-medium mt-1">All diagnostic test outcomes for this client</p>
+                    </div>
+                    <div className="inline-flex rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+                        <button
+                            onClick={() => setResultView('cards')}
+                            className={`px-4 py-2 text-xs font-black uppercase tracking-widest ${
+                                resultView === 'cards'
+                                    ? 'bg-indigo-600 text-white'
+                                    : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300'
+                            }`}
+                        >
+                            Card View
+                        </button>
+                        <button
+                            onClick={() => setResultView('table')}
+                            className={`px-4 py-2 text-xs font-black uppercase tracking-widest ${
+                                resultView === 'table'
+                                    ? 'bg-indigo-600 text-white'
+                                    : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300'
+                            }`}
+                        >
+                            Table View
+                        </button>
                     </div>
                 </div>
                 <div className="card-premium">
@@ -204,6 +289,7 @@ const PatientDetailsPage = () => {
                             <p className="text-sm font-bold text-slate-600 dark:text-slate-400">No test records found</p>
                         </div>
                     ) : (
+                        resultView === 'cards' ? (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 p-6">
                             {tests.map(t => (
                                 <div
@@ -274,10 +360,138 @@ const PatientDetailsPage = () => {
                                 </div>
                             ))}
                         </div>
+                        ) : (
+                            <div className="overflow-x-auto">
+                                <table className="min-w-full text-left">
+                                    <thead>
+                                        <tr className="bg-slate-50/50 dark:bg-slate-800/30 border-b border-slate-100 dark:border-slate-800 font-black text-[10px] text-slate-400 uppercase tracking-widest">
+                                            <th className="px-8 py-5">Test</th>
+                                            <th className="px-8 py-5">Eye</th>
+                                            <th className="px-8 py-5">Date</th>
+                                            <th className="px-8 py-5">Result</th>
+                                            <th className="px-8 py-5">Notes</th>
+                                            <th className="px-8 py-5 text-right">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                        {tests.map((t) => (
+                                            <tr key={t.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors">
+                                                <td className="px-8 py-6 text-sm font-bold text-slate-900 dark:text-white">{t.testType}</td>
+                                                <td className="px-8 py-6 text-xs font-black uppercase tracking-widest text-slate-500">{t.eye?.toUpperCase()}</td>
+                                                <td className="px-8 py-6 text-xs font-black uppercase tracking-widest text-slate-500">{t.date}</td>
+                                                <td className="px-8 py-6">
+                                                    <span className={`inline-flex px-3 py-1 text-xs font-semibold rounded-full ${getResultColor(t.result)}`}>
+                                                        {t.result}
+                                                    </span>
+                                                </td>
+                                                <td className="px-8 py-6 text-sm text-slate-600 dark:text-slate-400 max-w-xs truncate">{t.notes || '-'}</td>
+                                                <td className="px-8 py-6">
+                                                    <div className="flex justify-end gap-2">
+                                                        <button
+                                                            className="px-4 py-2 text-xs font-bold rounded-lg bg-slate-300 text-slate-700 hover:bg-slate-200"
+                                                            onClick={() => setViewingTest(t)}
+                                                        >
+                                                            View
+                                                        </button>
+                                                        <button
+                                                            className="px-4 py-2 text-xs font-bold rounded-lg bg-indigo-600 text-white hover:bg-indigo-700"
+                                                            onClick={() => startEditTest(t.id)}
+                                                        >
+                                                            Edit
+                                                        </button>
+                                                        <button
+                                                            className="px-4 py-2 text-xs font-bold rounded-lg bg-rose-600 text-white hover:bg-rose-700"
+                                                            onClick={() => setDeleteConfirm(t)}
+                                                        >
+                                                            Delete
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )
                     )}
                 </div>
 
-                {/* Medication History Section */}
+                {/* Client Documents Section */}
+                <div>
+                    <div>
+                        <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">Client Documents</h2>
+                        <p className="text-sm text-slate-500 font-medium mt-1">Attached reports and CVF case-study documents for this client</p>
+                    </div>
+                </div>
+                <div className="card-premium overflow-hidden">
+                    {documentsLoading ? (
+                        <div className="flex justify-center items-center py-16">
+                            <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+                        </div>
+                    ) : documents.length === 0 ? (
+                        <div className="p-10 text-center">
+                            <p className="text-sm font-bold text-slate-600 dark:text-slate-400">No client documents found</p>
+                        </div>
+                    ) : (
+                        <div className="overflow-x-auto">
+                            <table className="min-w-full text-left">
+                                <thead>
+                                    <tr className="bg-slate-50/50 dark:bg-slate-800/30 border-b border-slate-100 dark:border-slate-800 font-black text-[10px] text-slate-400 uppercase tracking-widest">
+                                        <th className="px-8 py-5">Title</th>
+                                        <th className="px-8 py-5">Type</th>
+                                        <th className="px-8 py-5">Date</th>
+                                        <th className="px-8 py-5">Source</th>
+                                        <th className="px-8 py-5 text-right">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                    {documents.map((doc) => (
+                                        <tr key={doc.id} className="hover:bg-slate-50/50 dark:hover:bg-indigo-900/10 transition-colors">
+                                            <td className="px-8 py-6">
+                                                <p className="text-sm font-bold text-slate-900 dark:text-white leading-tight">
+                                                    {doc.title || 'Untitled Document'}
+                                                </p>
+                                            </td>
+                                            <td className="px-8 py-6">
+                                                <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest ${
+                                                    doc.isCvfAttachment
+                                                        ? 'bg-indigo-100 text-indigo-700'
+                                                        : 'bg-emerald-100 text-emerald-700'
+                                                }`}>
+                                                    {doc.isCvfAttachment ? 'CVF Case Study' : (doc.report_type || 'report')}
+                                                </span>
+                                            </td>
+                                            <td className="px-8 py-6 text-[11px] font-black text-slate-500 uppercase tracking-widest">
+                                                {new Date(doc.report_date || doc.created_at || Date.now()).toLocaleString()}
+                                            </td>
+                                            <td className="px-8 py-6 text-xs text-slate-600 dark:text-slate-400">
+                                                {doc.isCvfAttachment ? 'Henson 8000' : 'Clinical Report'}
+                                            </td>
+                                            <td className="px-8 py-6">
+                                                <div className="flex justify-end gap-2">
+                                                    <button
+                                                        className="px-4 py-2 text-xs font-bold rounded-lg bg-slate-200 text-slate-700 hover:bg-slate-300"
+                                                        onClick={() => setViewingDocument(doc)}
+                                                    >
+                                                        View
+                                                    </button>
+                                                    <button
+                                                        className="px-4 py-2 text-xs font-bold rounded-lg bg-indigo-600 text-white hover:bg-indigo-700"
+                                                        onClick={() => downloadDocument(doc)}
+                                                    >
+                                                        Download
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                </div>
+
+                {/* Client Medication History Section */}
                 <div>
                     <div>
                         <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">Medication History</h2>
@@ -378,6 +592,76 @@ const PatientDetailsPage = () => {
                             <div className="p-6 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-3 bg-slate-50/60 dark:bg-slate-950/40">
                                 <button
                                     onClick={() => setViewingTest(null)}
+                                    className="px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800"
+                                >
+                                    Close
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+                {viewingDocument && (
+                    <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center z-[115] p-4" onClick={() => setViewingDocument(null)}>
+                        <div className="card-premium w-full max-w-3xl bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 overflow-hidden shadow-2xl" onClick={(e) => e.stopPropagation()}>
+                            <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                                <div>
+                                    <h3 className="text-lg font-black text-slate-900 dark:text-white tracking-tight">
+                                        {viewingDocument.title || 'Client Document'}
+                                    </h3>
+                                    <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mt-2">
+                                        {viewingDocument.isCvfAttachment ? 'CVF Case Study Attachment' : (viewingDocument.report_type || 'Report')}
+                                    </p>
+                                </div>
+                                <button
+                                    onClick={() => setViewingDocument(null)}
+                                    className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600"
+                                >
+                                    x
+                                </button>
+                            </div>
+                            <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+                                {viewingDocument.isCvfAttachment ? (
+                                    <>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div>
+                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Result</p>
+                                                <p className="text-sm font-bold text-slate-900 dark:text-white">{viewingDocument.payload?.result || 'Pending'}</p>
+                                            </div>
+                                            <div>
+                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Diagnosis</p>
+                                                <p className="text-sm font-medium text-slate-700 dark:text-slate-300">{viewingDocument.payload?.diagnosis || '-'}</p>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Case Study</p>
+                                            <p className="text-sm font-medium text-slate-700 dark:text-slate-300 whitespace-pre-line">
+                                                {viewingDocument.payload?.caseStudy || 'No case study text provided.'}
+                                            </p>
+                                        </div>
+                                        <div>
+                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Notes</p>
+                                            <p className="text-sm font-medium text-slate-700 dark:text-slate-300 whitespace-pre-line">
+                                                {viewingDocument.payload?.notes || 'No notes provided.'}
+                                            </p>
+                                        </div>
+                                    </>
+                                ) : (
+                                    <div>
+                                        <p className="text-sm text-slate-600 dark:text-slate-300">
+                                            This is a generated clinical report. Use Download to export the file.
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+                            <div className="p-6 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-3 bg-slate-50/60 dark:bg-slate-950/40">
+                                <button
+                                    onClick={() => downloadDocument(viewingDocument)}
+                                    className="px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest bg-indigo-600 text-white hover:bg-indigo-700"
+                                >
+                                    Download
+                                </button>
+                                <button
+                                    onClick={() => setViewingDocument(null)}
                                     className="px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800"
                                 >
                                     Close

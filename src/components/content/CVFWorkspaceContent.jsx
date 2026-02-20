@@ -45,6 +45,7 @@ const pushAuditEntry = (raw = {}, entry = {}) => {
 const CVFWorkspaceContent = () => {
   const { user } = useUser();
   const role = String(user?.role || '').toLowerCase();
+  const canEditCaseStudy = role === 'assistant' || role === 'doctor';
   const canBatchUpdate = role === 'assistant';
   const canDoctorSignOff = role === 'doctor';
 
@@ -53,6 +54,7 @@ const CVFWorkspaceContent = () => {
   const [saving, setSaving] = useState(false);
   const [batchSaving, setBatchSaving] = useState(false);
   const [signingOff, setSigningOff] = useState(false);
+  const [attachingDocument, setAttachingDocument] = useState(false);
   const [records, setRecords] = useState([]);
   const [message, setMessage] = useState('');
   const [selectedId, setSelectedId] = useState('');
@@ -120,6 +122,19 @@ const CVFWorkspaceContent = () => {
     [filteredRecords, selectedRowIds]
   );
 
+  const searchSuggestions = useMemo(() => {
+    const seen = new Set();
+    const suggestions = [];
+    for (const record of records) {
+      const label = `${record.patientName || 'Unknown Client'} (ID: ${record.patientId || 'N/A'})`;
+      if (!seen.has(label)) {
+        seen.add(label);
+        suggestions.push(label);
+      }
+    }
+    return suggestions.slice(0, 100);
+  }, [records]);
+
   const loadCvfRecords = async () => {
     try {
       setLoading(true);
@@ -136,7 +151,7 @@ const CVFWorkspaceContent = () => {
           return {
             id: t.id,
             patientId: t.patient_id,
-            patientName: `${t.first_name || ''} ${t.last_name || ''}`.trim() || 'Unknown Patient',
+            patientName: `${t.first_name || ''} ${t.last_name || ''}`.trim() || 'Unknown Client',
             testDate: t.test_date,
             eye: t.eye || 'both',
             machineType: t.machine_type || '',
@@ -190,6 +205,10 @@ const CVFWorkspaceContent = () => {
 
   const saveCaseStudy = async () => {
     if (!selectedRecord) return;
+    if (!canEditCaseStudy) {
+      setMessage('Only assistant and doctor can update case study content.');
+      return;
+    }
     try {
       setSaving(true);
       setMessage('');
@@ -347,6 +366,31 @@ const CVFWorkspaceContent = () => {
       return next;
     });
   };
+
+  const attachSelectedCvfToDocuments = async () => {
+    if (!selectedRecord) return;
+    if (!canEditCaseStudy) {
+      setMessage('Only assistant and doctor can attach CVF results to client documents from this page.');
+      return;
+    }
+    try {
+      setAttachingDocument(true);
+      setMessage('');
+      const res = await window.electronAPI.attachCvfToPatientDocuments(selectedRecord.id, {
+        title: `CVF Case Study - ${selectedRecord.patientName}`
+      });
+      if (!res?.success) {
+        setMessage(res?.error || 'Failed to attach CVF result to client documents.');
+        return;
+      }
+      setMessage('CVF result attached to client documents successfully.');
+    } catch (error) {
+      console.error('Attach CVF document error:', error);
+      setMessage('Failed to attach CVF document: ' + error.message);
+    } finally {
+      setAttachingDocument(false);
+    }
+  };
   const analyzeHensonFile = async () => {
     try {
       const selection = await window.electronAPI.selectFile({
@@ -384,7 +428,7 @@ const CVFWorkspaceContent = () => {
       }
       setMessage(
         `Imported ${result?.summary?.imported_tests || 0} CVF tests. ` +
-        `Created ${result?.summary?.patients_created || 0} patients, ` +
+        `Created ${result?.summary?.patients_created || 0} clients, ` +
         `skipped ${result?.summary?.skipped_duplicates || 0} duplicates.`
       );
       await loadCvfRecords();
@@ -524,8 +568,11 @@ const CVFWorkspaceContent = () => {
               {selectedRecord ? (
                 <div className="space-y-4">
                   <div>
-                    <p className="text-xs text-slate-400 uppercase tracking-widest">Patient</p>
+                    <p className="text-xs text-slate-400 uppercase tracking-widest">Client</p>
                     <p className="text-sm font-bold text-slate-900 dark:text-white">{selectedRecord.patientName}</p>
+                    <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mt-1">
+                      Client ID: {selectedRecord.patientId || 'N/A'}
+                    </p>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div>
@@ -600,14 +647,24 @@ const CVFWorkspaceContent = () => {
                     )}
                   </div>
 
-                  <button
-                    onClick={saveCaseStudy}
-                    disabled={saving}
-                    className="btn btn-primary w-full py-3 text-xs font-black uppercase tracking-widest"
-                  >
-                    {saving ? 'Saving...' : 'Save Case Study'}
-                  </button>
-                </div>
+              <button
+                onClick={saveCaseStudy}
+                disabled={saving || !canEditCaseStudy}
+                className="btn btn-primary w-full py-3 text-xs font-black uppercase tracking-widest"
+              >
+                {saving ? 'Saving...' : 'Save Case Study'}
+              </button>
+              <button
+                onClick={attachSelectedCvfToDocuments}
+                disabled={attachingDocument || !canEditCaseStudy}
+                className="btn btn-secondary w-full py-3 text-xs font-black uppercase tracking-widest"
+              >
+                {attachingDocument ? 'Attaching...' : 'Attach CVF To Client Documents'}
+              </button>
+              {!canEditCaseStudy && (
+                <p className="text-[11px] text-slate-500">Admin is view-only here. Updates are allowed for assistant and doctor roles.</p>
+              )}
+            </div>
               ) : (
                 <p className="text-sm text-slate-500">Select a CVF record to edit case study and result fields.</p>
               )}
@@ -627,9 +684,15 @@ const CVFWorkspaceContent = () => {
               <input
                 value={boardFilters.search}
                 onChange={(e) => setBoardFilters((p) => ({ ...p, search: e.target.value }))}
-                placeholder="Search patient, diagnosis, notes"
+                placeholder="Search client name, client ID, diagnosis"
+                list="cvf-client-search-list"
                 className="px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-sm"
               />
+              <datalist id="cvf-client-search-list">
+                {searchSuggestions.map((suggestion) => (
+                  <option key={suggestion} value={suggestion} />
+                ))}
+              </datalist>
               <select
                 value={boardFilters.result}
                 onChange={(e) => setBoardFilters((p) => ({ ...p, result: e.target.value }))}
@@ -693,7 +756,8 @@ const CVFWorkspaceContent = () => {
               <thead>
                 <tr className="text-left border-b border-slate-200 dark:border-slate-700">
                   <th className="py-2 pr-3">Sel</th>
-                  <th className="py-2 pr-3">Patient</th>
+                  <th className="py-2 pr-3">Client</th>
+                  <th className="py-2 pr-3">Client ID</th>
                   <th className="py-2 pr-3">Date</th>
                   <th className="py-2 pr-3">Eye</th>
                   <th className="py-2 pr-3">Result</th>
@@ -725,6 +789,7 @@ const CVFWorkspaceContent = () => {
                       />
                     </td>
                     <td className="py-2 pr-3 font-semibold">{record.patientName}</td>
+                    <td className="py-2 pr-3">{record.patientId || 'N/A'}</td>
                     <td className="py-2 pr-3">{formatDateTime(record.testDate)}</td>
                     <td className="py-2 pr-3 uppercase">{String(record.eye || 'both')}</td>
                     <td className="py-2 pr-3">{record.raw?.result || 'Pending'}</td>

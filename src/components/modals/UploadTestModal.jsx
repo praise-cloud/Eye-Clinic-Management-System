@@ -39,7 +39,7 @@ const UploadTestModal = ({ onClose, currentUser }) => {
       const patientsData = await patientService.getAllPatients()
       setPatients(patientsData || [])
     } catch (err) {
-      setError('Failed to load patients')
+      setError('Failed to load clients')
     }
   }
 
@@ -116,7 +116,7 @@ const UploadTestModal = ({ onClose, currentUser }) => {
 
     try {
       if (!formData.patientId || !formData.patientName || !formData.testType) {
-        throw new Error('Patient and test type are required')
+        throw new Error('Client and test type are required')
       }
 
       const testData = {
@@ -151,7 +151,7 @@ const UploadTestModal = ({ onClose, currentUser }) => {
         <div className="p-8 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-950/30">
           <div>
             <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">Clinical Test Acquisition</h2>
-            <p className="text-xs text-slate-500 font-bold uppercase tracking-widest mt-1">Upload and digitize patient diagnostic results</p>
+            <p className="text-xs text-slate-500 font-bold uppercase tracking-widest mt-1">Upload and digitize client diagnostic results</p>
           </div>
           <button
             onClick={onClose}
