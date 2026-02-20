@@ -39,6 +39,8 @@ const AdminDashboard = () => {
   const [importedTables, setImportedTables] = useState([]);
   const [selectedImportedTable, setSelectedImportedTable] = useState('');
   const [batchImportSummary, setBatchImportSummary] = useState(null);
+  const [hensonImportSummary, setHensonImportSummary] = useState(null);
+  const [hensonFolderPath, setHensonFolderPath] = useState('');
   const [caseStudies, setCaseStudies] = useState([]);
   const [caseStudiesTotal, setCaseStudiesTotal] = useState(0);
   const [caseStudiesDoctors, setCaseStudiesDoctors] = useState([]);
@@ -649,6 +651,130 @@ Please restart the application to load all imported data.
     }
   };
 
+  const handleAnalyzeHensonExport = async () => {
+    try {
+      setAdminLoading(true);
+      const selection = await window.electronAPI.selectFile({
+        title: 'Select Henson 8000 Export File',
+        filters: [
+          { name: 'Henson Export Files', extensions: ['csv', 'txt', 'json', 'sqlite', 'db', 'pdf'] },
+        ],
+      });
+
+      const filePath = selection?.filePath || selection?.path || null;
+      if (!filePath) {
+        setAdminMessage('No Henson export file selected.');
+        return;
+      }
+
+      const analysis = await window.electronAPI.analyzeHensonExport(filePath);
+      if (!analysis?.success) {
+        setAdminMessage(analysis?.error || 'Failed to analyze Henson export.');
+        return;
+      }
+
+      setAdminMessage(
+        `Henson analysis: ${analysis.file?.name} (${analysis.source_type}) · ` +
+        `estimated records: ${analysis.estimate_records} · ` +
+        `compatible: ${analysis.henson_compatible ? 'yes' : 'no'}`
+      );
+    } catch (error) {
+      console.error('[AdminDashboard] Henson analyze error:', error);
+      setAdminMessage('Failed to analyze Henson export: ' + error.message);
+    } finally {
+      setAdminLoading(false);
+    }
+  };
+
+  const handleImportHensonExport = async () => {
+    try {
+      setAdminLoading(true);
+      setHensonImportSummary(null);
+      const selection = await window.electronAPI.selectFile({
+        title: 'Import Henson 8000 Export',
+        filters: [
+          { name: 'Henson Export Files', extensions: ['csv', 'txt', 'json', 'sqlite', 'db', 'pdf'] },
+        ],
+      });
+
+      const filePath = selection?.filePath || selection?.path || null;
+      if (!filePath) {
+        setAdminMessage('No Henson export file selected.');
+        return;
+      }
+
+      const result = await window.electronAPI.importHensonExport({ filePath });
+      if (!result?.success) {
+        setAdminMessage(result?.error || 'Henson import failed.');
+        return;
+      }
+
+      setHensonImportSummary({
+        mode: 'single',
+        file_name: result?.summary?.file_name,
+        source_type: result?.summary?.source_type,
+        imported_tests: result?.summary?.imported_tests || 0,
+        patients_created: result?.summary?.patients_created || 0,
+        skipped_duplicates: result?.summary?.skipped_duplicates || 0,
+        skipped_invalid: result?.summary?.skipped_invalid || 0,
+        warnings: result?.summary?.warnings || []
+      });
+
+      setAdminMessage(
+        `Henson import complete: ${result?.summary?.imported_tests || 0} tests imported, ` +
+        `${result?.summary?.patients_created || 0} patients created, ` +
+        `${result?.summary?.skipped_duplicates || 0} duplicates skipped.`
+      );
+    } catch (error) {
+      console.error('[AdminDashboard] Henson import error:', error);
+      setAdminMessage('Failed to import Henson export: ' + error.message);
+    } finally {
+      setAdminLoading(false);
+    }
+  };
+
+  const handleImportHensonFolder = async () => {
+    try {
+      setAdminLoading(true);
+      setHensonImportSummary(null);
+
+      let folderPath = hensonFolderPath;
+      if (!folderPath) {
+        const selection = await window.electronAPI.selectFile({
+          title: 'Select Henson Export Folder',
+          properties: ['openDirectory']
+        });
+        folderPath = selection?.filePath || selection?.path || null;
+        if (!folderPath) {
+          setAdminMessage('No folder selected.');
+          return;
+        }
+        setHensonFolderPath(folderPath);
+      }
+
+      const result = await window.electronAPI.importHensonFolder({ folderPath });
+      if (!result?.success && !result?.summary) {
+        setAdminMessage(result?.error || 'Henson folder import failed.');
+        return;
+      }
+
+      const summary = result?.summary || {};
+      setHensonImportSummary({
+        mode: 'folder',
+        ...summary
+      });
+      setAdminMessage(
+        `Henson folder import complete: ${summary.success_files || 0}/${summary.total_files || 0} files succeeded, ` +
+        `${summary.imported_tests || 0} tests imported.`
+      );
+    } catch (error) {
+      console.error('[AdminDashboard] Henson folder import error:', error);
+      setAdminMessage('Failed to import Henson folder: ' + error.message);
+    } finally {
+      setAdminLoading(false);
+    }
+  };
+
   const handleAdminSaveNetworkPath = async () => {
     try {
       if (!window.electronAPI?.setNetworkDbPath) return;
@@ -726,11 +852,19 @@ Please restart the application to load all imported data.
       }
 
       setAdminLoading(true);
-      const result = await window.electronAPI.restoreBackup({
+      const selection = await window.electronAPI.selectFile({
+        title: 'Select Backup File',
         filters: [
           { name: 'Backup Files', extensions: ['sqlite', 'db', 'bak'] },
         ],
       });
+      const filePath = selection?.filePath || selection?.path || null;
+      if (!filePath) {
+        setAdminMessage('No backup file selected.');
+        return;
+      }
+
+      const result = await window.electronAPI.restoreBackup(filePath);
 
       if (result?.success) {
         setAdminMessage('Backup restored successfully. Please restart the application.');
@@ -1106,6 +1240,30 @@ Please restart the application to load all imported data.
                   </button>
 
                   <button
+                    onClick={handleAnalyzeHensonExport}
+                    disabled={adminLoading}
+                    className="p-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-left hover:border-blue-500 hover:shadow-xl hover:shadow-blue-500/5 transition-all group"
+                  >
+                    <div className="p-2 bg-blue-50 dark:bg-blue-900/30 rounded-lg text-blue-600 dark:text-blue-400 w-fit mb-4">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2a4 4 0 014-4h8m0 0l-3-3m3 3l-3 3M5 3v4M3 5h4m-4 6h10M3 17h6" /></svg>
+                    </div>
+                    <p className="text-sm font-bold text-slate-900 dark:text-white leading-tight">Analyze Henson 8000 Export</p>
+                    <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest mt-1">Strict compatibility + record estimate</p>
+                  </button>
+
+                  <button
+                    onClick={handleImportHensonExport}
+                    disabled={adminLoading}
+                    className="p-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-left hover:border-sky-500 hover:shadow-xl hover:shadow-sky-500/5 transition-all group"
+                  >
+                    <div className="p-2 bg-sky-50 dark:bg-sky-900/30 rounded-lg text-sky-600 dark:text-sky-400 w-fit mb-4">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v12m0 0l4-4m-4 4l-4-4M4 4h16v16H4z" /></svg>
+                    </div>
+                    <p className="text-sm font-bold text-slate-900 dark:text-white leading-tight">Import Henson 8000 File</p>
+                    <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest mt-1">Doctor-first test mapping + dedup</p>
+                  </button>
+
+                  <button
                     onClick={handleAdminBatchImportDb}
                     disabled={adminLoading}
                     className="p-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-left hover:border-fuchsia-500 hover:shadow-xl hover:shadow-fuchsia-500/5 transition-all group"
@@ -1127,6 +1285,30 @@ Please restart the application to load all imported data.
                     </div>
                     <p className="text-sm font-bold text-slate-900 dark:text-white leading-tight">Optimize Clinical Tables</p>
                     <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest mt-1">Maintenance & WAL Vacuuming</p>
+                  </button>
+
+                  <button
+                    onClick={handleRestoreBackup}
+                    disabled={adminLoading}
+                    className="p-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-left hover:border-violet-500 hover:shadow-xl hover:shadow-violet-500/5 transition-all group"
+                  >
+                    <div className="p-2 bg-violet-50 dark:bg-violet-900/30 rounded-lg text-violet-600 dark:text-violet-400 w-fit mb-4">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M12 4v12m0 0l4-4m-4 4l-4-4" /></svg>
+                    </div>
+                    <p className="text-sm font-bold text-slate-900 dark:text-white leading-tight">Restore Backup File</p>
+                    <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest mt-1">Recover from .db/.sqlite/.bak export</p>
+                  </button>
+
+                  <button
+                    onClick={handleImportHensonFolder}
+                    disabled={adminLoading}
+                    className="p-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-left hover:border-teal-500 hover:shadow-xl hover:shadow-teal-500/5 transition-all group"
+                  >
+                    <div className="p-2 bg-teal-50 dark:bg-teal-900/30 rounded-lg text-teal-600 dark:text-teal-400 w-fit mb-4">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7h6l2 2h10v10a2 2 0 01-2 2H5a2 2 0 01-2-2V7zm5 8h8" /></svg>
+                    </div>
+                    <p className="text-sm font-bold text-slate-900 dark:text-white leading-tight">Import Henson Folder</p>
+                    <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest mt-1">Bulk sync CSV/JSON/SQLite exports</p>
                   </button>
 
                   <button
@@ -1163,6 +1345,61 @@ Please restart the application to load all imported data.
                       <p className="mt-3 text-xs font-bold text-amber-600 dark:text-amber-400">
                         Large batch detected (&gt;=50GB). Keep enough free disk space and run imports in stages for safety.
                       </p>
+                    )}
+                  </div>
+                )}
+
+                <div className="bg-slate-50 dark:bg-slate-900/50 p-6 rounded-2xl border border-slate-100 dark:border-slate-800">
+                  <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider mb-3">Henson 8000 Folder Sync</h4>
+                  <div className="flex gap-3">
+                    <input
+                      type="text"
+                      value={hensonFolderPath}
+                      onChange={(e) => setHensonFolderPath(e.target.value)}
+                      placeholder="Path to Henson export folder (optional)"
+                      className="flex-1 px-4 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-sm"
+                    />
+                    <button
+                      onClick={handleImportHensonFolder}
+                      disabled={adminLoading}
+                      className="px-5 py-2 bg-teal-600 text-white rounded-xl text-xs font-black uppercase tracking-wider"
+                    >
+                      Sync Folder
+                    </button>
+                  </div>
+                  <p className="mt-2 text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-widest">
+                    Uses strict validation and skips duplicates to protect doctors from duplicate chart entries.
+                  </p>
+                </div>
+
+                {hensonImportSummary && (
+                  <div className="bg-slate-50 dark:bg-slate-900/50 p-6 rounded-2xl border border-slate-100 dark:border-slate-800">
+                    <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider mb-3">Henson Import Summary</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+                      <div className="p-3 rounded-lg bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
+                        <p className="text-slate-500">Imported Tests</p>
+                        <p className="font-bold">{hensonImportSummary.imported_tests || 0}</p>
+                      </div>
+                      <div className="p-3 rounded-lg bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
+                        <p className="text-slate-500">Patients Created</p>
+                        <p className="font-bold">{hensonImportSummary.patients_created || 0}</p>
+                      </div>
+                      <div className="p-3 rounded-lg bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
+                        <p className="text-slate-500">Duplicates Skipped</p>
+                        <p className="font-bold">{hensonImportSummary.skipped_duplicates || 0}</p>
+                      </div>
+                      <div className="p-3 rounded-lg bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
+                        <p className="text-slate-500">Invalid Skipped</p>
+                        <p className="font-bold">{hensonImportSummary.skipped_invalid || 0}</p>
+                      </div>
+                    </div>
+                    {Array.isArray(hensonImportSummary.warnings) && hensonImportSummary.warnings.length > 0 && (
+                      <div className="mt-3 p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
+                        <p className="text-[10px] font-black text-amber-700 dark:text-amber-400 uppercase tracking-wider mb-1">Warnings</p>
+                        <p className="text-xs text-amber-700 dark:text-amber-300">
+                          {hensonImportSummary.warnings.slice(0, 3).join(' | ')}
+                        </p>
+                      </div>
                     )}
                   </div>
                 )}

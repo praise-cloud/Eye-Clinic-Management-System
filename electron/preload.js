@@ -198,6 +198,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // Comprehensive database import with auto-conversion and schema sync
     importExternalWithSync: (filePath) => importExternalWithFallback(filePath),
     importExternalBatchWithSync: (filePaths) => importExternalBatchWithFallback(filePaths),
+    analyzeHensonExport: (filePath) => ipcRenderer.invoke('henson:analyzeExport', filePath),
+    importHensonExport: (payload) => ipcRenderer.invoke('henson:importExport', payload),
+    importHensonFolder: (payload) => ipcRenderer.invoke('henson:importFolder', payload),
     getTableData: (options) => ipcRenderer.invoke('database:getTableData', options),
     getDoctorCaseStudies: (options) => getDoctorCaseStudiesWithFallback(options),
 

@@ -4,6 +4,7 @@ const fs = require('fs-extra');
 const { v4: uuidv4 } = require('uuid');
 const DatabaseService = require('../../src/services/DatabaseService');
 const FileService = require('../../src/services/FileService');
+const HensonImportService = require('../../src/services/HensonImportService');
 
 const mapDatabaseError = (error, context = {}) => {
   const rawMessage = String(error && error.message ? error.message : '').trim();
@@ -1696,6 +1697,149 @@ class IPCHandlers {
         };
       } catch (error) {
         console.error('[IPC] Batch import error:', error);
+        return { success: false, error: error.message };
+      }
+    });
+
+    safeHandle('henson:analyzeExport', async (event, filePath) => {
+      try {
+        if (!currentUser || String(currentUser.role || '').toLowerCase() !== 'admin') {
+          return { success: false, error: 'Only admin can analyze Henson exports' };
+        }
+        return await HensonImportService.analyzeFile(filePath);
+      } catch (error) {
+        console.error('[IPC] henson analyze error:', error);
+        return { success: false, error: error.message };
+      }
+    });
+
+    safeHandle('henson:importExport', async (event, payload = {}) => {
+      try {
+        if (!currentUser || String(currentUser.role || '').toLowerCase() !== 'admin') {
+          return { success: false, error: 'Only admin can import Henson exports' };
+        }
+
+        const filePath = String(payload?.filePath || '').trim();
+        if (!filePath) {
+          return { success: false, error: 'filePath is required' };
+        }
+
+        const analysis = await HensonImportService.analyzeFile(filePath);
+        if (!analysis.success) return analysis;
+
+        const db = await DatabaseService.getDatabase();
+        const imported = await HensonImportService.importFromFile(db, filePath, {
+          userId: currentUser?.id
+        });
+
+        if (imported.success && currentUser?.id) {
+          await DatabaseService.logActivity(
+            currentUser.id,
+            'import',
+            'tests',
+            null,
+            `Imported Henson 8000 export: ${path.basename(filePath)} (${imported.imported?.imported_tests || 0} tests)`
+          );
+        }
+
+        return {
+          success: imported.success,
+          analysis,
+          import: imported,
+          summary: {
+            file_name: analysis?.file?.name || path.basename(filePath),
+            source_type: analysis?.source_type || imported?.source_type || 'unknown',
+            imported_tests: imported?.imported?.imported_tests || 0,
+            patients_created: imported?.imported?.patients_created || 0,
+            skipped_duplicates: imported?.imported?.skipped_duplicates || 0,
+            skipped_invalid: imported?.imported?.skipped_invalid || 0,
+            warnings: imported?.imported?.warnings || []
+          },
+          error: imported.error
+        };
+      } catch (error) {
+        console.error('[IPC] henson import error:', error);
+        return { success: false, error: error.message };
+      }
+    });
+
+    safeHandle('henson:importFolder', async (event, payload = {}) => {
+      try {
+        if (!currentUser || String(currentUser.role || '').toLowerCase() !== 'admin') {
+          return { success: false, error: 'Only admin can import Henson export folders' };
+        }
+
+        const folderPath = String(payload?.folderPath || '').trim();
+        if (!folderPath || !fs.existsSync(folderPath)) {
+          return { success: false, error: 'Folder not found' };
+        }
+
+        const entries = fs.readdirSync(folderPath, { withFileTypes: true });
+        const files = entries
+          .filter((e) => e.isFile())
+          .map((e) => path.join(folderPath, e.name))
+          .filter((p) => ['.csv', '.txt', '.json', '.sqlite', '.db', '.pdf'].includes(path.extname(p).toLowerCase()));
+
+        if (!files.length) {
+          return { success: false, error: 'No supported Henson export files found in folder' };
+        }
+
+        const results = [];
+        const aggregate = {
+          imported_tests: 0,
+          patients_created: 0,
+          skipped_duplicates: 0,
+          skipped_invalid: 0
+        };
+
+        for (const filePath of files) {
+          const analysis = await HensonImportService.analyzeFile(filePath);
+          if (!analysis.success) {
+            results.push({ filePath, success: false, error: analysis.error, analysis });
+            continue;
+          }
+          if (!analysis.henson_compatible) {
+            results.push({ filePath, success: false, error: 'File is not Henson-compatible', analysis });
+            continue;
+          }
+          const db = await DatabaseService.getDatabase();
+          const imported = await HensonImportService.importFromFile(db, filePath, {
+            userId: currentUser?.id
+          });
+          if (imported.success) {
+            aggregate.imported_tests += Number(imported.imported?.imported_tests || 0);
+            aggregate.patients_created += Number(imported.imported?.patients_created || 0);
+            aggregate.skipped_duplicates += Number(imported.imported?.skipped_duplicates || 0);
+            aggregate.skipped_invalid += Number(imported.imported?.skipped_invalid || 0);
+          }
+          results.push({ filePath, success: imported.success, analysis, import: imported, error: imported.error });
+        }
+
+        const successFiles = results.filter((r) => r.success).length;
+
+        if (currentUser?.id) {
+          await DatabaseService.logActivity(
+            currentUser.id,
+            'import',
+            'tests',
+            null,
+            `Imported Henson 8000 folder: ${path.basename(folderPath)} (${aggregate.imported_tests} tests)`
+          );
+        }
+
+        return {
+          success: successFiles > 0,
+          summary: {
+            folder: folderPath,
+            total_files: files.length,
+            success_files: successFiles,
+            failed_files: files.length - successFiles,
+            ...aggregate
+          },
+          results
+        };
+      } catch (error) {
+        console.error('[IPC] henson folder import error:', error);
         return { success: false, error: error.message };
       }
     });
