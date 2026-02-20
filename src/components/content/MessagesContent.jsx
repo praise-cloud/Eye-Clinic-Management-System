@@ -32,7 +32,7 @@ const MessagesContent = () => {
   useEffect(() => {
     if (!currentUser || !electronAPI) return;
 
-    const load = async () => {
+        const load = async () => {
       try {
         // Set current user online
         await electronAPI.setUserOnline(currentUser.id);
@@ -42,8 +42,17 @@ const MessagesContent = () => {
         // Get users with presence status
         const res = await electronAPI.getUsersWithPresence();
         if (res?.success) {
-          const others = res.users.filter(u => u.id !== currentUser.id && String(u.role).toLowerCase() !== 'admin');
+          const others = res.users.filter(u => u.id !== currentUser.id);
           setAvailableUsers(others);
+
+          const pendingChatUserId = sessionStorage.getItem('pendingChatUserId');
+          if (pendingChatUserId) {
+            const matched = others.find(u => String(u.id) === String(pendingChatUserId));
+            if (matched) {
+              setOtherUser(matched);
+            }
+            sessionStorage.removeItem('pendingChatUserId');
+          }
 
           // calculate unread count per user
           const counts = {};
@@ -145,7 +154,7 @@ const MessagesContent = () => {
       console.log('Get messages response:', res);
 
       if (res.success) {
-        setMessages(res.messages.reverse());
+        setMessages(res.messages);
         setUnreadCounts(p => ({ ...p, [otherUser.id]: 0 }));
         // Mark all messages as read
         try {
@@ -310,7 +319,7 @@ const MessagesContent = () => {
         search: searchTerm,
       });
       if (res.success) {
-        setMessages(res.messages.reverse());
+        setMessages(res.messages);
       }
     } catch (e) {
       console.error(e);
@@ -357,7 +366,10 @@ const MessagesContent = () => {
             return (
               <button
                 key={user.id}
-                onClick={() => setOtherUser(user)}
+                onClick={() => {
+                  setOtherUser(user);
+                  sessionStorage.removeItem('pendingChatUserId');
+                }}
                 className={`w-full text-left p-4 rounded-2xl flex items-center gap-4 transition-all ${isSelected
                   ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200 dark:shadow-none'
                   : 'hover:bg-slate-50/80 dark:hover:bg-slate-800/40 text-slate-700 dark:text-slate-300'

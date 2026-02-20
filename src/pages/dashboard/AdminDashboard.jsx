@@ -8,6 +8,7 @@ import * as patientService from '../../services/patientService';
 import * as inventoryService from '../../services/inventoryService';
 import * as testService from '../../services/testService';
 import DynamicTableView from '../../components/DynamicTableView';
+import MessagesContent from '../../components/content/MessagesContent';
 
 const AdminDashboard = () => {
   const { user, logout } = useUser();
@@ -49,6 +50,8 @@ const AdminDashboard = () => {
   const handleSectionClick = (section) => {
     if (section === 'system-settings') {
       setActiveTab('settings');
+    } else if (section === 'doctor-case-studies') {
+      setActiveTab('case-studies');
     } else if (section === 'revenue-analysis') {
       setActiveTab('finance');
     } else {
@@ -309,10 +312,129 @@ const AdminDashboard = () => {
   };
 
   React.useEffect(() => {
-    if (activeTab === 'settings') {
+    if (activeTab === 'settings' || activeTab === 'case-studies') {
       loadDoctorCaseStudies();
     }
   }, [activeTab]);
+
+  const renderDoctorCaseStudiesPage = () => (
+    <div className="space-y-8 max-w-6xl mx-auto pb-10">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">Doctor Case Studies</h2>
+          <p className="text-sm text-slate-500 dark:text-slate-400 font-medium">
+            Dedicated admin view for doctor notes and case progression per client.
+          </p>
+        </div>
+      </div>
+
+      <div className="bg-slate-50 dark:bg-slate-900/50 p-6 rounded-2xl border border-slate-100 dark:border-slate-800">
+        <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
+          <div>
+            <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">Doctor Case Studies</h4>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Review each doctor&apos;s case notes per client from imported legacy records.</p>
+          </div>
+          <button
+            onClick={() => loadDoctorCaseStudies({ offset: caseStudiesOffset })}
+            disabled={adminLoading}
+            className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-xs font-bold uppercase tracking-wider"
+          >
+            Refresh
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+          <select
+            value={caseFilterDoctor}
+            onChange={(e) => {
+              const val = e.target.value;
+              setCaseFilterDoctor(val);
+              setCaseStudiesOffset(0);
+              loadDoctorCaseStudies({ doctor: val, search: caseFilterSearch, offset: 0 });
+            }}
+            className="px-3 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-sm"
+          >
+            <option value="all">All Doctors</option>
+            {caseStudiesDoctors.map((d) => <option key={d} value={d}>{d}</option>)}
+          </select>
+          <input
+            type="text"
+            value={caseFilterSearch}
+            onChange={(e) => setCaseFilterSearch(e.target.value)}
+            placeholder="Search patient, diagnosis, doctor..."
+            className="px-3 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-sm"
+          />
+          <button
+            onClick={() => {
+              setCaseStudiesOffset(0);
+              loadDoctorCaseStudies({ doctor: caseFilterDoctor, search: caseFilterSearch, offset: 0 });
+            }}
+            className="px-4 py-2 bg-slate-900 text-white rounded-lg text-xs font-bold uppercase tracking-wider"
+          >
+            Apply Filter
+          </button>
+        </div>
+
+        <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-lg">
+          <table className="min-w-full text-xs">
+            <thead className="bg-slate-100 dark:bg-slate-900">
+              <tr>
+                <th className="px-3 py-2 text-left">Patient</th>
+                <th className="px-3 py-2 text-left">Doctor</th>
+                <th className="px-3 py-2 text-left">Diagnosis</th>
+                <th className="px-3 py-2 text-left">Treatment Date</th>
+                <th className="px-3 py-2 text-left">Next Visit</th>
+              </tr>
+            </thead>
+            <tbody>
+              {caseStudies.map((row, idx) => (
+                <tr key={`${row.case_id || idx}-${idx}`} className="border-t border-slate-200 dark:border-slate-800">
+                  <td className="px-3 py-2">{row.patient_name || row.patient_id || '-'}</td>
+                  <td className="px-3 py-2">{row.doctor_name || row.doctor_user_name || row.user_id || '-'}</td>
+                  <td className="px-3 py-2 max-w-[360px] truncate" title={row.diagnosis || ''}>{row.diagnosis || '-'}</td>
+                  <td className="px-3 py-2">{row.treatment_date || '-'}</td>
+                  <td className="px-3 py-2">{row.next_visit_date || '-'}</td>
+                </tr>
+              ))}
+              {!caseStudies.length && (
+                <tr>
+                  <td className="px-3 py-4 text-center text-slate-500" colSpan={5}>No case studies found yet. Import legacy case data first.</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="flex items-center justify-between mt-3">
+          <p className="text-xs text-slate-500">Showing {caseStudies.length} of {caseStudiesTotal} cases</p>
+          <div className="flex gap-2">
+            <button
+              onClick={() => {
+                const nextOffset = Math.max(0, caseStudiesOffset - caseStudiesLimit);
+                setCaseStudiesOffset(nextOffset);
+                loadDoctorCaseStudies({ offset: nextOffset });
+              }}
+              disabled={caseStudiesOffset === 0}
+              className="px-3 py-1 border border-slate-300 dark:border-slate-700 rounded text-xs disabled:opacity-40"
+            >
+              Previous
+            </button>
+            <button
+              onClick={() => {
+                const nextOffset = caseStudiesOffset + caseStudiesLimit;
+                setCaseStudiesOffset(nextOffset);
+                loadDoctorCaseStudies({ offset: nextOffset });
+              }}
+              disabled={caseStudiesOffset + caseStudiesLimit >= caseStudiesTotal}
+              className="px-3 py-1 border border-slate-300 dark:border-slate-700 rounded text-xs disabled:opacity-40"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 
   const handleAdminImportDb = async () => {
     try {
@@ -1198,8 +1320,10 @@ Please restart the application to load all imported data.
     >
       <div>
         {activeTab === 'overview' && renderOverview()}
+        {activeTab === 'messages' && <MessagesContent />}
         {activeTab === 'users' && renderUserManagement()}
         {activeTab === 'finance' && renderFinancialOversight()}
+        {activeTab === 'case-studies' && renderDoctorCaseStudiesPage()}
         {activeTab === 'settings' && renderSystemSettings()}
       </div>
 

@@ -4,9 +4,9 @@ import useNotifications from '../../hooks/useNotifications';
 import LogoutModal from '../modals/LogoutModal';
 import OnlineStatusIndicator from '../OnlineStatusIndicator';
 
-const Header = ({ activeSection, currentUser, searchTerm, onSearchChange, onSectionClick }) => {
+const Header = ({ activeSection, currentUser, searchTerm, onSearchChange, onSectionClick, onActionClick }) => {
   const { logout, loading } = useUser();
-  const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications(currentUser?.id);
+  const { notifications, unreadCount, markAsRead, markAllAsRead, fetchNotifications } = useNotifications(currentUser?.id);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
@@ -42,7 +42,24 @@ const Header = ({ activeSection, currentUser, searchTerm, onSearchChange, onSect
     { label: 'Logout', id: 'logout' }
   ];
 
-  const handleNotificationClick = (n) => {
+  const handleNotificationClick = async (n) => {
+    if (n.type === 'chat_unread') {
+      try {
+        if (n.related_id && currentUser?.id && window.electronAPI?.markAllAsRead) {
+          await window.electronAPI.markAllAsRead(currentUser.id, n.related_id);
+        }
+        if (n.related_id) {
+          sessionStorage.setItem('pendingChatUserId', String(n.related_id));
+        }
+      } catch (err) {
+        console.error('Failed to mark chat as read from notification:', err);
+      }
+      if (onSectionClick) onSectionClick('messages');
+      fetchNotifications();
+      setShowNotifications(false);
+      return;
+    }
+
     markAsRead(n.id);
     if (n.type === 'prescription_new') {
       if (onSectionClick) onSectionClick('pharmacy');

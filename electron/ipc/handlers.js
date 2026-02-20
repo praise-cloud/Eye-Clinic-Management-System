@@ -1212,6 +1212,11 @@ class IPCHandlers {
   }
 
   registerFileHandlers() {
+    const safeHandle = (channel, handler) => {
+      try { ipcMain.removeHandler(channel); } catch { }
+      ipcMain.handle(channel, handler);
+    };
+
     const convertBakFileAutomatic = async (filePath) => {
       try {
         const { spawn } = require('child_process');
@@ -1427,7 +1432,7 @@ class IPCHandlers {
       }
     };
 
-    ipcMain.handle('file:select', async (event, options) => {
+    safeHandle('file:select', async (event, options) => {
       try {
         return await FileService.selectFile(options);
       } catch (error) {
@@ -1435,7 +1440,7 @@ class IPCHandlers {
         return buildErrorResponse(error, { scope: 'file', action: 'select' });
       }
     });
-    ipcMain.handle('file:importDb', async (event, dbPath) => {
+    safeHandle('file:importDb', async (event, dbPath) => {
       try {
         if (!currentUser || String(currentUser.role || '').toLowerCase() !== 'admin') {
           return { success: false, error: 'Only admin can import databases' };
@@ -1451,7 +1456,7 @@ class IPCHandlers {
       }
     });
 
-    ipcMain.handle('file:restoreBackup', async (event, filePath) => {
+    safeHandle('file:restoreBackup', async (event, filePath) => {
       try {
         if (!currentUser || String(currentUser.role || '').toLowerCase() !== 'admin') {
           return { success: false, error: 'Only admin can restore backups' };
@@ -1467,7 +1472,7 @@ class IPCHandlers {
       }
     });
 
-    ipcMain.handle('file:runPythonScript', async (event, data) => {
+    safeHandle('file:runPythonScript', async (event, data) => {
       try {
         if (!currentUser || String(currentUser.role || '').toLowerCase() !== 'admin') {
           return { success: false, error: 'Only admin can run scripts' };
@@ -1497,7 +1502,7 @@ class IPCHandlers {
       }
     });
 
-    ipcMain.handle('file:validateSQLiteFile', async (event, filePath) => {
+    safeHandle('file:validateSQLiteFile', async (event, filePath) => {
       try {
         const fs = require('fs');
         const sqlite3 = require('sqlite3').verbose();
@@ -1529,16 +1534,16 @@ class IPCHandlers {
     });
 
     // Handler for automatic BAK to SQLite conversion
-    ipcMain.handle('file:convertBakFileAutomatic', async (event, filePath) => {
+    safeHandle('file:convertBakFileAutomatic', async (event, filePath) => {
       return convertBakFileAutomatic(filePath);
     });
 
-    ipcMain.handle('file:analyzeBakFile', async (event, filePath) => {
+    safeHandle('file:analyzeBakFile', async (event, filePath) => {
       return analyzeBakFile(filePath);
     });
 
     // Comprehensive handler for importing external database with full schema sync
-    ipcMain.handle('database:importExternalWithSync', async (event, filePath) => {
+    safeHandle('database:importExternalWithSync', async (event, filePath) => {
       try {
         const fs = require('fs');
 
@@ -1597,7 +1602,7 @@ class IPCHandlers {
       }
     });
 
-    ipcMain.handle('database:importExternalBatchWithSync', async (event, filePaths = []) => {
+    safeHandle('database:importExternalBatchWithSync', async (event, filePaths = []) => {
       try {
         const fs = require('fs');
         if (!currentUser || String(currentUser.role || '').toLowerCase() !== 'admin') {
@@ -1695,7 +1700,7 @@ class IPCHandlers {
       }
     });
 
-    ipcMain.handle('database:getDoctorCaseStudies', async (event, options = {}) => {
+    safeHandle('database:getDoctorCaseStudies', async (event, options = {}) => {
       try {
         if (!currentUser || String(currentUser.role || '').toLowerCase() !== 'admin') {
           return { success: false, error: 'Only admin can view case studies' };
@@ -1803,7 +1808,7 @@ class IPCHandlers {
     });
 
     // Handler for fetching table data for dynamic display
-    ipcMain.handle('database:getTableData', async (event, options = {}) => {
+    safeHandle('database:getTableData', async (event, options = {}) => {
       try {
         const { tableName, limit = 25, offset = 0 } = options;
 

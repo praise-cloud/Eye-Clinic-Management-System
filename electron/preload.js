@@ -1,5 +1,102 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
+const isMissingHandlerError = (err) =>
+    String(err?.message || '').includes('No handler registered');
+
+const importExternalWithFallback = async (filePath) => {
+    try {
+        return await ipcRenderer.invoke('database:importExternalWithSync', filePath);
+    } catch (error) {
+        if (!isMissingHandlerError(error)) throw error;
+        const analysis = await ipcRenderer.invoke('file:analyzeBakFile', filePath);
+        if (!analysis?.success) return analysis;
+        const importPath = analysis?.converted_file || filePath;
+        const legacy = await ipcRenderer.invoke('file:importDb', importPath);
+        return {
+            success: !!legacy?.success,
+            analysis,
+            import: legacy,
+            summary: {
+                file_analyzed: analysis?.file?.name || '',
+                file_size_mb: analysis?.file?.size_mb || '',
+                was_converted: analysis?.conversion_triggered ? 'YES (BAK → SQLite)' : 'NO',
+                format_detected: analysis?.format_detected || 'Unknown'
+            },
+            error: legacy?.error
+        };
+    }
+};
+
+const importExternalBatchWithFallback = async (filePaths = []) => {
+    try {
+        return await ipcRenderer.invoke('database:importExternalBatchWithSync', filePaths);
+    } catch (error) {
+        if (!isMissingHandlerError(error)) throw error;
+        const list = Array.isArray(filePaths) ? filePaths : [];
+        const results = [];
+        for (const p of list) {
+            const res = await importExternalWithFallback(p);
+            results.push({ filePath: p, success: !!res?.success, ...res });
+        }
+        const successCount = results.filter((r) => r.success).length;
+        return {
+            success: successCount === results.length,
+            summary: {
+                total_files: results.length,
+                success_files: successCount,
+                failed_files: results.length - successCount
+            },
+            results
+        };
+    }
+};
+
+const getDoctorCaseStudiesWithFallback = async (options = {}) => {
+    try {
+        return await ipcRenderer.invoke('database:getDoctorCaseStudies', options);
+    } catch (error) {
+        if (!isMissingHandlerError(error)) throw error;
+        const { limit = 50, offset = 0 } = options || {};
+        const fallback = await ipcRenderer.invoke('database:getTableData', {
+            tableName: 'CaseHistory',
+            limit,
+            offset
+        });
+        if (!fallback?.success) {
+            return { success: false, error: fallback?.error || 'CaseHistory table not available' };
+        }
+        const rows = Array.isArray(fallback.data) ? fallback.data : [];
+        const data = rows.map((r, idx) => ({
+            case_id: r.ID || `${offset}-${idx}`,
+            patient_id: r.PatientID || '',
+            patient_name: '',
+            treatment_date: r.TreatmentDate || '',
+            next_visit_date: r.NextVisitDate || '',
+            doctor_name: r.DoctorName || '',
+            doctor_user_name: '',
+            diagnosis: r.DIAGNOSIS || '',
+            case_history: r.CASEHISTORY || '',
+            follow_up_exam: r.FOLLOWUPEXAM || '',
+            final_rx_od: r.FINALRXOD || '',
+            final_rx_os: r.FINALRXOS || '',
+            user_id: r.USERID || '',
+            stamp_date: r.STAMPDATE || ''
+        }));
+        const doctorSet = new Set(
+            data
+                .map((d) => String(d.doctor_name || d.user_id || '').trim())
+                .filter((d) => d.length > 0)
+        );
+        return {
+            success: true,
+            data,
+            total: Number(fallback.total || data.length || 0),
+            doctors: Array.from(doctorSet).sort(),
+            pagination: { limit, offset }
+        };
+    }
+};
+
 // Expose safe APIs to renderer process
 contextBridge.exposeInMainWorld('electronAPI', {
     // Authentication APIs
@@ -99,10 +196,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     updateDb: (updates) => ipcRenderer.invoke('db:update', updates),
 
     // Comprehensive database import with auto-conversion and schema sync
-    importExternalWithSync: (filePath) => ipcRenderer.invoke('database:importExternalWithSync', filePath),
-    importExternalBatchWithSync: (filePaths) => ipcRenderer.invoke('database:importExternalBatchWithSync', filePaths),
+    importExternalWithSync: (filePath) => importExternalWithFallback(filePath),
+    importExternalBatchWithSync: (filePaths) => importExternalBatchWithFallback(filePaths),
     getTableData: (options) => ipcRenderer.invoke('database:getTableData', options),
-    getDoctorCaseStudies: (options) => ipcRenderer.invoke('database:getDoctorCaseStudies', options),
+    getDoctorCaseStudies: (options) => getDoctorCaseStudiesWithFallback(options),
 
     // Utility APIs
     getCurrentUser: () => ipcRenderer.invoke('auth:getCurrentUser'),
