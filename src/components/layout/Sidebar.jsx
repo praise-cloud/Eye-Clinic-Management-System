@@ -34,7 +34,6 @@ const Sidebar = ({ activeSection, onSectionClick, currentUser }) => {
     { id: 'overview', name: 'Overview', icon: <ChartIcon className="w-5 h-5" /> },
     { id: 'messages', name: 'Messages', icon: <ChatIcon className="w-5 h-5" /> },
     { id: 'users', name: 'User Management', icon: <UsersIcon className="w-5 h-5" /> },
-    { id: 'cvf-case-studies', name: 'CVF Case Studies', icon: <DocumentIcon className="w-5 h-5" /> },
     { id: 'revenue-analysis', name: 'Financial Oversight', icon: <DrugIcon className="w-5 h-5" /> },
     { id: 'doctor-case-studies', name: 'Doctor Case Studies', icon: <DocumentIcon className="w-5 h-5" /> },
     { id: 'system-settings', name: 'System Settings', icon: <GearIcon className="w-5 h-5" /> },

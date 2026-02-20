@@ -9,7 +9,6 @@ import * as inventoryService from '../../services/inventoryService';
 import * as testService from '../../services/testService';
 import DynamicTableView from '../../components/DynamicTableView';
 import MessagesContent from '../../components/content/MessagesContent';
-import CVFWorkspaceContent from '../../components/content/CVFWorkspaceContent';
 
 const AdminDashboard = () => {
   const { user, logout } = useUser();
@@ -53,8 +52,6 @@ const AdminDashboard = () => {
   const handleSectionClick = (section) => {
     if (section === 'system-settings') {
       setActiveTab('settings');
-    } else if (section === 'cvf-case-studies') {
-      setActiveTab('cvf-case-studies');
     } else if (section === 'doctor-case-studies') {
       setActiveTab('case-studies');
     } else if (section === 'revenue-analysis') {
@@ -1562,7 +1559,6 @@ Please restart the application to load all imported data.
         {activeTab === 'overview' && renderOverview()}
         {activeTab === 'messages' && <MessagesContent />}
         {activeTab === 'users' && renderUserManagement()}
-        {activeTab === 'cvf-case-studies' && <CVFWorkspaceContent />}
         {activeTab === 'finance' && renderFinancialOversight()}
         {activeTab === 'case-studies' && renderDoctorCaseStudiesPage()}
         {activeTab === 'settings' && renderSystemSettings()}

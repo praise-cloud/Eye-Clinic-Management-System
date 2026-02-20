@@ -11,8 +11,7 @@ const SignupScreen = ({ selectedRole, onComplete, onBack, onBackToWelcome }) => 
     phoneNumber: '',
     gender: '',
     password: '',
-    confirmPassword: '',
-    permissions: ''
+    confirmPassword: ''
   })
 
   const [localSelectedRole, setLocalSelectedRole] = useState(selectedRole)
@@ -70,9 +69,6 @@ const SignupScreen = ({ selectedRole, onComplete, onBack, onBackToWelcome }) => 
       // Clinical roles: Require gender, phone
       if (!formData.gender) errors.push('Gender is required')
       if (!formData.phoneNumber) errors.push('Phone Number is required')
-    } else if (lowerRole === 'admin') {
-      // Admin: Optional gender/phone; require permissions
-      if (!formData.permissions) errors.push('Permissions are required (e.g., users,patients)')
     } else {
       console.warn('Fallback validation for unknown role:', normalizedRole)
     }

@@ -72,20 +72,6 @@ const AdminForm = ({ formData, onChange }) => {
         </div>
       </div>
 
-      <div className="space-y-2">
-        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">System Permissions (CSV)</label>
-        <input
-          type="text"
-          name="permissions"
-          value={formData.permissions || ''}
-          onChange={onChange}
-          className="input-premium py-3 text-sm font-bold"
-          placeholder="users,patients,reports"
-          required
-        />
-        <p className="text-[10px] text-slate-400 font-medium pl-1 italic">* Grant specific administrative module access</p>
-      </div>
-
       <div className="grid grid-cols-2 gap-4">
         <PasswordInput
           name="password"
@@ -102,40 +88,8 @@ const AdminForm = ({ formData, onChange }) => {
           required
         />
       </div>
-
-      {/* Add role-based validation for .bak file handling */}
-      <div>
-        <button
-          type="button"
-          onClick={handleBackupRestore}
-          className="input-premium py-3 text-sm font-bold"
-        >
-          Restore Backup
-        </button>
-      </div>
     </div>
   )
 }
 
 export default AdminForm
-
-// Add role-based validation for .bak file handling
-const handleBackupRestore = async (file, role) => {
-  try {
-    if (!file.name.endsWith('.bak')) {
-      alert('Invalid file type. Only .bak files are supported.');
-      return;
-    }
-
-    if (role !== 'admin') {
-      alert('Only admins are allowed to perform backup operations.');
-      return;
-    }
-
-    // Proceed with backup restoration
-    console.log(`Restoring backup for role: ${role}`)
-  } catch (error) {
-    console.error(error);
-    alert(error.message);
-  }
-}

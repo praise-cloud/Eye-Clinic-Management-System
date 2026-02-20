@@ -73,21 +73,6 @@ const AdminForm = ({ formData, onChange }) => {
           </select>
         </div>
       </div>
-
-      {/* Permissions – Required for Admin */}
-      <div className="flex flex-col">
-        <label className="text-sm font-medium text-gray-700">Permissions (Required: Comma-separated, e.g., users,patients)</label>
-        <input
-          type="text"
-          name="permissions"
-          value={formData.permissions || ''}  // Key fix: || '' prevents undefined
-          onChange={onChange}
-          className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-          placeholder="users,patients,reports"
-          required
-        />
-      </div>
-
       {/* Passwords */}
       <div className="flex gap-4 w-full">
         <div className="flex flex-col w-1/2">

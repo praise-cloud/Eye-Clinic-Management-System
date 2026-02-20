@@ -39,6 +39,7 @@
       "dist/**/*",
       "electron/**/*",
       "database/**/*",
+      "database.js",
       "services/**/*",
       "src/**/*",
       "assets/**/*",
@@ -118,4 +119,3 @@
     "@esbuild/win32-x64": "^0.27.0"
   }
 }
-
