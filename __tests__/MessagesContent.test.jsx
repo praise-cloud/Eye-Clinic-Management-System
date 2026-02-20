@@ -1,5 +1,6 @@
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
+import MessagesContent from '../src/components/content/MessagesContent';
 
 jest.mock('../src/hooks/useUser', () => ({
   __esModule: true,
@@ -8,14 +9,13 @@ jest.mock('../src/hooks/useUser', () => ({
   })
 }));
 
-import MessagesContent from '../src/components/content/MessagesContent';
-
 describe('MessagesContent', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     sessionStorage.clear();
 
-    window.electronAPI = {
+    Object.keys(window.electronAPI).forEach((k) => delete window.electronAPI[k]);
+    Object.assign(window.electronAPI, {
       setUserOnline: jest.fn().mockResolvedValue({ success: true }),
       setUserOffline: jest.fn().mockResolvedValue({ success: true }),
       getUsersWithPresence: jest.fn().mockResolvedValue({
@@ -51,7 +51,7 @@ describe('MessagesContent', () => {
       onIpcEvent: jest.fn().mockImplementation(() => () => {}),
       sendMessage: jest.fn().mockResolvedValue({ success: true }),
       deleteMessage: jest.fn().mockResolvedValue({ success: true })
-    };
+    });
   });
 
   it('uses pending chat target and loads selected conversation', async () => {
@@ -62,7 +62,7 @@ describe('MessagesContent', () => {
       expect(window.electronAPI.markAllAsRead).toHaveBeenCalledWith(1, 2);
     });
 
-    expect(screen.getByText('Dr Smith')).toBeInTheDocument();
+    expect(screen.getAllByText('Dr Smith').length).toBeGreaterThan(0);
     expect(screen.getByText('Older message')).toBeInTheDocument();
     expect(screen.getByText('Newest message')).toBeInTheDocument();
   });

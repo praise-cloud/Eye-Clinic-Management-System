@@ -101,7 +101,7 @@ describe('AdminDashboard', () => {
 
     await userEvent.click(screen.getByText('Open Case Studies'));
     await waitFor(() => {
-      expect(screen.getByText('Doctor Case Studies')).toBeInTheDocument();
+      expect(screen.getByRole('heading', { level: 2, name: 'Doctor Case Studies' })).toBeInTheDocument();
       expect(screen.getByText('Patient One')).toBeInTheDocument();
     });
   });

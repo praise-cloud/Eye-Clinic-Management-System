@@ -10,3 +10,11 @@ if (!window.matchMedia) {
     dispatchEvent: () => false
   });
 }
+
+if (!window.electronAPI) {
+  window.electronAPI = {};
+}
+
+if (!window.HTMLElement.prototype.scrollIntoView) {
+  window.HTMLElement.prototype.scrollIntoView = () => {};
+}
