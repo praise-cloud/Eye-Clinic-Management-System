@@ -1,5 +1,18 @@
 // main.js — FINAL BULLETPROOF VERSION (copy & paste exactly)
-const { app, BrowserWindow } = require('electron');
+const electron = require('electron');
+if (!electron || !electron.app || !electron.BrowserWindow) {
+  const { spawn } = require('child_process');
+  const electronBinary = typeof electron === 'string' ? electron : require('electron');
+  const env = { ...process.env };
+  delete env.ELECTRON_RUN_AS_NODE;
+  spawn(electronBinary, process.argv.slice(1), {
+    env,
+    stdio: 'inherit',
+    detached: false
+  });
+  process.exit(0);
+}
+const { app, BrowserWindow } = electron;
 const path = require('path');
 
 // Services
