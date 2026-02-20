@@ -76,3 +76,54 @@
 - [ ] Import Henson folder from CVF Workspace.
 - [ ] Open an imported record and update case study.
 - [ ] Verify update persists after page refresh.
+
+## Update
+- Date: February 20, 2026 (Case Study Board pass)
+
+### Case Study Board Added
+- Added a second tab inside CVF Workspace: `Case Study Board`.
+- Board provides:
+  - Search filter (patient/diagnosis/notes)
+  - Result filter
+  - Sign-off state filter (signed/pending)
+  - Eye filter
+  - Date range filter
+  - Select-all and multi-row selection
+
+### Assistant Batch Update Workflow
+- Added batch update panel for selected board rows.
+- Batch fields:
+  - result
+  - diagnosis
+  - notes
+- Empty batch fields keep current per-record values.
+- Batch apply is restricted to `assistant` role.
+
+### Doctor Sign-Off Workflow
+- Added doctor sign-off controls in Case Study Editor:
+  - `Doctor Sign Off`
+  - `Revoke Sign Off`
+- Sign-off action restricted to `doctor` role.
+- Sign-off metadata written into `tests.raw_data.signoff`:
+  - `status`
+  - `signedOffBy`
+  - `signedOffRole`
+  - `signedOffAt`
+
+### Audit Trail
+- Added per-record audit trail list in Case Study Board.
+- Actions append entries under `tests.raw_data.auditTrail` with:
+  - `action`
+  - `at`
+  - `by`
+  - `role`
+  - `note`
+- Current tracked actions include:
+  - case-study-updated
+  - case-study-batch-updated
+  - case-study-signed-off
+  - case-study-sign-off-revoked
+
+### File Updated
+- `src/components/content/CVFWorkspaceContent.jsx`
+- `CVF_IMPLEMENTATION_LOG.md`
