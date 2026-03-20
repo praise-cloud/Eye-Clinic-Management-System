@@ -1,6 +1,6 @@
 ﻿# Context
 
-Last updated: 2026-03-20 14:40:00
+Last updated: 2026-03-20 15:27:00
 
 ## Purpose
 This file consolidates all markdown documentation for this project and will be updated whenever changes are made to the application.
@@ -25,6 +25,8 @@ This file consolidates all markdown documentation for this project and will be u
 - Added CVF attachment to new test creation, restricted test creation to doctors, and added Case Notes to the doctor sidebar as a dedicated page.
 - Removed the Doctor Dashboard/Case Note toggle tabs from the doctor dashboard page.
 - Added client type + marital status fields to client creation and stored on patients.
+- Set Windows build to skip executable signing/metadata editing (`win.signAndEditExecutable=false`) to bypass symlink privilege errors during installer build.
+- Updated main-process database imports to use `database.js` at project root to fix packaged app module resolution (`Cannot find module './../database'`).
 
 ## Current README.md
 

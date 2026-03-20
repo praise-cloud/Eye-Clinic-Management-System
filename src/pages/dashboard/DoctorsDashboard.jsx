@@ -418,7 +418,7 @@ const DoctorsDashboard = ({ activeSection }) => {
                 const labelResult = t.payload?.result || t.payload?.diagnosis || 'No summary';
                 return (
                   <option key={t.id} value={t.id}>
-                    {labelDate} — {labelResult}
+                    {labelDate} ï¿½ {labelResult}
                   </option>
                 );
               })}

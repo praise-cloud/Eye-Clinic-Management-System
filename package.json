@@ -52,7 +52,8 @@
       "target": [
         "nsis"
       ],
-      "icon": "src/assets/images/logo.png"
+      "icon": "src/assets/images/logo.png",
+      "signAndEditExecutable": false
     },
     "nsis": {
       "oneClick": false,

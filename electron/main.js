@@ -17,7 +17,7 @@ const { app, BrowserWindow } = electron;
 const path = require('path');
 
 // Services
-const Database = require('../database/database');
+const Database = require('../database.js');
 const IPCHandlers = require('./ipc/handlers');
 let mainWindow = null;
 let dbInstance = null;
