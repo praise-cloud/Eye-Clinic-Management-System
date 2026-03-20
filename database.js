@@ -74,6 +74,11 @@ class Database {
                 dob DATE,
                 gender TEXT CHECK (gender IN ('male', 'female', 'other')),
                 contact TEXT,
+                email TEXT,
+                address TEXT,
+                reason_for_visit TEXT,
+                client_type TEXT,
+                marital_status TEXT,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )`,

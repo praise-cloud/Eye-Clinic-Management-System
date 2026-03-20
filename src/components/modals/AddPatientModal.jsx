@@ -9,7 +9,9 @@ const AddPatientModal = ({ onClose, currentUser, onPatientAdded, editPatientData
     email: editPatientData?.email || '',
     phoneNumber: editPatientData?.contact || '',
     address: editPatientData?.address || '',
-    reasonForVisit: editPatientData?.reason_for_visit || ''
+    reasonForVisit: editPatientData?.reason_for_visit || '',
+    clientType: editPatientData?.client_type || '',
+    maritalStatus: editPatientData?.marital_status || ''
   })
 
   const [loading, setLoading] = useState(false)
@@ -42,7 +44,9 @@ const AddPatientModal = ({ onClose, currentUser, onPatientAdded, editPatientData
         contact: formData.phoneNumber || null,
         email: formData.email || null,
         address: formData.address || null,
-        reason_for_visit: formData.reasonForVisit || null
+        reason_for_visit: formData.reasonForVisit || null,
+        client_type: formData.clientType || null,
+        marital_status: formData.maritalStatus || null
       }
 
       let result;
@@ -52,7 +56,7 @@ const AddPatientModal = ({ onClose, currentUser, onPatientAdded, editPatientData
         result = await window.electronAPI.createPatient(patientData)
       }
 
-      if (result?.success) {
+      if (result?.success || (result && result.id)) {
         onClose()
         if (onPatientAdded) onPatientAdded()
       } else {
@@ -200,16 +204,47 @@ const AddPatientModal = ({ onClose, currentUser, onPatientAdded, editPatientData
             {/* Clinical Context Section */}
             <div>
               <label className="block text-[10px] font-black text-amber-500 uppercase tracking-widest mb-4">Clinical Context</label>
-              <div>
-                <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Primary Reason for Visit</label>
-                <textarea
-                  name="reasonForVisit"
-                  value={formData.reasonForVisit}
-                  onChange={handleInputChange}
-                  rows="3"
-                  placeholder="Describe the primary complaint or reason for clinical assessment..."
-                  className="input-premium resize-none"
-                />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Client Type</label>
+                  <select
+                    name="clientType"
+                    value={formData.clientType}
+                    onChange={handleInputChange}
+                    className="input-premium appearance-none"
+                  >
+                    <option value="">Select Type</option>
+                    <option value="private">Private</option>
+                    <option value="corporate">Corporate</option>
+                    <option value="normal">Normal</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Marital Status</label>
+                  <select
+                    name="maritalStatus"
+                    value={formData.maritalStatus}
+                    onChange={handleInputChange}
+                    className="input-premium appearance-none"
+                  >
+                    <option value="">Select Status</option>
+                    <option value="single">Single</option>
+                    <option value="married">Married</option>
+                    <option value="divorced">Divorced</option>
+                    <option value="widowed">Widowed</option>
+                  </select>
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Primary Reason for Visit</label>
+                  <textarea
+                    name="reasonForVisit"
+                    value={formData.reasonForVisit}
+                    onChange={handleInputChange}
+                    rows="3"
+                    placeholder="Describe the primary complaint or reason for clinical assessment..."
+                    className="input-premium resize-none"
+                  />
+                </div>
               </div>
             </div>
           </div>

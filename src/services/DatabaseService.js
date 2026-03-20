@@ -215,32 +215,134 @@ class DatabaseService {
 
     async createPatient(patientData) {
         const db = await this.getDatabase();
-        const { patient_id, first_name, last_name, dob, gender, contact } = patientData;
+        const {
+            patient_id,
+            first_name,
+            last_name,
+            dob,
+            gender,
+            contact,
+            email,
+            address,
+            reason_for_visit,
+            client_type,
+            marital_status
+        } = patientData;
         const id = require('uuid').v4();
 
+        // Duplicate checks (patient_id, email, contact)
+        if (patient_id) {
+            const existingById = await db.get('SELECT id FROM patients WHERE patient_id = ?', [patient_id]);
+            if (existingById?.id) {
+                return { success: false, error: 'A client with this Patient ID already exists.' };
+            }
+        }
+        if (email) {
+            const existingByEmail = await db.get('SELECT id FROM patients WHERE email = ?', [email]);
+            if (existingByEmail?.id) {
+                return { success: false, error: 'A client with this email already exists.' };
+            }
+        }
+        if (contact) {
+            const existingByContact = await db.get('SELECT id FROM patients WHERE contact = ?', [contact]);
+            if (existingByContact?.id) {
+                return { success: false, error: 'A client with this phone number already exists.' };
+            }
+        }
+
         const query = `
-            INSERT INTO patients (id, patient_id, first_name, last_name, dob, gender, contact, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            INSERT INTO patients (
+              id, patient_id, first_name, last_name, dob, gender, contact,
+              email, address, reason_for_visit, client_type, marital_status,
+              created_at, updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         `;
 
-        await db.run(query, [id, patient_id, first_name, last_name, dob, gender, contact]);
-        const record = { id, patient_id, first_name, last_name, dob, gender, contact };
+        await db.run(query, [
+            id,
+            patient_id,
+            first_name,
+            last_name,
+            dob,
+            gender,
+            contact,
+            email || null,
+            address || null,
+            reason_for_visit || null,
+            client_type || null,
+            marital_status || null
+        ]);
+        const record = {
+            id,
+            patient_id,
+            first_name,
+            last_name,
+            dob,
+            gender,
+            contact,
+            email: email || null,
+            address: address || null,
+            reason_for_visit: reason_for_visit || null,
+            client_type: client_type || null,
+            marital_status: marital_status || null
+        };
         await this.enqueueSyncChange('patients', 'upsert', id, record);
         return record;
     }
 
     async updatePatient(id, patientData) {
         const db = await this.getDatabase();
-        const { patient_id, first_name, last_name, dob, gender, contact } = patientData;
+        const {
+            patient_id,
+            first_name,
+            last_name,
+            dob,
+            gender,
+            contact,
+            email,
+            address,
+            reason_for_visit,
+            client_type,
+            marital_status
+        } = patientData;
 
         const query = `
             UPDATE patients
-            SET patient_id = ?, first_name = ?, last_name = ?, dob = ?, gender = ?, contact = ?, updated_at = CURRENT_TIMESTAMP
+            SET patient_id = ?, first_name = ?, last_name = ?, dob = ?, gender = ?, contact = ?,
+                email = ?, address = ?, reason_for_visit = ?, client_type = ?, marital_status = ?,
+                updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
         `;
 
-        await db.run(query, [patient_id, first_name, last_name, dob, gender, contact, id]);
-        const record = { id, patient_id, first_name, last_name, dob, gender, contact };
+        await db.run(query, [
+            patient_id,
+            first_name,
+            last_name,
+            dob,
+            gender,
+            contact,
+            email || null,
+            address || null,
+            reason_for_visit || null,
+            client_type || null,
+            marital_status || null,
+            id
+        ]);
+        const record = {
+            id,
+            patient_id,
+            first_name,
+            last_name,
+            dob,
+            gender,
+            contact,
+            email: email || null,
+            address: address || null,
+            reason_for_visit: reason_for_visit || null,
+            client_type: client_type || null,
+            marital_status: marital_status || null
+        };
         await this.enqueueSyncChange('patients', 'upsert', id, record);
         return record;
     }

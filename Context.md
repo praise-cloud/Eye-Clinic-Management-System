@@ -1,6 +1,6 @@
 ﻿# Context
 
-Last updated: 2026-03-20 02:41:00
+Last updated: 2026-03-20 03:28:00
 
 ## Purpose
 This file consolidates all markdown documentation for this project and will be updated whenever changes are made to the application.
@@ -13,6 +13,10 @@ This file consolidates all markdown documentation for this project and will be u
 - Added CVF incoming PDF watch folder workflow with review list and attach-to-client flow.
 - Added preload safeguards for missing SQL Server IPC handlers and defensive migration for activity_logs columns.
 - Made system IPC handlers idempotent to prevent missing/duplicate handler errors.
+- Added LAN shared-folder sync with export/import and conflict tracking/resolution.
+- Added admin password reset action in User Management.
+- Removed "Add Client" from doctor dashboard and added Doctor Case Note section (saved as tests with `machine_type: case_note`).
+- Added client type + marital status fields to client creation and stored on patients.
 
 ## Current README.md
 

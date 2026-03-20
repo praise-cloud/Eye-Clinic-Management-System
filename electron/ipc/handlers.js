@@ -7,6 +7,7 @@ const FileService = require('../../src/services/FileService');
 const HensonImportService = require('../../src/services/HensonImportService');
 const SqlServerService = require('../../src/services/SqlServerService');
 const SyncService = require('../../src/services/SyncService');
+const LanSyncService = require('../../src/services/LanSyncService');
 
 const mapDatabaseError = (error, context = {}) => {
   const rawMessage = String(error && error.message ? error.message : '').trim();
@@ -2355,6 +2356,28 @@ class IPCHandlers {
         return buildErrorResponse(error, { scope: 'system', action: 'setCvfWatchPath' });
       }
     });
+    safeHandle('system:setLanSyncPath', async (event, payload = {}) => {
+      try {
+        if (!currentUser) return { success: false, error: 'Authentication required' };
+        const role = String(currentUser.role || '').toLowerCase();
+        if (!['admin', 'doctor', 'assistant'].includes(role)) {
+          return { success: false, error: 'Access denied' };
+        }
+        const syncPath = String(payload?.path || '').trim();
+        LanSyncService.setSyncPath(syncPath);
+        return { success: true, path: syncPath };
+      } catch (error) {
+        return buildErrorResponse(error, { scope: 'system', action: 'setLanSyncPath' });
+      }
+    });
+    safeHandle('system:getLanSyncPath', async () => {
+      try {
+        const path = LanSyncService.getSyncPath();
+        return { success: true, path };
+      } catch (error) {
+        return buildErrorResponse(error, { scope: 'system', action: 'getLanSyncPath' });
+      }
+    });
     safeHandle('system:getCvfWatchPath', async () => {
       try {
         const dir = app.getPath('userData');
@@ -2386,6 +2409,41 @@ class IPCHandlers {
         return result;
       } catch (error) {
         return buildErrorResponse(error, { scope: 'system', action: 'runSqlServerSync' });
+      }
+    });
+    safeHandle('sync:lanExport', async () => {
+      try {
+        if (!currentUser) return { success: false, error: 'Authentication required' };
+        return await LanSyncService.exportChanges();
+      } catch (error) {
+        return buildErrorResponse(error, { scope: 'sync', action: 'lanExport' });
+      }
+    });
+    safeHandle('sync:lanImport', async () => {
+      try {
+        if (!currentUser) return { success: false, error: 'Authentication required' };
+        return await LanSyncService.importChanges();
+      } catch (error) {
+        return buildErrorResponse(error, { scope: 'sync', action: 'lanImport' });
+      }
+    });
+    safeHandle('sync:getConflicts', async () => {
+      try {
+        if (!currentUser) return { success: false, error: 'Authentication required' };
+        const conflicts = await LanSyncService.getConflicts();
+        return { success: true, conflicts };
+      } catch (error) {
+        return buildErrorResponse(error, { scope: 'sync', action: 'getConflicts' });
+      }
+    });
+    safeHandle('sync:resolveConflict', async (event, payload = {}) => {
+      try {
+        if (!currentUser) return { success: false, error: 'Authentication required' };
+        const id = payload?.id;
+        const resolution = payload?.resolution || 'keep_local';
+        return await LanSyncService.resolveConflict(id, resolution);
+      } catch (error) {
+        return buildErrorResponse(error, { scope: 'sync', action: 'resolveConflict' });
       }
     });
     safeHandle('db:delete', async () => {

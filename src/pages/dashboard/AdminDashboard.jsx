@@ -313,6 +313,36 @@ const AdminDashboard = () => {
     }
   };
 
+  const handleResetPassword = async (targetUser) => {
+    if (!window.electronAPI || !targetUser) return;
+    const newPassword = window.prompt(`Set a new password for ${targetUser.name}:`);
+    if (!newPassword) return;
+    const confirm = window.prompt('Confirm new password:');
+    if (confirm !== newPassword) {
+      alert('Passwords do not match.');
+      return;
+    }
+    if (newPassword.length < 6) {
+      alert('Password must be at least 6 characters.');
+      return;
+    }
+    try {
+      const res = await window.electronAPI.updateUser(
+        targetUser.id,
+        { password: newPassword },
+        user?.id
+      );
+      if (res?.success) {
+        alert('Password reset successfully.');
+        loadActivityLogs();
+      } else {
+        alert(res?.message || res?.error || 'Password reset failed.');
+      }
+    } catch (error) {
+      alert('Password reset failed: ' + error.message);
+    }
+  };
+
   React.useEffect(() => {
     if (activeTab === 'settings' || activeTab === 'case-studies') {
       loadDoctorCaseStudies();
@@ -1020,6 +1050,12 @@ Please restart the application to load all imported data.
                         className="text-red-600 hover:text-red-900"
                       >
                         Delete
+                      </button>
+                      <button
+                        onClick={() => handleResetPassword(user)}
+                        className="text-purple-600 hover:text-purple-900"
+                      >
+                        Reset Password
                       </button>
                     </div>
                   </td>

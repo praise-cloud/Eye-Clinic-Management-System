@@ -43,6 +43,9 @@ const SettingsContent = () => {
   })
   const [sqlTestStatus, setSqlTestStatus] = useState(null)
   const isAdmin = (user?.role || '').toLowerCase() === 'admin'
+  const [lanSyncPath, setLanSyncPath] = useState('')
+  const [lanSyncStatus, setLanSyncStatus] = useState('')
+  const [lanConflicts, setLanConflicts] = useState([])
 
   useEffect(() => {
     if (user) {
@@ -75,6 +78,13 @@ const SettingsContent = () => {
       } catch { }
     }
     loadSqlConfig()
+    const loadLanSyncPath = async () => {
+      try {
+        const res = await window.electronAPI?.getLanSyncPath?.()
+        if (res?.success && res.path) setLanSyncPath(res.path)
+      } catch { }
+    }
+    loadLanSyncPath()
   }, [user])
 
   const handleInputChange = (field, value) => {
@@ -140,6 +150,70 @@ const SettingsContent = () => {
       console.error('SQL Server sync error:', error)
       alert('Failed to run sync')
     }
+  }
+
+  const chooseLanSyncFolder = async () => {
+    try {
+      if (!window.electronAPI?.selectFile) return
+      const result = await window.electronAPI.selectFile({
+        title: 'Select LAN Sync Folder',
+        properties: ['openDirectory']
+      })
+      const chosen = result?.filePath || null
+      if (!chosen) return
+      const res = await window.electronAPI.setLanSyncPath?.(chosen)
+      if (res?.success) {
+        setLanSyncPath(chosen)
+        setLanSyncStatus('LAN sync folder updated.')
+      }
+    } catch (error) {
+      setLanSyncStatus('Failed to update LAN sync folder.')
+    }
+  }
+
+  const runLanExport = async () => {
+    try {
+      setLanSyncStatus('Exporting changes...')
+      const res = await window.electronAPI.lanSyncExport?.()
+      if (res?.success) {
+        setLanSyncStatus(`Exported ${res.exported || 0} change(s).`)
+      } else {
+        setLanSyncStatus(res?.error || 'Export failed.')
+      }
+    } catch {
+      setLanSyncStatus('Export failed.')
+    }
+  }
+
+  const runLanImport = async () => {
+    try {
+      setLanSyncStatus('Importing changes...')
+      const res = await window.electronAPI.lanSyncImport?.()
+      if (res?.success) {
+        setLanSyncStatus(`Imported ${res.applied || 0} change(s).`)
+      } else {
+        setLanSyncStatus(res?.error || 'Import failed.')
+      }
+      await loadLanConflicts()
+    } catch {
+      setLanSyncStatus('Import failed.')
+    }
+  }
+
+  const loadLanConflicts = async () => {
+    try {
+      const res = await window.electronAPI.lanSyncGetConflicts?.()
+      if (res?.success && Array.isArray(res.conflicts)) {
+        setLanConflicts(res.conflicts)
+      }
+    } catch { }
+  }
+
+  const resolveLanConflict = async (id, resolution) => {
+    try {
+      await window.electronAPI.lanSyncResolveConflict?.({ id, resolution })
+      await loadLanConflicts()
+    } catch { }
   }
 
   const handleSaveDbPath = async () => {
@@ -596,6 +670,79 @@ const SettingsContent = () => {
                     <p className={`text-xs font-bold ${sqlTestStatus === 'success' ? 'text-emerald-600' : sqlTestStatus === 'failed' ? 'text-rose-600' : 'text-slate-500'}`}>
                       {sqlTestStatus === 'testing' ? 'Testing connection...' : sqlTestStatus === 'success' ? 'Connection successful.' : 'Connection failed.'}
                     </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {isAdmin && (
+            <div className="card-premium p-8">
+              <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight mb-2">LAN Sync</h2>
+              <p className="text-sm text-slate-500 font-medium mb-6">Share changes across devices on the same Wi‑Fi.</p>
+
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Sync Folder</label>
+                  <input
+                    type="text"
+                    value={lanSyncPath}
+                    readOnly
+                    className="input-premium text-xs font-mono"
+                    placeholder="Select a shared LAN folder"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 gap-2">
+                  <button onClick={chooseLanSyncFolder} className="w-full btn btn-secondary py-3 text-xs font-black uppercase tracking-widest">
+                    Choose Sync Folder
+                  </button>
+                  <button onClick={runLanExport} className="w-full btn btn-primary py-3 text-xs font-black uppercase tracking-widest">
+                    Export Changes
+                  </button>
+                  <button onClick={runLanImport} className="w-full btn btn-ghost bg-slate-50 py-3 text-xs font-bold ring-1 ring-slate-200">
+                    Import Changes
+                  </button>
+                </div>
+
+                {lanSyncStatus && (
+                  <p className="text-xs font-semibold text-indigo-600">{lanSyncStatus}</p>
+                )}
+
+                <div className="pt-3 border-t border-slate-100 dark:border-slate-800">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Conflicts</p>
+                    <button onClick={loadLanConflicts} className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">Refresh</button>
+                  </div>
+                  {lanConflicts.length ? (
+                    <div className="space-y-2 max-h-40 overflow-y-auto">
+                      {lanConflicts.map((c) => (
+                        <div key={c.id} className="p-2 border border-slate-200 dark:border-slate-700 rounded-lg text-xs">
+                          <div className="font-bold text-slate-700 dark:text-slate-200">
+                            {c.table_name} / {c.record_id}
+                          </div>
+                          <div className="text-[11px] text-slate-500">
+                            Local: {c.local_updated_at || 'N/A'} | Remote: {c.remote_updated_at || 'N/A'}
+                          </div>
+                          <div className="flex gap-2 mt-2">
+                            <button
+                              onClick={() => resolveLanConflict(c.id, 'keep_local')}
+                              className="btn btn-ghost px-2 py-1 text-[10px] font-black uppercase tracking-widest"
+                            >
+                              Keep Local
+                            </button>
+                            <button
+                              onClick={() => resolveLanConflict(c.id, 'apply_remote')}
+                              className="btn btn-secondary px-2 py-1 text-[10px] font-black uppercase tracking-widest"
+                            >
+                              Apply Remote
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-slate-500">No conflicts detected.</p>
                   )}
                 </div>
               </div>

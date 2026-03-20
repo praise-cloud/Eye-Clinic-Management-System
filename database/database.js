@@ -77,6 +77,11 @@ class Database {
         dob DATE,
         gender TEXT,
         contact TEXT,
+        email TEXT,
+        address TEXT,
+        reason_for_visit TEXT,
+        client_type TEXT,
+        marital_status TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )`,
@@ -223,6 +228,19 @@ class Database {
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )`,
+      `CREATE TABLE IF NOT EXISTS sync_conflicts (
+        id TEXT PRIMARY KEY,
+        table_name TEXT NOT NULL,
+        record_id TEXT NOT NULL,
+        local_payload TEXT,
+        remote_payload TEXT,
+        local_updated_at DATETIME,
+        remote_updated_at DATETIME,
+        status TEXT DEFAULT 'pending',
+        resolution TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        resolved_at DATETIME
+      )`,
       `CREATE TABLE IF NOT EXISTS sync_state (
         key TEXT PRIMARY KEY,
         value TEXT
@@ -240,6 +258,14 @@ class Database {
     // Ensure missing columns are added for older databases
     await this.ensureColumns('tests', [
       { name: 'created_at', type: 'DATETIME DEFAULT CURRENT_TIMESTAMP' }
+    ]);
+
+    await this.ensureColumns('patients', [
+      { name: 'email', type: 'TEXT' },
+      { name: 'address', type: 'TEXT' },
+      { name: 'reason_for_visit', type: 'TEXT' },
+      { name: 'client_type', type: 'TEXT' },
+      { name: 'marital_status', type: 'TEXT' }
     ]);
 
     await this.ensureColumns('reports', [
@@ -341,6 +367,50 @@ class Database {
     );
 
     return { id, ...userData, password: undefined };
+  }
+
+  async updateUser(userId, userData) {
+    if (!userId) throw new Error('User ID required');
+    const fields = [];
+    const params = [];
+
+    const setField = (col, value) => {
+      if (value === undefined) return;
+      fields.push(`${col} = ?`);
+      params.push(value);
+    };
+
+    setField('first_name', userData.first_name || userData.firstName);
+    setField('last_name', userData.last_name || userData.lastName);
+    if (userData.email) setField('email', String(userData.email).toLowerCase());
+    if (userData.gender) setField('gender', userData.gender);
+    if (userData.role) setField('role', userData.role);
+    if (userData.phone_number || userData.phoneNumber) {
+      setField('phone_number', userData.phone_number || userData.phoneNumber);
+    }
+    if (userData.status) setField('status', userData.status);
+
+    if (userData.password) {
+      const password_hash = await bcrypt.hash(userData.password, 10);
+      setField('password_hash', password_hash);
+    }
+
+    if (!fields.length) return { success: false, message: 'No updates provided' };
+
+    fields.push('updated_at = CURRENT_TIMESTAMP');
+    params.push(userId);
+
+    const query = `UPDATE users SET ${fields.join(', ')} WHERE id = ?`;
+    await this.run(query, params);
+    return { success: true };
+  }
+
+  async updateUserStatus(userId, isActive) {
+    if (!userId) throw new Error('User ID required');
+    const status = isActive ? 'active' : 'inactive';
+    const query = `UPDATE users SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`;
+    await this.run(query, [status, userId]);
+    return { success: true };
   }
 
   async getAllUsers() {
