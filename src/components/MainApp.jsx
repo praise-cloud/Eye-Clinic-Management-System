@@ -49,6 +49,7 @@ const MainApp = () => {
     if (path.startsWith('/patients')) return 'patients';
     if (path.startsWith('/messages')) return 'messages';
     if (path.startsWith('/tests')) return 'tests';
+    if (path.startsWith('/case-note')) return 'case-note';
     if (path.startsWith('/cvf')) return 'cvf';
     if (path.startsWith('/reports')) return 'reports';
     if (path.startsWith('/settings')) return 'settings';
@@ -84,6 +85,11 @@ const MainApp = () => {
   const handleActionClick = (type, data) => {
     if (type === 'dispense') {
       setDispensePrescriptionId(data);
+      return;
+    }
+
+    if (activeSection === 'tests' && user?.role !== 'doctor') {
+      alert('Only doctors can create test results.');
       return;
     }
 
@@ -142,16 +148,17 @@ const MainApp = () => {
           path="/"
           element={
             user?.role === 'doctor'
-              ? <DoctorsDashboard />
+              ? <DoctorsDashboard activeSection={activeSection} />
               : user?.role === 'assistant'
                 ? <AssistantDashboardScreen />
                 : <DashboardContent />
           }
         />
+        <Route path="/case-note" element={<DoctorsDashboard activeSection="case-note" />} />
         <Route path="/messages" element={<MessagesContent />} />
         <Route path="/patients" element={<PatientsContent searchTerm={searchTerm} ref={patientsContentRef} />} />
         <Route path="/tests" element={<TestsContent />} />
-        <Route path="/cvf" element={<CVFWorkspaceContent />} />
+        <Route path="/cvf" element={user?.role === 'doctor' ? <CVFWorkspaceContent /> : <div className="p-10 text-center text-slate-500">Access denied.</div>} />
         <Route path="/reports" element={<ReportsContent />} />
         <Route path="/inventory" element={<InventoryContent />} />
         <Route path="/inventory/create" element={<CreateInventoryItemScreen />} />
@@ -185,7 +192,7 @@ const MainApp = () => {
 
       {/* Modals */}
       {modals.addPatient && <AddPatientModal onClose={() => closeModal('addPatient')} onPatientAdded={handlePatientAdded} />}
-      {modals.uploadTest && <UploadTestModal onClose={() => closeModal('uploadTest')} />}
+      {modals.uploadTest && <UploadTestModal onClose={() => closeModal('uploadTest')} currentUser={user} />}
       {modals.generateReport && <GenerateReportModal onClose={() => closeModal('generateReport')} />}
       {modals.newMessage && <NewMessageModal onClose={() => closeModal('newMessage')} />}
 

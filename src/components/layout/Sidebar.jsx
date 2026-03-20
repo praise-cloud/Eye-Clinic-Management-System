@@ -42,9 +42,10 @@ const Sidebar = ({ activeSection, onSectionClick, currentUser }) => {
 
   const regularSidebarItems = [
     { id: 'dashboard', name: 'Dashboard', icon: <ChartIcon className="w-5 h-5" /> },
+    { id: 'case-note', name: 'Case Notes', icon: <DocumentIcon className="w-5 h-5" />, roles: ['doctor'] },
     { id: 'messages', name: 'Messages', icon: <ChatIcon className="w-5 h-5" /> },
     { id: 'tests', name: 'Test', icon: <DocumentIcon className="w-5 h-5" /> },
-    { id: 'cvf', name: 'CVF Workspace', icon: <DocumentIcon className="w-5 h-5" />, roles: ['doctor', 'assistant'] },
+    { id: 'cvf', name: 'CVF Workspace', icon: <DocumentIcon className="w-5 h-5" />, roles: ['doctor'] },
     { id: 'inventory', name: 'Inventory', icon: <PackageIcon className="w-5 h-5" />, roles: ['admin', 'assistant'] },
     { id: 'pharmacy', name: 'Pharmacy', icon: <DrugIcon className="w-5 h-5" />, roles: ['assistant'] },
     { id: 'settings', name: 'Settings', icon: <GearIcon className="w-5 h-5" /> },
@@ -94,7 +95,7 @@ const Sidebar = ({ activeSection, onSectionClick, currentUser }) => {
       </nav>
 
       {/*  lower buttom divider */}
-      
+
       <div className="p-6 border-t border-slate-800"></div>
 
       <LogoutModal

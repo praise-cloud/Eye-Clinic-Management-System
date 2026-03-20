@@ -12,11 +12,15 @@ const UploadTestModal = ({ onClose, currentUser }) => {
     testFile: null,
     eye: 'both',
     result: 'Completed',
-    notes: ''
+    notes: '',
+    cvfTestId: ''
   })
 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [cvfTests, setCvfTests] = useState([])
+  const [cvfLoading, setCvfLoading] = useState(false)
+  const [selectedCvf, setSelectedCvf] = useState(null)
 
   const testTypes = [
     'Visual Acuity Test',
@@ -33,6 +37,34 @@ const UploadTestModal = ({ onClose, currentUser }) => {
   useEffect(() => {
     loadPatients()
   }, [])
+
+  useEffect(() => {
+    const loadCvfTests = async () => {
+      if (!formData.patientId) {
+        setCvfTests([])
+        setSelectedCvf(null)
+        return
+      }
+      try {
+        setCvfLoading(true)
+        const tests = await testService.getAllTests({ patientId: formData.patientId })
+        const filtered = (tests || []).filter(t => (
+          t.machineType === 'henson_8000' ||
+          t.rawData?.source === 'henson_8000' ||
+          t.rawData?.machine_type === 'henson_8000'
+        )).sort((a, b) => new Date(b.testDate || 0) - new Date(a.testDate || 0))
+        setCvfTests(filtered)
+        setSelectedCvf(null)
+      } catch (err) {
+        setCvfTests([])
+        setSelectedCvf(null)
+      } finally {
+        setCvfLoading(false)
+      }
+    }
+
+    loadCvfTests()
+  }, [formData.patientId])
 
   const loadPatients = async () => {
     try {
@@ -62,6 +94,12 @@ const UploadTestModal = ({ onClose, currentUser }) => {
         [name]: value
       }))
     }
+  }
+
+  const handleSelectCvf = (cvfId) => {
+    setFormData(prev => ({ ...prev, cvfTestId: cvfId }))
+    const selected = cvfTests.find(t => String(t.id) === String(cvfId))
+    setSelectedCvf(selected || null)
   }
 
   const handleFileChange = (e) => {
@@ -115,6 +153,9 @@ const UploadTestModal = ({ onClose, currentUser }) => {
     setError('')
 
     try {
+      if (currentUser?.role !== 'doctor') {
+        throw new Error('Only doctors can create test results')
+      }
       if (!formData.patientId || !formData.patientName || !formData.testType) {
         throw new Error('Client and test type are required')
       }
@@ -130,7 +171,16 @@ const UploadTestModal = ({ onClose, currentUser }) => {
           fileName: formData.testFile ? formData.testFile.name : null,
           result: formData.result,
           eye: formData.eye,
-          imageData: formData.imageData || null
+          imageData: formData.imageData || null,
+          cvf_test_id: formData.cvfTestId || null,
+          cvf_summary: selectedCvf
+            ? {
+              id: selectedCvf.id,
+              result: selectedCvf.rawData?.result || selectedCvf.result || null,
+              diagnosis: selectedCvf.rawData?.diagnosis || null,
+              testDate: selectedCvf.testDate || null
+            }
+            : null
         }),
         uploaded_by: currentUser?.id
       }
@@ -265,6 +315,41 @@ const UploadTestModal = ({ onClose, currentUser }) => {
                   </select>
                 </div>
               </div>
+            </div>
+
+            {/* CVF Attachment */}
+            <div>
+              <label className="block text-[10px] font-black text-indigo-500 uppercase tracking-widest mb-4">Attach CVF Result (Optional)</label>
+              <select
+                name="cvfTestId"
+                value={formData.cvfTestId}
+                onChange={(e) => handleSelectCvf(e.target.value)}
+                disabled={!formData.patientId || cvfLoading}
+                className="input-premium appearance-none"
+              >
+                <option value="">{cvfLoading ? 'Loading CVF results...' : 'No CVF result attached'}</option>
+                {cvfTests.map((t) => {
+                  const labelDate = t.testDate ? new Date(t.testDate).toLocaleDateString() : 'Unknown date'
+                  const labelResult = t.rawData?.result || t.rawData?.diagnosis || 'No summary'
+                  return (
+                    <option key={t.id} value={t.id}>
+                      {labelDate} — {labelResult}
+                    </option>
+                  )
+                })}
+              </select>
+              {selectedCvf && (
+                <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                  <div className="card-premium p-3 border border-slate-200 dark:border-slate-800">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">CVF Result</p>
+                    <p className="mt-2 font-semibold">{selectedCvf.rawData?.result || 'Pending'}</p>
+                  </div>
+                  <div className="card-premium p-3 border border-slate-200 dark:border-slate-800">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">CVF Diagnosis</p>
+                    <p className="mt-2 font-semibold">{selectedCvf.rawData?.diagnosis || 'Not recorded'}</p>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* File Acquisition */}

@@ -1,6 +1,6 @@
 ﻿# Context
 
-Last updated: 2026-03-20 03:28:00
+Last updated: 2026-03-20 14:20:00
 
 ## Purpose
 This file consolidates all markdown documentation for this project and will be updated whenever changes are made to the application.
@@ -16,6 +16,13 @@ This file consolidates all markdown documentation for this project and will be u
 - Added LAN shared-folder sync with export/import and conflict tracking/resolution.
 - Added admin password reset action in User Management.
 - Removed "Add Client" from doctor dashboard and added Doctor Case Note section (saved as tests with `machine_type: case_note`).
+- Expanded Doctor Case Note into a side-tab workflow with the full clinical form fields (visual acuity, refraction, tonometry, diagnosis, final Rx, etc.) and reset logic.
+- Added a Case Notes tab in patient profiles showing full saved case-note details; results view now excludes case notes.
+- Added validation for case-note saves and PDF export for case notes from patient profiles.
+- Rewrote the Doctor Case Note form tail section to resolve a JSX parse error.
+- Restricted CVF Workspace to doctors only and added CVF result attachment to doctor case notes.
+- Auto-fill case note fields from the selected CVF result (diagnosis, recommendation, case details, history) with inline CVF preview.
+- Added CVF attachment to new test creation, restricted test creation to doctors, and added Case Notes to the doctor sidebar as a dedicated page.
 - Added client type + marital status fields to client creation and stored on patients.
 
 ## Current README.md

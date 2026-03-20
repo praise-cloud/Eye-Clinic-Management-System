@@ -22,20 +22,62 @@ const DoctorsDashboard = ({ activeSection }) => {
   const [clientList, setClientList] = useState([]);
   const [quickViewPatient, setQuickViewPatient] = useState(null);
   const [prescribePatient, setPrescribePatient] = useState(null);
-  const [caseNoteForm, setCaseNoteForm] = useState({
+  const getInitialCaseNoteForm = (doctorName = '') => ({
     patientId: '',
     visitDate: '',
+    caseDetails: '',
     caseHistory: '',
-    visualAcuity: '',
-    objectiveRefraction: '',
-    subjectiveRefraction: '',
+    ophthalmoscopy: '',
+    previousRx: '',
+    externals: '',
+    visualAcuity: {
+      unaided: {
+        dist: { re: '', le: '' },
+        near: { re: '', le: '' }
+      },
+      aided: {
+        dist: { re: '', le: '' },
+        near: { re: '', le: '' }
+      }
+    },
+    objectiveRefraction: {
+      re_va: '',
+      le_va: ''
+    },
+    subjectiveRefraction: {
+      re_add: '',
+      re_va: '',
+      le_add: '',
+      le_va: ''
+    },
+    additionalOptions: {
+      ret: false,
+      autoRef: false
+    },
+    tonometry: {
+      re: '',
+      le: '',
+      time: ''
+    },
     diagnosis: '',
-    recommendations: '',
-    treatment: '',
-    nextVisitDate: ''
+    recommendation: '',
+    finalRx: {
+      od: '',
+      os: ''
+    },
+    cvfTestId: '',
+    lensType: '',
+    nextVisitDate: '',
+    doctorName,
+    outstandingBill: ''
   });
+  const [caseNoteForm, setCaseNoteForm] = useState(() => getInitialCaseNoteForm(user?.name || ''));
   const [savingCaseNote, setSavingCaseNote] = useState(false);
   const [syncStatus, setSyncStatus] = useState('checking');
+  const [activePanel, setActivePanel] = useState('dashboard');
+  const [cvfTests, setCvfTests] = useState([]);
+  const [selectedCvf, setSelectedCvf] = useState(null);
+  const [cvfLoading, setCvfLoading] = useState(false);
   const [dashboardStats, setDashboardStats] = useState({
     totalFulfilledPrescriptions: 0,
     pendingEvaluations: 4 // Mocked or fetched from elsewhere
@@ -102,6 +144,68 @@ const DoctorsDashboard = ({ activeSection }) => {
     }
   }, []);
 
+  useEffect(() => {
+    if (user?.name) {
+      setCaseNoteForm(prev => ({
+        ...prev,
+        doctorName: prev.doctorName || user.name
+      }));
+    }
+  }, [user?.name]);
+
+  useEffect(() => {
+    if (activeSection === 'case-note') {
+      setActivePanel('case-note');
+    }
+    if (activeSection === 'dashboard') {
+      setActivePanel('dashboard');
+    }
+  }, [activeSection]);
+
+  useEffect(() => {
+    const loadCvfTests = async () => {
+      if (!caseNoteForm.patientId || !window.electronAPI?.getTests) {
+        setCvfTests([]);
+        return;
+      }
+      try {
+        setCvfLoading(true);
+        const res = await window.electronAPI.getTests({ patientId: caseNoteForm.patientId });
+        if (!res?.success) {
+          setCvfTests([]);
+          return;
+        }
+        const mapped = (res.tests || []).map((test) => {
+          let payload = {};
+          try {
+            payload = typeof test.raw_data === 'string' ? JSON.parse(test.raw_data) : (test.raw_data || {});
+          } catch {
+            payload = {};
+          }
+          return {
+            id: test.id,
+            machineType: test.machine_type,
+            testDate: test.test_date,
+            payload
+          };
+        }).filter((t) => (
+          t.machineType === 'henson_8000' ||
+          t.payload?.source === 'henson_8000' ||
+          t.payload?.machine_type === 'henson_8000'
+        )).sort((a, b) => new Date(b.testDate || 0) - new Date(a.testDate || 0));
+
+        setCvfTests(mapped);
+        setSelectedCvf(null);
+      } catch (err) {
+        setCvfTests([]);
+      } finally {
+        setCvfLoading(false);
+      }
+    };
+
+    loadCvfTests();
+  }, [caseNoteForm.patientId]);
+
   // Filter logic
   const filteredClients = clientList.filter(client => {
     const matchesSearch = searchTerm === '' ||
@@ -144,23 +248,51 @@ const DoctorsDashboard = ({ activeSection }) => {
       setError('Select a client before saving case note.');
       return;
     }
+    if (!caseNoteForm.visitDate) {
+      setError('Visiting Date is required.');
+      return;
+    }
+    if (!caseNoteForm.doctorName || !caseNoteForm.doctorName.trim()) {
+      setError("Doctor's Name is required.");
+      return;
+    }
+    const hasClinicalDetail = [
+      caseNoteForm.caseDetails,
+      caseNoteForm.caseHistory,
+      caseNoteForm.ophthalmoscopy,
+      caseNoteForm.diagnosis,
+      caseNoteForm.recommendation
+    ].some(value => String(value || '').trim().length > 0);
+    if (!hasClinicalDetail) {
+      setError('Enter at least one clinical detail (case details, case history, ophthalmoscopy, diagnosis, or recommendation).');
+      return;
+    }
     try {
       setSavingCaseNote(true);
       setError('');
       const payload = {
         source: 'case_note',
         doctor_id: user?.id || null,
-        doctor_name: user?.name || '',
+        doctor_name: caseNoteForm.doctorName || user?.name || '',
         patient_id: caseNoteForm.patientId,
         visit_date: caseNoteForm.visitDate || new Date().toISOString(),
+        case_details: caseNoteForm.caseDetails,
         case_history: caseNoteForm.caseHistory,
+        ophthalmoscopy: caseNoteForm.ophthalmoscopy,
+        previous_rx: caseNoteForm.previousRx,
+        externals: caseNoteForm.externals,
         visual_acuity: caseNoteForm.visualAcuity,
         objective_refraction: caseNoteForm.objectiveRefraction,
         subjective_refraction: caseNoteForm.subjectiveRefraction,
+        additional_options: caseNoteForm.additionalOptions,
+        tonometry: caseNoteForm.tonometry,
         diagnosis: caseNoteForm.diagnosis,
-        recommendations: caseNoteForm.recommendations,
-        treatment: caseNoteForm.treatment,
-        next_visit_date: caseNoteForm.nextVisitDate || null
+        recommendation: caseNoteForm.recommendation,
+        final_rx: caseNoteForm.finalRx,
+        cvf_test_id: caseNoteForm.cvfTestId || null,
+        lens_type: caseNoteForm.lensType,
+        next_visit_date: caseNoteForm.nextVisitDate || null,
+        outstanding_bill: caseNoteForm.outstandingBill
       };
 
       const res = await window.electronAPI.createTest({
@@ -177,15 +309,9 @@ const DoctorsDashboard = ({ activeSection }) => {
       }
 
       setCaseNoteForm(prev => ({
-        ...prev,
-        caseHistory: '',
-        visualAcuity: '',
-        objectiveRefraction: '',
-        subjectiveRefraction: '',
-        diagnosis: '',
-        recommendations: '',
-        treatment: '',
-        nextVisitDate: ''
+        ...getInitialCaseNoteForm(prev.doctorName || user?.name || ''),
+        patientId: prev.patientId,
+        visitDate: prev.visitDate
       }));
       await loadPatients();
     } catch (err) {
@@ -193,6 +319,29 @@ const DoctorsDashboard = ({ activeSection }) => {
     } finally {
       setSavingCaseNote(false);
     }
+  };
+
+  const clearCaseNote = () => {
+    setCaseNoteForm(prev => ({
+      ...getInitialCaseNoteForm(prev.doctorName || user?.name || ''),
+      patientId: prev.patientId
+    }));
+  };
+
+  const handleSelectCvf = (cvfId) => {
+    setCaseNoteForm(prev => ({ ...prev, cvfTestId: cvfId }));
+    const selected = cvfTests.find(t => String(t.id) === String(cvfId));
+    setSelectedCvf(selected || null);
+    if (!selected) return;
+    const payload = selected.payload || {};
+    setCaseNoteForm(prev => ({
+      ...prev,
+      cvfTestId: cvfId,
+      diagnosis: payload.diagnosis || prev.diagnosis,
+      recommendation: payload.recommendation || prev.recommendation,
+      caseDetails: payload.caseStudy || prev.caseDetails,
+      caseHistory: payload.notes || prev.caseHistory
+    }));
   };
 
 
@@ -274,6 +423,38 @@ const DoctorsDashboard = ({ activeSection }) => {
               onChange={(e) => setCaseNoteForm(prev => ({ ...prev, visitDate: e.target.value }))}
               className="w-full mt-2 px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-sm"
             />
+          </div>
+          <div className="md:col-span-3">
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Attach CVF Result</label>
+            <select
+              value={caseNoteForm.cvfTestId}
+              onChange={(e) => handleSelectCvf(e.target.value)}
+              className="w-full mt-2 px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-sm"
+              disabled={!caseNoteForm.patientId || cvfLoading}
+            >
+              <option value="">{cvfLoading ? 'Loading CVF results...' : 'No CVF result attached'}</option>
+              {cvfTests.map((t) => {
+                const labelDate = t.testDate ? new Date(t.testDate).toLocaleDateString() : 'Unknown date';
+                const labelResult = t.payload?.result || t.payload?.diagnosis || 'No summary';
+                return (
+                  <option key={t.id} value={t.id}>
+                    {labelDate} — {labelResult}
+                  </option>
+                );
+              })}
+            </select>
+            {selectedCvf && (
+              <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3 text-xs text-slate-600 dark:text-slate-300">
+                <div className="card-premium p-3 border border-slate-200 dark:border-slate-800">
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">CVF Result</p>
+                  <p className="mt-2 text-sm font-semibold">{selectedCvf.payload?.result || "Pending"}</p>
+                </div>
+                <div className="card-premium p-3 border border-slate-200 dark:border-slate-800">
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">CVF Diagnosis</p>
+                  <p className="mt-2 text-sm font-semibold">{selectedCvf.payload?.diagnosis || "Not recorded"}</p>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -402,54 +583,6 @@ const DoctorsDashboard = ({ activeSection }) => {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mt-6">
           <div className="card-premium p-4 border border-slate-200 dark:border-slate-800">
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Objective Refraction (VA)</p>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">RE VA</label>
-                <input value={caseNoteForm.objectiveRefraction.re_va} onChange={(e) => setCaseNoteForm(prev => ({ ...prev, objectiveRefraction: { ...prev.objectiveRefraction, re_va: e.target.value } }))} className="w-full mt-2 input-premium" />
-              </div>
-              <div>
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">LE VA</label>
-                <input value={caseNoteForm.objectiveRefraction.le_va} onChange={(e) => setCaseNoteForm(prev => ({ ...prev, objectiveRefraction: { ...prev.objectiveRefraction, le_va: e.target.value } }))} className="w-full mt-2 input-premium" />
-              </div>
-            </div>
-          </div>
-          <div className="card-premium p-4 border border-slate-200 dark:border-slate-800">
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Subjective Refraction</p>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">RE Add</label>
-                <input value={caseNoteForm.subjectiveRefraction.re_add} onChange={(e) => setCaseNoteForm(prev => ({ ...prev, subjectiveRefraction: { ...prev.subjectiveRefraction, re_add: e.target.value } }))} className="w-full mt-2 input-premium" />
-              </div>
-              <div>
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">RE VA</label>
-                <input value={caseNoteForm.subjectiveRefraction.re_va} onChange={(e) => setCaseNoteForm(prev => ({ ...prev, subjectiveRefraction: { ...prev.subjectiveRefraction, re_va: e.target.value } }))} className="w-full mt-2 input-premium" />
-              </div>
-              <div>
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">LE Add</label>
-                <input value={caseNoteForm.subjectiveRefraction.le_add} onChange={(e) => setCaseNoteForm(prev => ({ ...prev, subjectiveRefraction: { ...prev.subjectiveRefraction, le_add: e.target.value } }))} className="w-full mt-2 input-premium" />
-              </div>
-              <div>
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">LE VA</label>
-                <input value={caseNoteForm.subjectiveRefraction.le_va} onChange={(e) => setCaseNoteForm(prev => ({ ...prev, subjectiveRefraction: { ...prev.subjectiveRefraction, le_va: e.target.value } }))} className="w-full mt-2 input-premium" />
-              </div>
-            </div>
-          </div>
-          <div className="card-premium p-4 border border-slate-200 dark:border-slate-800 space-y-3">
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Additional Options</p>
-            <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={caseNoteForm.additionalOptions.ret} onChange={(e) => setCaseNoteForm(prev => ({ ...prev, additionalOptions: { ...prev.additionalOptions, ret: e.target.checked } }))} />
-              Ret
-            </label>
-            <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={caseNoteForm.additionalOptions.autoRef} onChange={(e) => setCaseNoteForm(prev => ({ ...prev, additionalOptions: { ...prev.additionalOptions, autoRef: e.target.checked } }))} />
-              AutoRef
-            </label>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mt-6">
-          <div className="card-premium p-4 border border-slate-200 dark:border-slate-800">
             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Tonometry</p>
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -492,7 +625,7 @@ const DoctorsDashboard = ({ activeSection }) => {
               </div>
               <div>
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Lens Type</label>
-                <input value={caseNoteForm.lensType} onChange={(e) => setCaseNoteForm(prev => ({ ...prev, lensType: e.target.value } }))} className="w-full mt-2 input-premium" />
+                <input value={caseNoteForm.lensType} onChange={(e) => setCaseNoteForm(prev => ({ ...prev, lensType: e.target.value }))} className="w-full mt-2 input-premium" />
               </div>
             </div>
           </div>
@@ -512,7 +645,6 @@ const DoctorsDashboard = ({ activeSection }) => {
             <input value={caseNoteForm.outstandingBill} onChange={(e) => setCaseNoteForm(prev => ({ ...prev, outstandingBill: e.target.value }))} className="w-full mt-2 input-premium" />
           </div>
         </div>
-
         <div className="flex flex-wrap gap-3 mt-6">
           <button onClick={saveCaseNote} disabled={savingCaseNote} className="btn btn-primary px-5 py-2 text-xs font-black uppercase tracking-widest">
             {savingCaseNote ? 'Saving...' : 'Save'}
@@ -529,8 +661,6 @@ const DoctorsDashboard = ({ activeSection }) => {
         </div>
       </div>
       )}
-      </div>
-
       {activePanel === 'dashboard' && (
       <>
       {/* Analytics Micro-Cards */}
@@ -735,9 +865,12 @@ const DoctorsDashboard = ({ activeSection }) => {
       )}
       </>
       )}
-
+      </div>
     </div>
   );
 }
 
 export default DoctorsDashboard
+
+
+

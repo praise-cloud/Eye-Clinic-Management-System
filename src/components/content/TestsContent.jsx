@@ -93,15 +93,17 @@ const TestsContent = ({ clientName, clientId, additionalTests = DEFAULT_ADDITION
           />
         </div>
 
-        <button
-          onClick={() => setShowUploadModal(true)}
-          className="btn btn-primary px-8 py-3 flex items-center gap-3 shadow-xl shadow-indigo-100 dark:shadow-none w-full md:w-auto"
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-          </svg>
-          <span className="font-bold">New Test Acquisition</span>
-        </button>
+        {user?.role === 'doctor' && (
+          <button
+            onClick={() => setShowUploadModal(true)}
+            className="btn btn-primary px-8 py-3 flex items-center gap-3 shadow-xl shadow-indigo-100 dark:shadow-none w-full md:w-auto"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+            </svg>
+            <span className="font-bold">New Test Acquisition</span>
+          </button>
+        )}
       </div>
 
       {notification && (

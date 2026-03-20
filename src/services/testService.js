@@ -13,30 +13,30 @@ export const getAllTests = async (filters = {}) => {
   try {
     const res = await api.getTests(filters);
     if (res?.success) {
-      return res.tests.map(test => ({
+      return res.tests.map(test => {
+        const rawData = (() => {
+          try { return JSON.parse(test.raw_data || '{}'); } catch { return {}; }
+        })();
+        return ({
+        rawData,
         id: test.id,
         patientName: test.first_name && test.last_name
           ? `${test.first_name} ${test.last_name}`
           : 'Unknown Patient',
         patientId: test.patient_id,
         testType: test.machine_type || 'Unknown',
+        machineType: test.machine_type || 'Unknown',
         eye: test.eye || 'both',
-        result: (() => {
-          try { return JSON.parse(test.raw_data || '{}').result || 'Pending'; } catch { return 'Pending'; }
-        })(),
+        result: rawData.result || 'Pending',
         date: test.test_date
           ? new Date(test.test_date).toLocaleDateString('en-GB')
           : 'N/A',
-        notes: (() => {
-          try { return JSON.parse(test.raw_data || '{}').notes || ''; } catch { return ''; }
-        })(),
-        fileName: (() => {
-          try { return JSON.parse(test.raw_data || '{}').fileName || null; } catch { return null; }
-        })(),
-        imageData: (() => {
-          try { return JSON.parse(test.raw_data || '{}').imageData || null; } catch { return null; }
-        })()
-      }));
+        testDate: test.test_date || null,
+        notes: rawData.notes || '',
+        fileName: rawData.fileName || null,
+        imageData: rawData.imageData || null
+      });
+      });
     }
     return [];
   } catch (err) {
