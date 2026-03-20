@@ -1,6 +1,6 @@
 ﻿# Context
 
-Last updated: 2026-03-20 02:17:00
+Last updated: 2026-03-20 02:41:00
 
 ## Purpose
 This file consolidates all markdown documentation for this project and will be updated whenever changes are made to the application.
@@ -10,6 +10,9 @@ This file consolidates all markdown documentation for this project and will be u
 - Implemented sync queue and SQL Server sync worker.
 - Expanded SQLite schema creation + safe column migrations.
 - Added defensive creation for missing notifications and prescriptions tables at runtime.
+- Added CVF incoming PDF watch folder workflow with review list and attach-to-client flow.
+- Added preload safeguards for missing SQL Server IPC handlers and defensive migration for activity_logs columns.
+- Made system IPC handlers idempotent to prevent missing/duplicate handler errors.
 
 ## Current README.md
 

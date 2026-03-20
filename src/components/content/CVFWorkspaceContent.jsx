@@ -18,6 +18,15 @@ const formatDateTime = (value) => {
   return date.toLocaleString();
 };
 
+const formatSize = (bytes) => {
+  if (!Number.isFinite(bytes)) return 'N/A';
+  if (bytes < 1024) return `${bytes} B`;
+  const kb = bytes / 1024;
+  if (kb < 1024) return `${kb.toFixed(1)} KB`;
+  const mb = kb / 1024;
+  return `${mb.toFixed(1)} MB`;
+};
+
 const getSignoffStatus = (raw = {}) => {
   if (raw?.signoff?.status === 'signed_off' || raw?.signoff?.signedOffAt) {
     return 'Signed Off';
@@ -65,6 +74,14 @@ const CVFWorkspaceContent = () => {
     search: '', result: 'all', signoff: 'all', eye: 'all', from: '', to: ''
   });
   const [folderPath, setFolderPath] = useState('');
+  const [cvfWatchPath, setCvfWatchPath] = useState('');
+  const [incomingFiles, setIncomingFiles] = useState([]);
+  const [incomingLoading, setIncomingLoading] = useState(false);
+  const [incomingMessage, setIncomingMessage] = useState('');
+  const [selectedIncomingPath, setSelectedIncomingPath] = useState('');
+  const [patientOptions, setPatientOptions] = useState([]);
+  const [selectedPatientId, setSelectedPatientId] = useState('');
+  const [incomingAttaching, setIncomingAttaching] = useState(false);
 
   const selectedRecord = useMemo(
     () => records.find((r) => r.id === selectedId) || null,
@@ -182,6 +199,15 @@ const CVFWorkspaceContent = () => {
 
   useEffect(() => {
     loadCvfRecords();
+    const loadWatchPath = async () => {
+      try {
+        const res = await window.electronAPI.getCvfWatchPath?.();
+        if (res?.success && res.path) {
+          setCvfWatchPath(res.path);
+        }
+      } catch { }
+    };
+    loadWatchPath();
   }, []);
 
   useEffect(() => {
@@ -464,12 +490,95 @@ const CVFWorkspaceContent = () => {
     }
   };
 
+  const loadIncomingFiles = async (explicitPath = '') => {
+    try {
+      setIncomingLoading(true);
+      setIncomingMessage('');
+      const res = await window.electronAPI.listCvfIncomingFiles?.({ path: explicitPath || cvfWatchPath });
+      if (!res?.success) {
+        setIncomingFiles([]);
+        setIncomingMessage(res?.error || 'Failed to load incoming CVF PDFs.');
+        return;
+      }
+      setIncomingFiles(res.files || []);
+      if (res.path) setCvfWatchPath(res.path);
+    } catch (error) {
+      setIncomingMessage(error.message || 'Failed to load incoming CVF PDFs.');
+    } finally {
+      setIncomingLoading(false);
+    }
+  };
+
+  const chooseCvfWatchFolder = async () => {
+    try {
+      const selection = await window.electronAPI.selectFile({
+        title: 'Select CVF Watch Folder',
+        properties: ['openDirectory']
+      });
+      const chosen = selection?.filePath || null;
+      if (!chosen) return;
+      const saved = await window.electronAPI.setCvfWatchPath?.(chosen);
+      if (saved?.success) {
+        setCvfWatchPath(chosen);
+        setIncomingMessage('CVF watch folder updated.');
+        await loadIncomingFiles(chosen);
+      }
+    } catch (error) {
+      setIncomingMessage(error.message || 'Failed to update watch folder.');
+    }
+  };
+
+  const loadPatientsForAttach = async () => {
+    try {
+      const res = await window.electronAPI.getPatients?.({});
+      if (res?.success && Array.isArray(res.patients)) {
+        setPatientOptions(
+          res.patients.map((p) => ({
+            id: p.id,
+            label: `${p.first_name || ''} ${p.last_name || ''}`.trim() || 'Unknown Client',
+            code: p.patient_id || ''
+          }))
+        );
+      }
+    } catch { }
+  };
+
+  const attachIncomingPdf = async () => {
+    if (!selectedIncomingPath) {
+      setIncomingMessage('Select a PDF from the incoming list.');
+      return;
+    }
+    if (!selectedPatientId) {
+      setIncomingMessage('Select a client to attach the PDF.');
+      return;
+    }
+    try {
+      setIncomingAttaching(true);
+      setIncomingMessage('');
+      const res = await window.electronAPI.attachCvfPdfToPatient?.({
+        filePath: selectedIncomingPath,
+        patientId: selectedPatientId,
+        title: `CVF PDF - ${selectedIncomingPath.split('\\').pop()}`
+      });
+      if (!res?.success) {
+        setIncomingMessage(res?.error || 'Failed to attach CVF PDF.');
+        return;
+      }
+      setIncomingMessage('CVF PDF attached to client documents.');
+      setSelectedIncomingPath('');
+      await loadIncomingFiles();
+    } catch (error) {
+      setIncomingMessage(error.message || 'Failed to attach CVF PDF.');
+    } finally {
+      setIncomingAttaching(false);
+    }
+  };
+
   const allFilteredSelected = filteredRecords.length > 0 && filteredRecords.every((r) => selectedRowIds[r.id]);
 
   return (
     <div className="space-y-6">
       <div className="card-premium p-6">
-        <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">CVF Workspace</h2>
         <p className="text-sm text-slate-500 dark:text-slate-400 font-medium mt-1">
           Shared doctor-assistant workflow for Henson 8000 import, case study collaboration, and sign-off.
         </p>
@@ -478,7 +587,7 @@ const CVFWorkspaceContent = () => {
       <div className="card-premium p-2 inline-flex gap-2">
         <button
           onClick={() => setActiveTab('workspace')}
-          className={`px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest ${
+          className={`px-4 py-3 rounded-lg text-xs font-black uppercase tracking-widest ${
             activeTab === 'workspace'
               ? 'bg-indigo-600 text-white'
               : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300'
@@ -507,13 +616,13 @@ const CVFWorkspaceContent = () => {
       {activeTab === 'workspace' && (
         <>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <button onClick={analyzeHensonFile} className="btn btn-secondary py-3 text-xs font-black uppercase tracking-widest">
+            <button onClick={analyzeHensonFile} className="btn btn-secondary py-4 text-xs font-black uppercase tracking-widest">
               Analyze Henson Export
             </button>
-            <button onClick={importHensonFile} className="btn btn-primary py-3 text-xs font-black uppercase tracking-widest">
+            <button onClick={importHensonFile} className="btn btn-primary py-4 text-xs font-black uppercase tracking-widest">
               Import Henson File
             </button>
-            <button onClick={importHensonFolder} className="btn btn-primary py-3 text-xs font-black uppercase tracking-widest">
+            <button onClick={importHensonFolder} className="btn btn-primary py-4 text-xs font-black uppercase tracking-widest">
               Import Henson Folder
             </button>
           </div>
@@ -526,6 +635,95 @@ const CVFWorkspaceContent = () => {
               className="w-full px-4 py-3 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 text-sm"
               placeholder="C:\\Henson\\Exports"
             />
+          </div>
+
+          <div className="card-premium p-6 space-y-4">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-black uppercase tracking-widest text-slate-500">Incoming CVF PDFs</h3>
+                <p className="text-xs text-slate-500">Review PDFs from the CVF device before attaching to a client.</p>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={chooseCvfWatchFolder} className="btn btn-secondary py-2 px-3 text-[10px] font-black uppercase tracking-widest">
+                  Choose Folder
+                </button>
+                <button onClick={() => loadIncomingFiles()} className="btn btn-primary py-2 px-3 text-[10px] font-black uppercase tracking-widest">
+                  Refresh List
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Watch Folder</label>
+                <input
+                  value={cvfWatchPath || ''}
+                  readOnly
+                  className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-xs font-mono"
+                  placeholder="Not set"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Attach To Client</label>
+                <select
+                  value={selectedPatientId}
+                  onFocus={loadPatientsForAttach}
+                  onChange={(e) => setSelectedPatientId(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-sm"
+                >
+                  <option value="">Select client</option>
+                  {patientOptions.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.label}{p.code ? ` (ID: ${p.code})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {incomingMessage && (
+              <div className="text-xs font-semibold text-indigo-600">{incomingMessage}</div>
+            )}
+
+            <div className="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
+              <div className="grid grid-cols-[24px_1fr_90px_160px] gap-2 bg-slate-50 dark:bg-slate-800/60 text-[10px] font-black uppercase tracking-widest text-slate-500 px-3 py-2">
+                <div></div>
+                <div>File</div>
+                <div>Size</div>
+                <div>Modified</div>
+              </div>
+              <div className="max-h-[220px] overflow-y-auto">
+                {incomingLoading ? (
+                  <div className="p-3 text-sm text-slate-500">Loading incoming PDFs...</div>
+                ) : incomingFiles.length ? (
+                  incomingFiles.map((f) => (
+                    <label key={f.path} className="grid grid-cols-[24px_1fr_90px_160px] gap-2 items-center px-3 py-2 border-t border-slate-100 dark:border-slate-800 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                      <input
+                        type="radio"
+                        name="incomingCvfFile"
+                        checked={selectedIncomingPath === f.path}
+                        onChange={() => setSelectedIncomingPath(f.path)}
+                      />
+                      <span className="text-xs font-semibold text-slate-800 dark:text-slate-100">{f.name}</span>
+                      <span className="text-xs text-slate-500">{formatSize(f.size)}</span>
+                      <span className="text-[11px] text-slate-500">{formatDateTime(f.modified_at)}</span>
+                    </label>
+                  ))
+                ) : (
+                  <div className="p-3 text-sm text-slate-500">No PDF files found.</div>
+                )}
+              </div>
+            </div>
+
+            <div className="flex justify-end">
+              <button
+                onClick={attachIncomingPdf}
+                disabled={incomingAttaching}
+                className="btn btn-primary py-2 px-4 text-[10px] font-black uppercase tracking-widest"
+              >
+                {incomingAttaching ? 'Attaching...' : 'Attach Selected PDF'}
+              </button>
+            </div>
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div className="card-premium p-6">

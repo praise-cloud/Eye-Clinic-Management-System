@@ -25,15 +25,15 @@ body {
   }
 
   .btn-primary {
-    @apply bg-indigo-600 text-white shadow-lg shadow-indigo-200/50 hover:bg-indigo-700 hover:shadow-indigo-300/60 focus:ring-indigo-500;
+    @apply bg-indigo-600 text-white focus:ring-indigo-500;
   }
 
   .btn-secondary {
-    @apply bg-slate-800 text-white shadow-lg shadow-slate-200 hover:bg-slate-900 focus:ring-slate-500;
+    @apply bg-slate-800 text-white shadow-lg  focus:ring-slate-500;
   }
 
   .btn-ghost {
-    @apply text-slate-700 hover:bg-slate-100 hover:text-slate-900 font-bold;
+    @apply text-slate-700 hover:text-slate-900 font-bold;
   }
 
   .card-premium {

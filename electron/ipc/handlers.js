@@ -147,6 +147,7 @@ class IPCHandlers {
     this.registerChatHandlers();
     this.registerPresenceHandlers();
     this.registerSystemHandlers();
+    this.registerCvfHandlers();
     this.registerWindowHandlers();
     this.registerDashboardHandlers();
     this.registerPrescriptionHandlers();
@@ -2226,10 +2227,15 @@ class IPCHandlers {
   }
 
   registerSystemHandlers() {
-    ipcMain.handle('system:healthCheck', async () => {
+    const safeHandle = (channel, handler) => {
+      try { ipcMain.removeHandler(channel); } catch { }
+      ipcMain.handle(channel, handler);
+    };
+
+    safeHandle('system:healthCheck', async () => {
       return { success: true, status: 'healthy', timestamp: new Date().toISOString() };
     });
-    ipcMain.handle('system:checkOnline', async () => {
+    safeHandle('system:checkOnline', async () => {
       try {
         const db = await DatabaseService.getDatabase();
         await db.get('SELECT 1 as ok');
@@ -2249,7 +2255,7 @@ class IPCHandlers {
         return buildErrorResponse(error, { scope: 'system', action: 'checkOnline' }, { online: false, timestamp: new Date().toISOString() });
       }
     });
-    ipcMain.handle('system:setNetworkDbPath', async (event, payload) => {
+    safeHandle('system:setNetworkDbPath', async (event, payload) => {
       try {
         if (!currentUser || String(currentUser.role || '').toLowerCase() !== 'admin') {
           return { success: false, error: 'Only admin can change network database path' };
@@ -2269,7 +2275,7 @@ class IPCHandlers {
         return buildErrorResponse(error, { scope: 'system', action: 'setNetworkDbPath' });
       }
     });
-    ipcMain.handle('system:setSqlServerConfig', async (event, payload = {}) => {
+    safeHandle('system:setSqlServerConfig', async (event, payload = {}) => {
       try {
         if (!currentUser || String(currentUser.role || '').toLowerCase() !== 'admin') {
           return { success: false, error: 'Only admin can change SQL Server settings' };
@@ -2294,7 +2300,7 @@ class IPCHandlers {
         return buildErrorResponse(error, { scope: 'system', action: 'setSqlServerConfig' });
       }
     });
-    ipcMain.handle('system:getSqlServerConfig', async () => {
+    safeHandle('system:getSqlServerConfig', async () => {
       try {
         const cfg = SqlServerService.getSqlServerConfig();
         return { success: true, config: cfg };
@@ -2302,7 +2308,7 @@ class IPCHandlers {
         return buildErrorResponse(error, { scope: 'system', action: 'getSqlServerConfig' });
       }
     });
-    ipcMain.handle('system:testSqlServerConnection', async (event, payload = {}) => {
+    safeHandle('system:testSqlServerConnection', async (event, payload = {}) => {
       try {
         if (!currentUser || String(currentUser.role || '').toLowerCase() !== 'admin') {
           return { success: false, error: 'Only admin can test SQL Server connection' };
@@ -2325,7 +2331,42 @@ class IPCHandlers {
         return buildErrorResponse(error, { scope: 'system', action: 'testSqlServerConnection' });
       }
     });
-    ipcMain.handle('system:getNetworkDbPath', async () => {
+    safeHandle('system:setCvfWatchPath', async (event, payload = {}) => {
+      try {
+        if (!currentUser) {
+          return { success: false, error: 'Authentication required' };
+        }
+        const role = String(currentUser.role || '').toLowerCase();
+        if (!['admin', 'doctor', 'assistant'].includes(role)) {
+          return { success: false, error: 'Access denied' };
+        }
+        const dir = app.getPath('userData');
+        const cfgPath = path.join(dir, 'config.json');
+        let existing = {};
+        if (fs.existsSync(cfgPath)) {
+          try {
+            existing = JSON.parse(fs.readFileSync(cfgPath, 'utf-8'));
+          } catch { }
+        }
+        const data = { ...existing, cvf_watch_path: payload?.path || '' };
+        fs.writeFileSync(cfgPath, JSON.stringify(data));
+        return { success: true, path: data.cvf_watch_path };
+      } catch (error) {
+        return buildErrorResponse(error, { scope: 'system', action: 'setCvfWatchPath' });
+      }
+    });
+    safeHandle('system:getCvfWatchPath', async () => {
+      try {
+        const dir = app.getPath('userData');
+        const cfgPath = path.join(dir, 'config.json');
+        if (!fs.existsSync(cfgPath)) return { success: true, path: null };
+        const data = JSON.parse(fs.readFileSync(cfgPath, 'utf-8'));
+        return { success: true, path: data.cvf_watch_path || null };
+      } catch (error) {
+        return { success: false, error: error.message, path: null };
+      }
+    });
+    safeHandle('system:getNetworkDbPath', async () => {
       try {
         const dir = app.getPath('userData');
         const cfgPath = path.join(dir, 'config.json');
@@ -2336,7 +2377,7 @@ class IPCHandlers {
         return { success: false, error: error.message, path: null };
       }
     });
-    ipcMain.handle('system:runSqlServerSync', async () => {
+    safeHandle('system:runSqlServerSync', async () => {
       try {
         if (!currentUser || String(currentUser.role || '').toLowerCase() !== 'admin') {
           return { success: false, error: 'Only admin can run SQL Server sync' };
@@ -2347,7 +2388,7 @@ class IPCHandlers {
         return buildErrorResponse(error, { scope: 'system', action: 'runSqlServerSync' });
       }
     });
-    ipcMain.handle('db:delete', async () => {
+    safeHandle('db:delete', async () => {
       try {
         if (!currentUser || String(currentUser.role || '').toLowerCase() !== 'admin') {
           return { success: false, error: 'Only admin can delete database' };
@@ -2358,7 +2399,7 @@ class IPCHandlers {
         return buildErrorResponse(error, { scope: 'system', action: 'deleteDatabase', entity: 'database' });
       }
     });
-    ipcMain.handle('db:update', async (event, updates = {}) => {
+    safeHandle('db:update', async (event, updates = {}) => {
       try {
         if (!currentUser || String(currentUser.role || '').toLowerCase() !== 'admin') {
           return { success: false, error: 'Only admin can update database' };
@@ -2367,6 +2408,114 @@ class IPCHandlers {
         return res;
       } catch (error) {
         return buildErrorResponse(error, { scope: 'system', action: 'updateDatabase', entity: 'database' });
+      }
+    });
+  }
+
+  registerCvfHandlers() {
+    ipcMain.handle('cvf:listIncomingFiles', async (event, payload = {}) => {
+      try {
+        if (!currentUser) return { success: false, error: 'Authentication required' };
+        const role = String(currentUser.role || '').toLowerCase();
+        if (!['admin', 'doctor', 'assistant'].includes(role)) {
+          return { success: false, error: 'Access denied' };
+        }
+
+        const dir = app.getPath('userData');
+        const cfgPath = path.join(dir, 'config.json');
+        let watchPath = '';
+        if (fs.existsSync(cfgPath)) {
+          try {
+            const cfg = JSON.parse(fs.readFileSync(cfgPath, 'utf-8'));
+            watchPath = String(cfg.cvf_watch_path || '');
+          } catch { }
+        }
+        const incomingPath = String(payload?.path || watchPath || '').trim();
+        if (!incomingPath) {
+          return { success: false, error: 'No CVF watch folder configured' };
+        }
+        if (!fs.existsSync(incomingPath)) {
+          return { success: false, error: 'CVF watch folder not found' };
+        }
+
+        const entries = fs.readdirSync(incomingPath, { withFileTypes: true });
+        const files = entries
+          .filter((e) => e.isFile())
+          .map((e) => path.join(incomingPath, e.name))
+          .filter((p) => path.extname(p).toLowerCase() === '.pdf')
+          .map((p) => {
+            const stat = fs.statSync(p);
+            return {
+              name: path.basename(p),
+              path: p,
+              size: stat.size,
+              modified_at: stat.mtime?.toISOString ? stat.mtime.toISOString() : new Date(stat.mtime).toISOString()
+            };
+          })
+          .sort((a, b) => new Date(b.modified_at).getTime() - new Date(a.modified_at).getTime());
+
+        return { success: true, path: incomingPath, files };
+      } catch (error) {
+        return buildErrorResponse(error, { scope: 'cvf', action: 'listIncomingFiles' });
+      }
+    });
+
+    ipcMain.handle('cvf:attachPdfToPatient', async (event, payload = {}) => {
+      try {
+        if (!currentUser) return { success: false, error: 'Authentication required' };
+        const role = String(currentUser.role || '').toLowerCase();
+        if (!['admin', 'doctor', 'assistant'].includes(role)) {
+          return { success: false, error: 'Access denied' };
+        }
+
+        const patientId = String(payload?.patientId || '').trim();
+        const filePath = String(payload?.filePath || '').trim();
+        if (!patientId) return { success: false, error: 'Patient ID required' };
+        if (!filePath) return { success: false, error: 'File path required' };
+        if (!fs.existsSync(filePath)) return { success: false, error: 'File not found' };
+        if (path.extname(filePath).toLowerCase() !== '.pdf') {
+          return { success: false, error: 'Only PDF files are supported' };
+        }
+
+        // If watch path is configured, enforce it for safety.
+        try {
+          const dir = app.getPath('userData');
+          const cfgPath = path.join(dir, 'config.json');
+          if (fs.existsSync(cfgPath)) {
+            const cfg = JSON.parse(fs.readFileSync(cfgPath, 'utf-8'));
+            const watchPath = String(cfg.cvf_watch_path || '').trim();
+            if (watchPath) {
+              const resolvedWatch = path.resolve(watchPath).toLowerCase();
+              const resolvedFile = path.resolve(filePath).toLowerCase();
+              if (!resolvedFile.startsWith(resolvedWatch)) {
+                return { success: false, error: 'File must be inside the configured CVF watch folder' };
+              }
+            }
+          }
+        } catch { }
+
+        const title = String(payload?.title || `CVF PDF - ${path.basename(filePath)}`).trim();
+        const buffer = fs.readFileSync(filePath);
+        const report = await DatabaseService.createReport({
+          patient_id: patientId,
+          report_type: 'cvf_external_pdf',
+          title,
+          report_file: buffer
+        });
+
+        if (currentUser?.id) {
+          await DatabaseService.logActivity(
+            currentUser.id,
+            'create',
+            'report',
+            report.id,
+            `Attached CVF PDF: ${path.basename(filePath)}`
+          );
+        }
+
+        return { success: true, report };
+      } catch (error) {
+        return buildErrorResponse(error, { scope: 'cvf', action: 'attachPdfToPatient' });
       }
     });
   }
@@ -2405,3 +2554,4 @@ class IPCHandlers {
 }
 
 module.exports = IPCHandlers;
+

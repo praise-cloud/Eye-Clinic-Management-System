@@ -1099,7 +1099,20 @@ class DatabaseService {
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
         `;
 
-        await db.run(query, [id, userId, actionType, entityType, entityId, description, ipAddress, userAgent]);
+        try {
+            await db.run(query, [id, userId, actionType, entityType, entityId, description, ipAddress, userAgent]);
+        } catch (error) {
+            if (String(error?.message || '').includes('no column named entity_id')) {
+                try {
+                    await db.run('ALTER TABLE activity_logs ADD COLUMN entity_id TEXT');
+                    await db.run('ALTER TABLE activity_logs ADD COLUMN ip_address TEXT');
+                    await db.run('ALTER TABLE activity_logs ADD COLUMN user_agent TEXT');
+                } catch { }
+                await db.run(query, [id, userId, actionType, entityType, entityId, description, ipAddress, userAgent]);
+            } else {
+                throw error;
+            }
+        }
         return { id, userId, actionType, entityType, entityId, description };
     }
 

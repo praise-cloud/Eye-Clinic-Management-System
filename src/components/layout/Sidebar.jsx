@@ -82,7 +82,7 @@ const Sidebar = ({ activeSection, onSectionClick, currentUser }) => {
             }}
             className={`${activeSection === item.id
               ? 'sidebar-item sidebar-item-active'
-              : 'sidebar-item text-slate-400 hover:text-white hover:bg-slate-800'
+              : 'sidebar-item text-slate-400 '
               } group`}
           >
             <span className={`${activeSection === item.id ? 'text-white' : 'text-slate-500 group-hover:text-indigo-400'} transition-colors`}>
@@ -93,18 +93,9 @@ const Sidebar = ({ activeSection, onSectionClick, currentUser }) => {
         ))}
       </nav>
 
-      {/* Bottom Profile/Status (Optional placeholder if needed) */}
-      <div className="p-6 border-t border-slate-800">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-indigo-500 flex items-center justify-center text-white font-bold shadow-lg shadow-indigo-500/20">
-            {user?.first_name?.[0]}{user?.last_name?.[0]}
-          </div>
-          <div className="flex flex-col overflow-hidden">
-            <span className="text-sm font-bold text-white truncate">{user?.first_name} {user?.last_name}</span>
-            <span className="text-[10px] text-slate-500 uppercase font-black tracking-tighter">{user?.role}</span>
-          </div>
-        </div>
-      </div>
+      {/*  lower buttom divider */}
+      
+      <div className="p-6 border-t border-slate-800"></div>
 
       <LogoutModal
         isOpen={showLogoutModal}
