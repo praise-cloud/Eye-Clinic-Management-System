@@ -348,26 +348,6 @@ const DoctorsDashboard = ({ activeSection }) => {
 
   return (
     <div className="flex gap-6">
-      <div className="w-[220px] shrink-0">
-        <div className="card-premium p-4 flex flex-col gap-3">
-          <button
-            onClick={() => setActivePanel('dashboard')}
-            className={`px-4 py-3 rounded-xl text-xs font-black uppercase tracking-widest ${
-              activePanel === 'dashboard' ? 'bg-indigo-600 text-white' : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300'
-            }`}
-          >
-            Dashboard
-          </button>
-          <button
-            onClick={() => setActivePanel('case-note')}
-            className={`px-4 py-3 rounded-xl text-xs font-black uppercase tracking-widest ${
-              activePanel === 'case-note' ? 'bg-indigo-600 text-white' : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300'
-            }`}
-          >
-            Case Note
-          </button>
-        </div>
-      </div>
       <div className="flex-1 space-y-10 animate-premium-fade pb-10">
       {/* Header Section */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
