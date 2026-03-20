@@ -5,6 +5,8 @@ const { v4: uuidv4 } = require('uuid');
 const DatabaseService = require('../../src/services/DatabaseService');
 const FileService = require('../../src/services/FileService');
 const HensonImportService = require('../../src/services/HensonImportService');
+const SqlServerService = require('../../src/services/SqlServerService');
+const SyncService = require('../../src/services/SyncService');
 
 const mapDatabaseError = (error, context = {}) => {
   const rawMessage = String(error && error.message ? error.message : '').trim();
@@ -2267,6 +2269,62 @@ class IPCHandlers {
         return buildErrorResponse(error, { scope: 'system', action: 'setNetworkDbPath' });
       }
     });
+    ipcMain.handle('system:setSqlServerConfig', async (event, payload = {}) => {
+      try {
+        if (!currentUser || String(currentUser.role || '').toLowerCase() !== 'admin') {
+          return { success: false, error: 'Only admin can change SQL Server settings' };
+        }
+        const next = {
+          enabled: !!payload.enabled,
+          host: String(payload.host || '').trim(),
+          port: Number(payload.port || 1433),
+          database: String(payload.database || '').trim(),
+          user: String(payload.user || '').trim(),
+          password: String(payload.password || ''),
+          encrypt: payload.encrypt !== false,
+          trustServerCertificate: payload.trustServerCertificate !== false,
+          connectTimeout: Number(payload.connectTimeout || 15000),
+          requestTimeout: Number(payload.requestTimeout || 30000)
+        };
+        const ok = SqlServerService.saveSqlServerConfig(next);
+        if (!ok) return { success: false, error: 'Failed to save SQL Server configuration' };
+        await SqlServerService.close();
+        return { success: true, config: next };
+      } catch (error) {
+        return buildErrorResponse(error, { scope: 'system', action: 'setSqlServerConfig' });
+      }
+    });
+    ipcMain.handle('system:getSqlServerConfig', async () => {
+      try {
+        const cfg = SqlServerService.getSqlServerConfig();
+        return { success: true, config: cfg };
+      } catch (error) {
+        return buildErrorResponse(error, { scope: 'system', action: 'getSqlServerConfig' });
+      }
+    });
+    ipcMain.handle('system:testSqlServerConnection', async (event, payload = {}) => {
+      try {
+        if (!currentUser || String(currentUser.role || '').toLowerCase() !== 'admin') {
+          return { success: false, error: 'Only admin can test SQL Server connection' };
+        }
+        const config = {
+          enabled: payload.enabled !== false,
+          host: String(payload.host || '').trim(),
+          port: Number(payload.port || 1433),
+          database: String(payload.database || '').trim(),
+          user: String(payload.user || '').trim(),
+          password: String(payload.password || ''),
+          encrypt: payload.encrypt !== false,
+          trustServerCertificate: payload.trustServerCertificate !== false,
+          connectTimeout: Number(payload.connectTimeout || 15000),
+          requestTimeout: Number(payload.requestTimeout || 30000)
+        };
+        const result = await SqlServerService.testConnection(config);
+        return { success: true, result };
+      } catch (error) {
+        return buildErrorResponse(error, { scope: 'system', action: 'testSqlServerConnection' });
+      }
+    });
     ipcMain.handle('system:getNetworkDbPath', async () => {
       try {
         const dir = app.getPath('userData');
@@ -2276,6 +2334,17 @@ class IPCHandlers {
         return { success: true, path: data.network_db_path || null };
       } catch (error) {
         return { success: false, error: error.message, path: null };
+      }
+    });
+    ipcMain.handle('system:runSqlServerSync', async () => {
+      try {
+        if (!currentUser || String(currentUser.role || '').toLowerCase() !== 'admin') {
+          return { success: false, error: 'Only admin can run SQL Server sync' };
+        }
+        const result = await SyncService.syncToSqlServer({ initiatedBy: currentUser?.id || null });
+        return result;
+      } catch (error) {
+        return buildErrorResponse(error, { scope: 'system', action: 'runSqlServerSync' });
       }
     });
     ipcMain.handle('db:delete', async () => {

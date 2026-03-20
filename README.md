@@ -127,6 +127,17 @@ Completed:
 - Adjusted Electron fallback relaunch behavior to valid app arg patterns
 - Build verification and test pass runs completed in recent iteration
 
+### 5.5 SQL Server Sync (Offline-First)
+
+Completed:
+- Optional SQL Server configuration and connection test in Settings (admin only)
+- Local SQLite remains primary for offline work; changes are queued in `sync_queue`
+- Manual `Run Sync Now` pushes queued changes to SQL Server when online
+
+Notes:
+- Requires the `mssql` dependency to be installed on target machines
+- SQL Server connection settings are stored in `config.json` under `sql_server`
+
 ---
 
 ## 6. `.bak` Conversion and Import System
@@ -375,6 +386,8 @@ These files can be retained for archive history, but this `README.md` should be 
 - [ ] Build and package latest release artifact
 - [ ] Run smoke tests across all roles on packaged app
 - [ ] Validate import/analyze flow with real `.bak` sample
+- [ ] Configure SQL Server settings and confirm `Test Connection` succeeds
+- [ ] Run `Sync Now` and confirm server tables receive updates
 - [ ] Validate CVF workflow with doctor + assistant accounts
 - [ ] Confirm chat notifications route to correct thread
 - [ ] Confirm backups/restores in clinic-like environment

@@ -29,6 +29,20 @@ const SettingsContent = () => {
     emailAlerts: true,
     dbPath: ''
   })
+  const [sqlConfig, setSqlConfig] = useState({
+    enabled: false,
+    host: '',
+    port: 1433,
+    database: '',
+    user: '',
+    password: '',
+    encrypt: true,
+    trustServerCertificate: true,
+    connectTimeout: 15000,
+    requestTimeout: 30000
+  })
+  const [sqlTestStatus, setSqlTestStatus] = useState(null)
+  const isAdmin = (user?.role || '').toLowerCase() === 'admin'
 
   useEffect(() => {
     if (user) {
@@ -51,6 +65,16 @@ const SettingsContent = () => {
       } catch { }
     }
     loadDbPath()
+    const loadSqlConfig = async () => {
+      try {
+        if (!window.electronAPI?.getSqlServerConfig) return
+        const res = await window.electronAPI.getSqlServerConfig()
+        if (res?.success && res.config) {
+          setSqlConfig(prev => ({ ...prev, ...res.config }))
+        }
+      } catch { }
+    }
+    loadSqlConfig()
   }, [user])
 
   const handleInputChange = (field, value) => {
@@ -63,6 +87,59 @@ const SettingsContent = () => {
 
   const handleDbPathChange = (value) => {
     setSettings(prev => ({ ...prev, dbPath: value }))
+  }
+
+  const handleSqlConfigChange = (field, value) => {
+    setSqlConfig(prev => ({ ...prev, [field]: value }))
+  }
+
+  const handleSaveSqlConfig = async () => {
+    try {
+      if (!window.electronAPI?.setSqlServerConfig) return
+      const res = await window.electronAPI.setSqlServerConfig(sqlConfig)
+      if (res?.success) {
+        setSuccessMessage('SQL Server configuration saved.')
+        setShowSuccess(true)
+        setTimeout(() => setShowSuccess(false), 3000)
+      } else if (res?.error) {
+        alert(res.error)
+      }
+    } catch (error) {
+      console.error('Error saving SQL Server config:', error)
+      alert('Failed to save SQL Server configuration')
+    }
+  }
+
+  const handleTestSqlConfig = async () => {
+    try {
+      setSqlTestStatus('testing')
+      if (!window.electronAPI?.testSqlServerConnection) return
+      const res = await window.electronAPI.testSqlServerConnection(sqlConfig)
+      if (res?.success) {
+        setSqlTestStatus('success')
+      } else {
+        setSqlTestStatus('failed')
+      }
+    } catch (error) {
+      setSqlTestStatus('failed')
+    }
+  }
+
+  const handleRunSqlSync = async () => {
+    try {
+      if (!window.electronAPI?.runSqlServerSync) return
+      const res = await window.electronAPI.runSqlServerSync()
+      if (res?.success) {
+        setSuccessMessage(`Sync complete. ${res.summary?.processed || 0} changes applied.`)
+        setShowSuccess(true)
+        setTimeout(() => setShowSuccess(false), 4000)
+      } else if (res?.error) {
+        alert(res.error)
+      }
+    } catch (error) {
+      console.error('SQL Server sync error:', error)
+      alert('Failed to run sync')
+    }
   }
 
   const handleSaveDbPath = async () => {
@@ -372,7 +449,7 @@ const SettingsContent = () => {
                     if (!window.electronAPI?.importDb) return;
                     const res = await window.electronAPI.importDb(chosen);
                     if (res?.success) {
-                      setSuccessMessage('Database context switched successfully.');x
+                      setSuccessMessage('Database context switched successfully.');
                       setShowSuccess(true);
                       setTimeout(() => setShowSuccess(false), 4000);
                     }
@@ -383,6 +460,147 @@ const SettingsContent = () => {
               </button>
             </div>
           </div>
+
+          {isAdmin && (
+            <div className="card-premium p-8">
+              <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight mb-2">SQL Server</h2>
+              <p className="text-sm text-slate-500 font-medium mb-8">Direct server connection with offline sync</p>
+
+              <div className="space-y-5">
+                <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800">
+                  <div>
+                    <p className="text-xs font-black text-slate-900 dark:text-white">Enable SQL Server Sync</p>
+                    <p className="text-[10px] text-slate-500 font-medium">Keep local SQLite in sync with the server</p>
+                  </div>
+                  <button
+                    onClick={() => handleSqlConfigChange('enabled', !sqlConfig.enabled)}
+                    className={`w-12 h-6 rounded-full transition-colors duration-300 relative ${sqlConfig.enabled ? 'bg-emerald-600' : 'bg-slate-300'}`}
+                  >
+                    <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all duration-300 ${sqlConfig.enabled ? 'left-7' : 'left-1'}`} />
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Host</label>
+                    <input
+                      type="text"
+                      value={sqlConfig.host}
+                      onChange={(e) => handleSqlConfigChange('host', e.target.value)}
+                      className="input-premium text-xs font-mono"
+                      placeholder="192.168.1.10"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Port</label>
+                      <input
+                        type="number"
+                        value={sqlConfig.port}
+                        onChange={(e) => handleSqlConfigChange('port', Number(e.target.value))}
+                        className="input-premium text-xs font-mono"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Database</label>
+                      <input
+                        type="text"
+                        value={sqlConfig.database}
+                        onChange={(e) => handleSqlConfigChange('database', e.target.value)}
+                        className="input-premium text-xs font-mono"
+                        placeholder="eye_clinic"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Username</label>
+                      <input
+                        type="text"
+                        value={sqlConfig.user}
+                        onChange={(e) => handleSqlConfigChange('user', e.target.value)}
+                        className="input-premium text-xs font-mono"
+                        placeholder="db_user"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Password</label>
+                      <input
+                        type="password"
+                        value={sqlConfig.password}
+                        onChange={(e) => handleSqlConfigChange('password', e.target.value)}
+                        className="input-premium text-xs font-mono"
+                        placeholder="••••••••"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Encrypt</label>
+                      <select
+                        value={sqlConfig.encrypt ? 'yes' : 'no'}
+                        onChange={(e) => handleSqlConfigChange('encrypt', e.target.value === 'yes')}
+                        className="input-premium text-xs font-bold appearance-none"
+                      >
+                        <option value="yes">Yes</option>
+                        <option value="no">No</option>
+                      </select>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Trust Certificate</label>
+                      <select
+                        value={sqlConfig.trustServerCertificate ? 'yes' : 'no'}
+                        onChange={(e) => handleSqlConfigChange('trustServerCertificate', e.target.value === 'yes')}
+                        className="input-premium text-xs font-bold appearance-none"
+                      >
+                        <option value="yes">Yes</option>
+                        <option value="no">No</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Connect Timeout (ms)</label>
+                      <input
+                        type="number"
+                        value={sqlConfig.connectTimeout}
+                        onChange={(e) => handleSqlConfigChange('connectTimeout', Number(e.target.value))}
+                        className="input-premium text-xs font-mono"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Request Timeout (ms)</label>
+                      <input
+                        type="number"
+                        value={sqlConfig.requestTimeout}
+                        onChange={(e) => handleSqlConfigChange('requestTimeout', Number(e.target.value))}
+                        className="input-premium text-xs font-mono"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-3">
+                  <button onClick={handleSaveSqlConfig} className="w-full btn btn-primary py-3.5">
+                    Save SQL Server Settings
+                  </button>
+                  <button onClick={handleTestSqlConfig} className="w-full btn btn-ghost bg-slate-50 py-3.5 text-xs font-bold ring-1 ring-slate-200">
+                    Test Connection
+                  </button>
+                  <button onClick={handleRunSqlSync} className="w-full btn btn-ghost bg-emerald-50 py-3.5 text-xs font-bold ring-1 ring-emerald-200">
+                    Run Sync Now
+                  </button>
+                  {sqlTestStatus && (
+                    <p className={`text-xs font-bold ${sqlTestStatus === 'success' ? 'text-emerald-600' : sqlTestStatus === 'failed' ? 'text-rose-600' : 'text-slate-500'}`}>
+                      {sqlTestStatus === 'testing' ? 'Testing connection...' : sqlTestStatus === 'success' ? 'Connection successful.' : 'Connection failed.'}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="card-premium p-8">
             <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight mb-2">Visual Style</h2>

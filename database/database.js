@@ -121,7 +121,8 @@ class Database {
         report_date DATETIME DEFAULT CURRENT_TIMESTAMP,
         report_type TEXT,
         title TEXT,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )`,
       `CREATE TABLE IF NOT EXISTS inventory (
         id TEXT PRIMARY KEY,
@@ -130,15 +131,101 @@ class Database {
         current_quantity INTEGER DEFAULT 0,
         minimum_quantity INTEGER DEFAULT 0,
         status TEXT DEFAULT 'active',
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )`,
       `CREATE TABLE IF NOT EXISTS activity_logs (
         id TEXT PRIMARY KEY,
         user_id TEXT,
         action_type TEXT,
         entity_type TEXT,
+        entity_id TEXT,
         description TEXT,
+        ip_address TEXT,
+        user_agent TEXT,
         timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`
+      ,
+      // Notifications
+      `CREATE TABLE IF NOT EXISTS notifications (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        title TEXT NOT NULL,
+        message TEXT NOT NULL,
+        type TEXT,
+        related_id TEXT,
+        status TEXT DEFAULT 'unread',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`
+      ,
+      `CREATE TABLE IF NOT EXISTS pharmacy_drugs (
+        id TEXT PRIMARY KEY,
+        drug_code TEXT UNIQUE,
+        drug_name TEXT NOT NULL,
+        drug_form TEXT,
+        strength TEXT,
+        pack_size TEXT,
+        unit_price REAL DEFAULT 0,
+        current_quantity INTEGER DEFAULT 0,
+        minimum_quantity INTEGER DEFAULT 0,
+        status TEXT DEFAULT 'active',
+        supplier_name TEXT,
+        supplier_contact TEXT,
+        expiry_date DATETIME,
+        last_updated_by TEXT,
+        notes TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`,
+      `CREATE TABLE IF NOT EXISTS pharmacy_dispensations (
+        id TEXT PRIMARY KEY,
+        drug_id TEXT NOT NULL,
+        patient_id TEXT NOT NULL,
+        quantity INTEGER DEFAULT 0,
+        total_amount REAL DEFAULT 0,
+        user_id TEXT,
+        notes TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`,
+      `CREATE TABLE IF NOT EXISTS prescriptions (
+        id TEXT PRIMARY KEY,
+        patient_id TEXT NOT NULL,
+        doctor_id TEXT NOT NULL,
+        drug_id TEXT NOT NULL,
+        quantity INTEGER DEFAULT 0,
+        instructions TEXT,
+        status TEXT DEFAULT 'pending',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`,
+      `CREATE TABLE IF NOT EXISTS revenue (
+        id TEXT PRIMARY KEY,
+        source TEXT,
+        source_id TEXT,
+        amount REAL DEFAULT 0,
+        currency TEXT DEFAULT 'NGN',
+        user_id TEXT,
+        description TEXT,
+        meta TEXT,
+        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`,
+      // Sync queue for SQL Server offline-first updates
+      `CREATE TABLE IF NOT EXISTS sync_queue (
+        id TEXT PRIMARY KEY,
+        table_name TEXT NOT NULL,
+        operation TEXT NOT NULL,
+        record_id TEXT,
+        payload TEXT,
+        status TEXT DEFAULT 'pending',
+        attempts INTEGER DEFAULT 0,
+        last_error TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`,
+      `CREATE TABLE IF NOT EXISTS sync_state (
+        key TEXT PRIMARY KEY,
+        value TEXT
       )`
     ];
 
@@ -149,7 +236,63 @@ class Database {
         console.warn('Table creation warning (non-fatal):', e.message);
       }
     }
+
+    // Ensure missing columns are added for older databases
+    await this.ensureColumns('tests', [
+      { name: 'created_at', type: 'DATETIME DEFAULT CURRENT_TIMESTAMP' }
+    ]);
+
+    await this.ensureColumns('reports', [
+      { name: 'updated_at', type: 'DATETIME DEFAULT CURRENT_TIMESTAMP' },
+      { name: 'report_type', type: 'TEXT' },
+      { name: 'title', type: 'TEXT' }
+    ]);
+
+    await this.ensureColumns('inventory', [
+      { name: 'category', type: 'TEXT' },
+      { name: 'description', type: 'TEXT' },
+      { name: 'manufacturer', type: 'TEXT' },
+      { name: 'model_number', type: 'TEXT' },
+      { name: 'serial_number', type: 'TEXT' },
+      { name: 'maximum_quantity', type: 'INTEGER DEFAULT 100' },
+      { name: 'unit_of_measure', type: 'TEXT' },
+      { name: 'unit_cost', type: 'REAL DEFAULT 0' },
+      { name: 'supplier_name', type: 'TEXT' },
+      { name: 'supplier_contact', type: 'TEXT' },
+      { name: 'purchase_date', type: 'DATETIME' },
+      { name: 'expiry_date', type: 'DATETIME' },
+      { name: 'location', type: 'TEXT' },
+      { name: 'last_updated_by', type: 'TEXT' },
+      { name: 'notes', type: 'TEXT' },
+      { name: 'image_path', type: 'TEXT' }
+    ]);
+
+    await this.ensureColumns('activity_logs', [
+      { name: 'entity_id', type: 'TEXT' },
+      { name: 'ip_address', type: 'TEXT' },
+      { name: 'user_agent', type: 'TEXT' }
+    ]);
+
     console.log('All tables ready');
+  }
+
+  async ensureColumns(tableName, columns = []) {
+    try {
+      const rows = await this.all(`PRAGMA table_info(${tableName})`);
+      const existing = new Set((rows || []).map(r => r.name));
+      for (const col of columns) {
+        if (!existing.has(col.name)) {
+          const sql = `ALTER TABLE ${tableName} ADD COLUMN ${col.name} ${col.type}`;
+          try {
+            await this.run(sql);
+          } catch (err) {
+            console.warn(`Column add failed (${tableName}.${col.name}):`, err.message);
+          }
+        }
+      }
+    } catch (err) {
+      console.warn(`Ensure columns failed for ${tableName}:`, err.message);
+    }
   }
 
   // CRITICAL: Login & First Run

@@ -20,6 +20,22 @@ class DatabaseService {
         return this.database;
     }
 
+    async enqueueSyncChange(tableName, operation, recordId, payload = {}) {
+        try {
+            const db = await this.getDatabase();
+            const id = require('uuid').v4();
+            await db.run(
+                `INSERT INTO sync_queue (id, table_name, operation, record_id, payload, status)
+                 VALUES (?, ?, ?, ?, ?, 'pending')`,
+                [id, tableName, operation, recordId || null, JSON.stringify(payload || {})]
+            );
+            return true;
+        } catch (error) {
+            console.warn('[SyncQueue] enqueue failed:', error.message);
+            return false;
+        }
+    }
+
     async authenticateUser(email, password) {
         const db = await this.getDatabase();
         return await db.authenticateUser(email, password);
@@ -28,7 +44,14 @@ class DatabaseService {
     // Add other methods as needed
     async createUser(userData) {
         const db = await this.getDatabase();
-        return await db.createUser(userData);
+        const user = await db.createUser(userData);
+        try {
+            const stored = await db.get('SELECT * FROM users WHERE id = ?', [user.id]);
+            if (stored) {
+                await this.enqueueSyncChange('users', 'upsert', stored.id, stored);
+            }
+        } catch { }
+        return user;
     }
 
     async getAllUsers() {
@@ -38,17 +61,35 @@ class DatabaseService {
 
     async updateUser(userId, userData) {
         const db = await this.getDatabase();
-        return await db.updateUser(userId, userData);
+        const result = await db.updateUser(userId, userData);
+        try {
+            const stored = await db.get('SELECT * FROM users WHERE id = ?', [userId]);
+            if (stored) {
+                await this.enqueueSyncChange('users', 'upsert', stored.id, stored);
+            }
+        } catch { }
+        return result;
     }
 
     async updateUserStatus(userId, isActive) {
         const db = await this.getDatabase();
-        return await db.updateUserStatus(userId, isActive);
+        const result = await db.updateUserStatus(userId, isActive);
+        try {
+            const stored = await db.get('SELECT * FROM users WHERE id = ?', [userId]);
+            if (stored) {
+                await this.enqueueSyncChange('users', 'upsert', stored.id, stored);
+            }
+        } catch { }
+        return result;
     }
 
     async deleteUser(userId) {
         const db = await this.getDatabase();
-        return await db.deleteUser(userId);
+        const result = await db.deleteUser(userId);
+        if (result?.success !== false) {
+            await this.enqueueSyncChange('users', 'delete', userId, { id: userId });
+        }
+        return result;
     }
 
     async getSetting(key) {
@@ -122,6 +163,7 @@ class DatabaseService {
         const db = await this.getDatabase();
         const query = `UPDATE chat SET status = 'read' WHERE id = ? AND receiver_id = ?`;
         await db.run(query, [messageId, userId]);
+        await this.enqueueSyncChange('chat', 'upsert', messageId, { id: messageId, status: 'read' });
         return { success: true };
     }
 
@@ -136,6 +178,9 @@ class DatabaseService {
         const db = await this.getDatabase();
         const query = `DELETE FROM chat WHERE id = ? AND sender_id = ?`;
         const result = await db.run(query, [messageId, userId]);
+        if (result.changes > 0) {
+            await this.enqueueSyncChange('chat', 'delete', messageId, { id: messageId });
+        }
         return { success: result.changes > 0 };
     }
 
@@ -179,7 +224,9 @@ class DatabaseService {
         `;
 
         await db.run(query, [id, patient_id, first_name, last_name, dob, gender, contact]);
-        return { id, patient_id, first_name, last_name, dob, gender, contact };
+        const record = { id, patient_id, first_name, last_name, dob, gender, contact };
+        await this.enqueueSyncChange('patients', 'upsert', id, record);
+        return record;
     }
 
     async updatePatient(id, patientData) {
@@ -193,13 +240,18 @@ class DatabaseService {
         `;
 
         await db.run(query, [patient_id, first_name, last_name, dob, gender, contact, id]);
-        return { id, patient_id, first_name, last_name, dob, gender, contact };
+        const record = { id, patient_id, first_name, last_name, dob, gender, contact };
+        await this.enqueueSyncChange('patients', 'upsert', id, record);
+        return record;
     }
 
     async deletePatient(id) {
         const db = await this.getDatabase();
         const query = 'DELETE FROM patients WHERE id = ?';
         const result = await db.run(query, [id]);
+        if (result.changes > 0) {
+            await this.enqueueSyncChange('patients', 'delete', id, { id });
+        }
         return { success: result.changes > 0 };
     }
 
@@ -272,6 +324,15 @@ class DatabaseService {
 
         try {
             await db.run(query, params);
+            const record = {
+                id,
+                patient_id: patientId,
+                machine_type: testData.machine_type,
+                eye: testData.eye || 'both',
+                test_date: testData.test_date || new Date().toISOString(),
+                raw_data: testData.raw_data || '{}'
+            };
+            await this.enqueueSyncChange('tests', 'upsert', id, record);
             return { id, ...testData, patient_id: patientId };
         } catch (error) {
             console.error('Database createTest error:', error);
@@ -296,6 +357,8 @@ class DatabaseService {
         `;
 
         await db.run(query, [machine_type, eye, test_date, raw_data, id]);
+        const record = { id, machine_type, eye, test_date, raw_data };
+        await this.enqueueSyncChange('tests', 'upsert', id, record);
         return { id, ...testData };
     }
 
@@ -303,6 +366,9 @@ class DatabaseService {
         const db = await this.getDatabase();
         const query = 'DELETE FROM tests WHERE id = ?';
         const result = await db.run(query, [id]);
+        if (result.changes > 0) {
+            await this.enqueueSyncChange('tests', 'delete', id, { id });
+        }
         return { success: result.changes > 0 };
     }
 
@@ -338,13 +404,18 @@ class DatabaseService {
         `;
 
         await db.run(query, [id, patient_id, report_type, title, report_file]);
-        return { id, patient_id, report_type, title, report_file };
+        const record = { id, patient_id, report_type, title, report_file };
+        await this.enqueueSyncChange('reports', 'upsert', id, record);
+        return record;
     }
 
     async deleteReport(id) {
         const db = await this.getDatabase();
         const query = 'DELETE FROM reports WHERE id = ?';
         const result = await db.run(query, [id]);
+        if (result.changes > 0) {
+            await this.enqueueSyncChange('reports', 'delete', id, { id });
+        }
         return { success: result.changes > 0 };
     }
 
@@ -415,7 +486,9 @@ class DatabaseService {
         ];
 
         await db.run(query, params);
-        return { id, ...itemData };
+        const record = { id, ...itemData };
+        await this.enqueueSyncChange('inventory', 'upsert', id, record);
+        return record;
     }
 
     async updateInventoryItem(id, itemData) {
@@ -457,7 +530,9 @@ class DatabaseService {
         ];
 
         await db.run(query, params);
-        return { id, ...itemData };
+        const record = { id, ...itemData };
+        await this.enqueueSyncChange('inventory', 'upsert', id, record);
+        return record;
     }
 
     async updateInventoryQuantity(id, quantity, userId = null, notes = null) {
@@ -500,13 +575,20 @@ class DatabaseService {
             });
         }
 
-        return await this.getInventoryItemById(id);
+        const updated = await this.getInventoryItemById(id);
+        if (updated) {
+            await this.enqueueSyncChange('inventory', 'upsert', id, updated);
+        }
+        return updated;
     }
 
     async deleteInventoryItem(id) {
         const db = await this.getDatabase();
         const query = 'DELETE FROM inventory WHERE id = ?';
         const result = await db.run(query, [id]);
+        if (result.changes > 0) {
+            await this.enqueueSyncChange('inventory', 'delete', id, { id });
+        }
         return { success: result.changes > 0 };
     }
 
@@ -575,7 +657,9 @@ class DatabaseService {
         ];
 
         await db.run(query, params);
-        return { id, ...drugData };
+        const record = { id, ...drugData };
+        await this.enqueueSyncChange('pharmacy_drugs', 'upsert', id, record);
+        return record;
     }
 
     async updatePharmacyDrug(id, drugData) {
@@ -610,13 +694,18 @@ class DatabaseService {
         ];
 
         await db.run(query, params);
-        return { id, ...drugData };
+        const record = { id, ...drugData };
+        await this.enqueueSyncChange('pharmacy_drugs', 'upsert', id, record);
+        return record;
     }
 
     async deletePharmacyDrug(id) {
         const db = await this.getDatabase();
         const query = 'DELETE FROM pharmacy_drugs WHERE id = ?';
         const result = await db.run(query, [id]);
+        if (result.changes > 0) {
+            await this.enqueueSyncChange('pharmacy_drugs', 'delete', id, { id });
+        }
         return { success: result.changes > 0 };
     }
 
@@ -742,6 +831,16 @@ class DatabaseService {
             WHERE p.id = ?
         `, [id]);
 
+        await this.enqueueSyncChange('prescriptions', 'upsert', id, {
+            id,
+            patient_id: patientId,
+            doctor_id: doctorId,
+            drug_id: drugId,
+            quantity,
+            instructions: instructions || null,
+            status: 'pending'
+        });
+
         return result;
     }
 
@@ -766,6 +865,15 @@ class DatabaseService {
                     WHERE p.id = ?
                 `, [id]);
                 results.push(created);
+                await this.enqueueSyncChange('prescriptions', 'upsert', id, {
+                    id,
+                    patient_id: patientId,
+                    doctor_id: doctorId,
+                    drug_id: item.drugId,
+                    quantity: item.quantity,
+                    instructions: item.instructions || null,
+                    status: 'pending'
+                });
             }
             await db.run('COMMIT');
             return { success: true, prescriptions: results };
@@ -847,10 +955,12 @@ class DatabaseService {
 
                 // 1. Update Prescription Status
                 await db.run('UPDATE prescriptions SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [status, id]);
+                await this.enqueueSyncChange('prescriptions', 'upsert', id, { id, status });
 
                 // 2. Deduct Stock
                 const newStock = currentStock - prescQty;
                 await db.run('UPDATE pharmacy_drugs SET current_quantity = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [newStock, presc.drug_id]);
+                await this.enqueueSyncChange('pharmacy_drugs', 'upsert', presc.drug_id, { id: presc.drug_id, current_quantity: newStock });
 
                 // 3. Record Dispensation
                 const dispId = require('uuid').v4();
@@ -900,6 +1010,7 @@ class DatabaseService {
                 WHERE id = ?
             `;
             await db.run(query, [status, id]);
+            await this.enqueueSyncChange('prescriptions', 'upsert', id, { id, status });
 
             await this.logActivity(
                 userId,
@@ -922,6 +1033,15 @@ class DatabaseService {
             VALUES (?, ?, ?, ?, ?, ?, 'unread', CURRENT_TIMESTAMP)
         `;
         await db.run(query, [id, userId, title, message, type, relatedId || null]);
+        await this.enqueueSyncChange('notifications', 'upsert', id, {
+            id,
+            user_id: userId,
+            title,
+            message,
+            type,
+            related_id: relatedId || null,
+            status: 'unread'
+        });
         return { id, userId, title, message, type, relatedId };
     }
 
@@ -933,13 +1053,33 @@ class DatabaseService {
             ORDER BY created_at DESC
             LIMIT 50
         `;
-        return await db.all(query, [userId]);
+        try {
+            return await db.all(query, [userId]);
+        } catch (error) {
+            if (String(error?.message || '').includes('no such table: notifications')) {
+                await db.run(
+                    `CREATE TABLE IF NOT EXISTS notifications (
+                        id TEXT PRIMARY KEY,
+                        user_id TEXT NOT NULL,
+                        title TEXT NOT NULL,
+                        message TEXT NOT NULL,
+                        type TEXT,
+                        related_id TEXT,
+                        status TEXT DEFAULT 'unread',
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                    )`
+                );
+                return await db.all(query, [userId]);
+            }
+            throw error;
+        }
     }
 
     async markNotificationRead(id) {
         const db = await this.getDatabase();
         const query = `UPDATE notifications SET status = 'read' WHERE id = ?`;
         await db.run(query, [id]);
+        await this.enqueueSyncChange('notifications', 'upsert', id, { id, status: 'read' });
         return { id, status: 'read' };
     }
 
@@ -1005,9 +1145,33 @@ class DatabaseService {
             "SELECT COUNT(*) as count FROM tests WHERE raw_data IS NULL OR TRIM(raw_data) = '' OR TRIM(raw_data) = '{}'"
         );
 
-        const fulfilledPrescriptionsRow = await db.get(
-            "SELECT COUNT(*) as count FROM prescriptions WHERE status = 'dispensed'"
-        );
+        let fulfilledPrescriptionsRow = { count: 0 };
+        try {
+            fulfilledPrescriptionsRow = await db.get(
+                "SELECT COUNT(*) as count FROM prescriptions WHERE status = 'dispensed'"
+            );
+        } catch (error) {
+            if (String(error?.message || '').includes('no such table: prescriptions')) {
+                await db.run(
+                    `CREATE TABLE IF NOT EXISTS prescriptions (
+                        id TEXT PRIMARY KEY,
+                        patient_id TEXT NOT NULL,
+                        doctor_id TEXT NOT NULL,
+                        drug_id TEXT NOT NULL,
+                        quantity INTEGER DEFAULT 0,
+                        instructions TEXT,
+                        status TEXT DEFAULT 'pending',
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                    )`
+                );
+                fulfilledPrescriptionsRow = await db.get(
+                    "SELECT COUNT(*) as count FROM prescriptions WHERE status = 'dispensed'"
+                );
+            } else {
+                throw error;
+            }
+        }
 
         const monthTests = await db.all(
             "SELECT test_date, raw_data FROM tests WHERE strftime('%Y-%m', test_date) = strftime('%Y-%m','now','localtime')"
@@ -1067,7 +1231,9 @@ class DatabaseService {
         `;
 
         await db.run(query, [id, senderId, receiverId, messageText, attachment, replyToId]);
-        return { id, sender_id: senderId, receiver_id: receiverId, message_text: messageText, attachment, reply_to_id: replyToId, timestamp: new Date().toISOString(), status: 'unread' };
+        const record = { id, sender_id: senderId, receiver_id: receiverId, message_text: messageText, attachment, reply_to_id: replyToId, timestamp: new Date().toISOString(), status: 'unread' };
+        await this.enqueueSyncChange('chat', 'upsert', id, record);
+        return record;
     }
 
     async importExternalDatabase(externalPath) {
