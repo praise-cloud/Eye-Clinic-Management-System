@@ -12,10 +12,9 @@
     "electron": "node scripts/run-electron.js",
     "electron-dev": "cross-env NODE_ENV=development node scripts/run-electron.js",
     "dist": "vite build && electron-builder --publish=never",
-    "dist:win": "vite build && electron-builder --win --publish=never",
-    "dist:mac": "vite build && electron-builder --mac --publish=never",
-    "dist:linux": "vite build && electron-builder --linux --publish=never",
+    "dist:win": "vite build && electron-builder --win dir --publish=never",
     "setup-db": "node scripts\\setup-database.js",
+    "postinstall": "electron-builder install-app-deps",
     "seed-admin": "node scripts\\create-admin.js",
     "test": "jest"
   },
@@ -45,40 +44,43 @@
       "assets/**/*",
       "package.json"
     ],
-    "artifactName": "${productName} Setup ${version}.${ext}",
-    "npmRebuild": false,
+    "extraResources": [
+      {
+        "from": "assets",
+        "to": "assets",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "artifactName": "${productName}-${version}.${ext}",
     "buildDependenciesFromSource": false,
+    "npmRebuild": false,
+    "nodeGypRebuild": false,
+    "beforeBuild": null,
     "win": {
       "target": [
-        "nsis"
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
       ],
       "icon": "src/assets/images/logo.png",
       "signAndEditExecutable": false
     },
-    "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": true,
-      "createStartMenuShortcut": true
-    },
-    "mac": {
-      "target": [
-        "dmg"
-      ],
-      "icon": "src/assets/images/logo.png",
-      "category": "public.app-category.medical"
-    },
-    "linux": {
-      "target": [
-        "AppImage"
-      ],
-      "icon": "src/assets/images/logo.png",
-      "category": "Office"
+    "extraMetadata": {
+      "main": "electron/main.js"
     }
+  },
+  "electronRebuildConfig": {
+    "buildFromSource": true
   },
   "devDependencies": {
     "@babel/preset-env": "^7.28.5",
     "@babel/preset-react": "^7.28.5",
+    "@electron/rebuild": "^4.0.3",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.0",
@@ -89,7 +91,8 @@
     "concurrently": "^9.2.1",
     "cross-env": "^10.0.0",
     "electron": "^38.1.2",
-    "electron-builder": "^25.1.8",
+    "electron-builder": "^24.13.3",
+    "electron-rebuild": "^3.2.9",
     "electron-reload": "^2.0.0-alpha.1",
     "jest": "^30.2.0",
     "jest-environment-jsdom": "^30.2.0",

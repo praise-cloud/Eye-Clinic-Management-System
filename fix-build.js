@@ -1,0 +1,10 @@
+﻿const fs = require('fs');
+const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+pkg.build.win.target = [{ target: 'portable', arch: ['x64'] }];
+pkg.build.artifactName = '--portable.';
+delete pkg.build.nsis;
+fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2));
+console.log('Done');
+console.log('target:', JSON.stringify(pkg.build.win.target));
+console.log('artifactName:', pkg.build.artifactName);
+console.log('nsis exists:', !!pkg.build.nsis);
