@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { UsersIcon, ChartIcon, DocumentIcon, InventoryIcon, AdminIcon } from '../../components/Icons';
+import { UsersIcon, ChartIcon, DocumentIcon, InventoryIcon, AdminIcon, GearIcon } from '../../components/Icons';
 import Layout from '../../components/layout/Layout';
 import useUser from '../../hooks/useUser';
 import { useTheme } from '../../context/ThemeContext';
@@ -9,6 +9,7 @@ import * as inventoryService from '../../services/inventoryService';
 import * as testService from '../../services/testService';
 import DynamicTableView from '../../components/DynamicTableView';
 import MessagesContent from '../../components/content/MessagesContent';
+import NetworkConfigScreen from '../NetworkConfigScreen';
 
 const AdminDashboard = () => {
   const { user, logout } = useUser();
@@ -48,6 +49,7 @@ const AdminDashboard = () => {
   const [caseFilterSearch, setCaseFilterSearch] = useState('');
   const [caseStudiesOffset, setCaseStudiesOffset] = useState(0);
   const caseStudiesLimit = 20;
+  const [showNetworkConfig, setShowNetworkConfig] = useState(false);
 
   const handleSectionClick = (section) => {
     if (section === 'system-settings') {
@@ -1250,6 +1252,26 @@ Please restart the application to load all imported data.
                   </p>
                 </div>
 
+                <div className="mt-4 p-4 bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20 rounded-2xl border border-emerald-200 dark:border-emerald-800">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-emerald-100 dark:bg-emerald-900/50 rounded-lg">
+                        <GearIcon className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-emerald-800 dark:text-emerald-300">Network Database Configuration</p>
+                        <p className="text-xs text-emerald-600 dark:text-emerald-400/70">Configure shared database for multi-computer setup</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setShowNetworkConfig(true)}
+                      className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold uppercase tracking-wider transition-all shadow-lg shadow-emerald-200 dark:shadow-none"
+                    >
+                      Configure Network
+                    </button>
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                   <button
                     onClick={handleAnalyzeBakFile}
@@ -1797,6 +1819,16 @@ Please restart the application to load all imported data.
         <div className="mt-4 text-sm text-green-600">
           {adminMessage}
         </div>
+      )}
+
+      {showNetworkConfig && (
+        <NetworkConfigScreen
+          onClose={() => setShowNetworkConfig(false)}
+          onSave={() => {
+            setAdminMessage('Network configuration saved. Restart app on all computers for changes to take effect.');
+            setShowNetworkConfig(false);
+          }}
+        />
       )}
     </Layout>
   );

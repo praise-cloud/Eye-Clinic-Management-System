@@ -8,6 +8,7 @@ const HensonImportService = require('../../src/services/HensonImportService');
 const SqlServerService = require('../../src/services/SqlServerService');
 const SyncService = require('../../src/services/SyncService');
 const LanSyncService = require('../../src/services/LanSyncService');
+const NetworkConfigService = require('../../src/services/NetworkConfigService');
 
 const mapDatabaseError = (error, context = {}) => {
   const rawMessage = String(error && error.message ? error.message : '').trim();
@@ -1300,7 +1301,9 @@ class IPCHandlers {
 
   registerFileHandlers() {
     const safeHandle = (channel, handler) => {
-      try { ipcMain.removeHandler(channel); } catch { }
+      try { ipcMain.removeHandler(channel); } catch (err) {
+        console.warn('[IPC] removeHandler warning:', err?.message);
+      }
       ipcMain.handle(channel, handler);
     };
 
@@ -2229,7 +2232,9 @@ class IPCHandlers {
 
   registerSystemHandlers() {
     const safeHandle = (channel, handler) => {
-      try { ipcMain.removeHandler(channel); } catch { }
+      try { ipcMain.removeHandler(channel); } catch (err) {
+        console.warn('[IPC] removeHandler warning:', err?.message);
+      }
       ipcMain.handle(channel, handler);
     };
 
@@ -2267,7 +2272,9 @@ class IPCHandlers {
         if (fs.existsSync(cfgPath)) {
           try {
             existing = JSON.parse(fs.readFileSync(cfgPath, 'utf-8'));
-          } catch { }
+          } catch (err) {
+            console.warn('[IPC] setNetworkDbPath config parse failed:', err?.message);
+          }
         }
         const data = { ...existing, network_db_path: payload?.path || '' };
         fs.writeFileSync(cfgPath, JSON.stringify(data));
@@ -2347,7 +2354,9 @@ class IPCHandlers {
         if (fs.existsSync(cfgPath)) {
           try {
             existing = JSON.parse(fs.readFileSync(cfgPath, 'utf-8'));
-          } catch { }
+          } catch (err) {
+            console.warn('[IPC] setCvfWatchPath config parse failed:', err?.message);
+          }
         }
         const data = { ...existing, cvf_watch_path: payload?.path || '' };
         fs.writeFileSync(cfgPath, JSON.stringify(data));
@@ -2468,6 +2477,92 @@ class IPCHandlers {
         return buildErrorResponse(error, { scope: 'system', action: 'updateDatabase', entity: 'database' });
       }
     });
+
+    safeHandle('network:getConfig', async () => {
+      try {
+        const config = NetworkConfigService.getConfig();
+        return { success: true, config };
+      } catch (error) {
+        return buildErrorResponse(error, { scope: 'network', action: 'getConfig' });
+      }
+    });
+
+    safeHandle('network:saveConfig', async (event, config = {}) => {
+      try {
+        if (!currentUser || String(currentUser.role || '').toLowerCase() !== 'admin') {
+          return { success: false, error: 'Only admin can change network settings' };
+        }
+        const result = NetworkConfigService.saveConfig(config);
+        return result;
+      } catch (error) {
+        return buildErrorResponse(error, { scope: 'network', action: 'saveConfig' });
+      }
+    });
+
+    safeHandle('network:testConnection', async (event, serverPath = '') => {
+      try {
+        const result = await NetworkConfigService.testConnection(serverPath);
+        return result;
+      } catch (error) {
+        return buildErrorResponse(error, { scope: 'network', action: 'testConnection' });
+      }
+    });
+
+    safeHandle('network:selectFolder', async () => {
+      try {
+        const { dialog } = require('electron');
+        const result = await dialog.showOpenDialog({
+          properties: ['openDirectory'],
+          title: 'Select Network Database Folder'
+        });
+        if (result.canceled || !result.filePaths.length) {
+          return { success: false, canceled: true };
+        }
+        return { success: true, path: result.filePaths[0] };
+      } catch (error) {
+        return buildErrorResponse(error, { scope: 'network', action: 'selectFolder' });
+      }
+    });
+
+    safeHandle('network:getSyncStatus', async () => {
+      try {
+        if (!currentUser) return { success: false, error: 'Authentication required' };
+        const status = await NetworkConfigService.getSyncStatus();
+        return { success: true, status };
+      } catch (error) {
+        return buildErrorResponse(error, { scope: 'network', action: 'getSyncStatus' });
+      }
+    });
+
+    safeHandle('network:performSync', async () => {
+      try {
+        if (!currentUser) return { success: false, error: 'Authentication required' };
+        const result = await NetworkConfigService.performSync();
+        return result;
+      } catch (error) {
+        return buildErrorResponse(error, { scope: 'network', action: 'performSync' });
+      }
+    });
+
+    safeHandle('network:getConflicts', async () => {
+      try {
+        if (!currentUser) return { success: false, error: 'Authentication required' };
+        const conflicts = await NetworkConfigService.getConflicts();
+        return { success: true, conflicts };
+      } catch (error) {
+        return buildErrorResponse(error, { scope: 'network', action: 'getConflicts' });
+      }
+    });
+
+    safeHandle('network:resolveConflict', async (event, { id, resolution }) => {
+      try {
+        if (!currentUser) return { success: false, error: 'Authentication required' };
+        const result = await NetworkConfigService.resolveConflict(id, resolution);
+        return result;
+      } catch (error) {
+        return buildErrorResponse(error, { scope: 'network', action: 'resolveConflict' });
+      }
+    });
   }
 
   registerCvfHandlers() {
@@ -2486,7 +2581,9 @@ class IPCHandlers {
           try {
             const cfg = JSON.parse(fs.readFileSync(cfgPath, 'utf-8'));
             watchPath = String(cfg.cvf_watch_path || '');
-          } catch { }
+          } catch (err) {
+            console.warn('[IPC] listIncomingFiles config parse failed:', err?.message);
+          }
         }
         const incomingPath = String(payload?.path || watchPath || '').trim();
         if (!incomingPath) {
@@ -2535,7 +2632,6 @@ class IPCHandlers {
           return { success: false, error: 'Only PDF files are supported' };
         }
 
-        // If watch path is configured, enforce it for safety.
         try {
           const dir = app.getPath('userData');
           const cfgPath = path.join(dir, 'config.json');
@@ -2550,7 +2646,9 @@ class IPCHandlers {
               }
             }
           }
-        } catch { }
+        } catch (err) {
+          console.warn('[IPC] attachPdfToPatient config parse failed:', err?.message);
+        }
 
         const title = String(payload?.title || `CVF PDF - ${path.basename(filePath)}`).trim();
         const buffer = fs.readFileSync(filePath);

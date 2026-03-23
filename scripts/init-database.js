@@ -16,6 +16,9 @@ async function initializeDatabase() {
         const isFirstRun = await db.isFirstRun();
         console.log('Is first run:', isFirstRun);
 
+        // Generate random password for security
+        const adminPassword = `Admin${Math.random().toString(36).slice(2, 10)}!`;
+
         if (isFirstRun) {
             console.log('Creating default admin user...');
 
@@ -24,7 +27,7 @@ async function initializeDatabase() {
                 first_name: 'System',
                 last_name: 'Administrator',
                 email: 'admin@clinic.com',
-                password: 'admin123',
+                password: adminPassword,
                 role: 'admin',
                 gender: 'other'
             });
@@ -36,7 +39,7 @@ async function initializeDatabase() {
 
             console.log('Default admin user created:');
             console.log('Email: admin@clinic.com');
-            console.log('Password: admin123');
+            console.log('Password: ' + adminPassword);
         }
 
         // Close database connection

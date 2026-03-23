@@ -7,32 +7,56 @@ const { v4: uuidv4 } = require('uuid');
 class Database {
     constructor(dbPath = null) {
         if (dbPath) {
-            // Use provided path (for initialization script)
             this.dbPath = dbPath;
         } else {
-            try {
-                // Use app data directory for database storage (Electron context)
-                const { app } = require('electron');
-                const userDataPath = app.getPath('userData');
-
-                // Ensure directory exists
-                if (!fs.existsSync(userDataPath)) {
-                    fs.mkdirSync(userDataPath, { recursive: true });
-                }
-
-                this.dbPath = path.join(userDataPath, 'eye_clinic.db');
-            } catch (error) {
-                // Fallback for non-Electron context
-                this.dbPath = path.join(__dirname, 'eye_clinic.db');
-            }
+            this.dbPath = this.resolveDbPath();
         }
         this.db = null;
     }
 
-    // Initialize database connection and create tables
+    resolveDbPath() {
+        try {
+            const { app } = require('electron');
+            const userDataPath = app.getPath('userData');
+            const configPath = path.join(userDataPath, 'network-config.json');
+
+            if (fs.existsSync(configPath)) {
+                try {
+                    const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+                    if (config.isNetworkMode && config.serverPath) {
+                        const networkPath = path.join(config.serverPath, 'eye_clinic.db');
+                        console.log('[Database] Using network database:', networkPath);
+                        return networkPath;
+                    }
+                } catch (e) {
+                    console.warn('[Database] Could not read network config:', e.message);
+                }
+            }
+
+            if (!fs.existsSync(userDataPath)) {
+                fs.mkdirSync(userDataPath, { recursive: true });
+            }
+            return path.join(userDataPath, 'eye_clinic.db');
+        } catch (error) {
+            console.warn('[Database] Fallback to local path');
+            return path.join(__dirname, 'eye_clinic.db');
+        }
+    }
+
     async initialize() {
         return new Promise((resolve, reject) => {
-            this.db = new sqlite3.Database(this.dbPath, (err) => {
+            const dir = path.dirname(this.dbPath);
+            try {
+                if (!fs.existsSync(dir)) {
+                    fs.mkdirSync(dir, { recursive: true });
+                }
+            } catch (mkErr) {
+                console.warn('[Database] Could not create directory:', mkErr.message);
+            }
+
+            const isNetworkPath = this.dbPath.startsWith('\\\\') || this.dbPath.includes('\\\\');
+            
+            this.db = new sqlite3.Database(this.dbPath, sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE, (err) => {
                 if (err) {
                     console.error('Error opening database:', err);
                     reject(err);
@@ -40,6 +64,26 @@ class Database {
                 }
 
                 console.log('Connected to SQLite database at:', this.dbPath);
+                
+                this.db.serialize(() => {
+                    if (isNetworkPath) {
+                        this.db.run('PRAGMA journal_mode=WAL', (err) => {
+                            if (err) console.warn('[Database] WAL mode failed, using default:', err.message);
+                            else console.log('[Database] WAL mode enabled for network database');
+                        });
+                        this.db.run('PRAGMA locking_mode=NORMAL', (err) => {
+                            if (err) console.warn('[Database] Locking mode set:', err.message);
+                        });
+                        this.db.run('PRAGMA synchronous=NORMAL', (err) => {
+                            if (err) console.warn('[Database] Sync mode set:', err.message);
+                        });
+                    } else {
+                        this.db.run('PRAGMA journal_mode=DELETE', (err) => {
+                            if (err) console.warn('[Database] Journal mode set:', err.message);
+                        });
+                    }
+                });
+
                 this.createTables()
                     .then(resolve)
                     .catch(reject);

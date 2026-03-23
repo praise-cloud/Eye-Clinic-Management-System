@@ -7,6 +7,29 @@ const { app } = require('electron');
 const { exec } = require('child_process');
 const SchemaSyncService = require('./SchemaSyncService');
 
+const ALLOWED_TABLE_NAMES = new Set([
+    'users', 'staff', 'admins', 'employees',
+    'patients', 'clients', 'client', 'customer',
+    'tests', 'exams', 'examinations',
+    'inventory', 'items', 'stock',
+    'chat', 'messages',
+    'prescriptions', 'pharmacy_drugs', 'pharmacy_dispensations',
+    'reports', 'revenue', 'activity_logs', 'notifications',
+    'settings', 'sync_metadata', 'user_presence',
+    'sync_queue', 'sync_state', 'sync_conflicts'
+]);
+
+const validateTableName = (tableName) => {
+    if (!tableName || typeof tableName !== 'string') return null;
+    const normalized = tableName.toLowerCase().trim();
+    return ALLOWED_TABLE_NAMES.has(normalized) ? normalized : null;
+};
+
+const validateColumnName = (colName) => {
+    if (!colName || typeof colName !== 'string') return null;
+    return /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(colName) ? colName : null;
+};
+
 class DatabaseService {
     constructor() {
         this.database = null;
@@ -50,7 +73,9 @@ class DatabaseService {
             if (stored) {
                 await this.enqueueSyncChange('users', 'upsert', stored.id, stored);
             }
-        } catch { }
+        } catch (err) {
+            console.warn('[DatabaseService] createUser sync enqueue failed:', err?.message);
+        }
         return user;
     }
 
@@ -67,7 +92,9 @@ class DatabaseService {
             if (stored) {
                 await this.enqueueSyncChange('users', 'upsert', stored.id, stored);
             }
-        } catch { }
+        } catch (err) {
+            console.warn('[DatabaseService] updateUser sync enqueue failed:', err?.message);
+        }
         return result;
     }
 
@@ -79,7 +106,9 @@ class DatabaseService {
             if (stored) {
                 await this.enqueueSyncChange('users', 'upsert', stored.id, stored);
             }
-        } catch { }
+        } catch (err) {
+            console.warn('[DatabaseService] updateUserStatus sync enqueue failed:', err?.message);
+        }
         return result;
     }
 
@@ -897,7 +926,9 @@ class DatabaseService {
         } catch (error) {
             try {
                 await db.run('ROLLBACK');
-            } catch { }
+            } catch (err) {
+                console.warn('[DatabaseService] dispense rollback failed:', err?.message);
+            }
             throw error;
         }
     }
@@ -1209,7 +1240,9 @@ class DatabaseService {
                     await db.run('ALTER TABLE activity_logs ADD COLUMN entity_id TEXT');
                     await db.run('ALTER TABLE activity_logs ADD COLUMN ip_address TEXT');
                     await db.run('ALTER TABLE activity_logs ADD COLUMN user_agent TEXT');
-                } catch { }
+                } catch (err) {
+                    console.warn('[DatabaseService] logActivity migration failed:', err?.message);
+                }
                 await db.run(query, [id, userId, actionType, entityType, entityId, description, ipAddress, userAgent]);
             } else {
                 throw error;
@@ -1297,7 +1330,9 @@ class DatabaseService {
                 const data = JSON.parse(t.raw_data || '{}');
                 const amount = Number(data.amount || data.fee || 0);
                 if (!isNaN(amount)) monthlyRevenue += amount;
-            } catch { }
+            } catch (err) {
+                console.warn('[DatabaseService] getDashboardStats JSON parse failed:', err?.message);
+            }
         }
 
         const revenueRow = await db.get(
@@ -1578,7 +1613,9 @@ class DatabaseService {
                     try {
                         const db = await this.getDatabase();
                         await db.run('ROLLBACK');
-                    } catch { }
+                    } catch (err) {
+                        console.warn('[DatabaseService] importExternalDatabase rollback failed:', err?.message);
+                    }
                     return { success: false, error: e.message };
                 }
             }
@@ -1656,11 +1693,15 @@ class DatabaseService {
                 if (fs.existsSync(cfgPath)) {
                     try {
                         existing = JSON.parse(fs.readFileSync(cfgPath, 'utf-8'));
-                    } catch { }
+                    } catch (err) {
+                        console.warn('[DatabaseService] Config parse failed:', err?.message);
+                    }
                 }
                 const data = { ...existing, network_db_path: externalPath };
                 fs.writeFileSync(cfgPath, JSON.stringify(data));
-                try { extDb.close(); } catch { }
+                try { extDb.close(); } catch (err) {
+                    console.warn('[DatabaseService] extDb.close() failed:', err?.message);
+                }
                 return { success: true, mode: 'switch', path: externalPath };
             }
 
@@ -1703,128 +1744,139 @@ class DatabaseService {
             }
 
             if (hasPatients) {
-                const pTable = tableNames.has('patients') ? 'patients' : (tableNames.has('clients') ? 'clients' : (tableNames.has('client') ? 'client' : 'customer'));
-                const patients = await getAll(`SELECT * FROM ${pTable}`);
-                for (const p of patients) {
-                    const pid = p.patient_id || p.patientId || p.code || `P${Date.now()}${Math.floor(Math.random() * 1000)}`;
-                    const exists = await appDb.get('SELECT id FROM patients WHERE patient_id = ?', [pid]);
-                    if (exists?.id) continue;
-                    const id = require('uuid').v4();
-                    await appDb.run(
-                        `INSERT INTO patients (id, patient_id, first_name, last_name, dob, gender, contact, created_at, updated_at)
-                         VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
-                        [
-                            id,
-                            pid,
-                            p.first_name || p.firstname || p.name || '',
-                            p.last_name || p.lastname || '',
-                            p.dob || p.birth_date || null,
-                            p.gender || 'other',
-                            p.contact || p.phone || null
-                        ]
-                    );
-                    imported.patients += 1;
+                const rawTable = tableNames.has('patients') ? 'patients' : (tableNames.has('clients') ? 'clients' : (tableNames.has('client') ? 'client' : 'customer'));
+                const pTable = validateTableName(rawTable);
+                if (pTable) {
+                    const patients = await getAll(`SELECT * FROM ${pTable}`);
+                    for (const p of patients) {
+                        const pid = p.patient_id || p.patientId || p.code || `P${Date.now()}${Math.floor(Math.random() * 1000)}`;
+                        const exists = await appDb.get('SELECT id FROM patients WHERE patient_id = ?', [pid]);
+                        if (exists?.id) continue;
+                        const id = require('uuid').v4();
+                        await appDb.run(
+                            `INSERT INTO patients (id, patient_id, first_name, last_name, dob, gender, contact, created_at, updated_at)
+                             VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+                            [
+                                id,
+                                pid,
+                                p.first_name || p.firstname || p.name || '',
+                                p.last_name || p.lastname || '',
+                                p.dob || p.birth_date || null,
+                                p.gender || 'other',
+                                p.contact || p.phone || null
+                            ]
+                        );
+                        imported.patients += 1;
+                    }
                 }
             }
 
             if (hasTests) {
-                const tTable = tableNames.has('tests') ? 'tests' : (tableNames.has('exams') ? 'exams' : 'examinations');
-                const tests = await getAll(`SELECT * FROM ${tTable}`);
-                for (const t of tests) {
-                    let patientId = t.patient_id || t.patientId || null;
-                    if (!patientId && (t.patient_name || t.name)) {
-                        const parts = String(t.patient_name || t.name).trim().split(/\s+/);
-                        const firstName = parts[0] || '';
-                        const lastName = parts.slice(1).join(' ') || '';
-                        const found = await appDb.get('SELECT id FROM patients WHERE first_name = ? AND last_name = ? ORDER BY created_at DESC', [firstName, lastName]);
-                        if (found?.id) patientId = found.id;
+                const rawTable = tableNames.has('tests') ? 'tests' : (tableNames.has('exams') ? 'exams' : 'examinations');
+                const tTable = validateTableName(rawTable);
+                if (tTable) {
+                    const tests = await getAll(`SELECT * FROM ${tTable}`);
+                    for (const t of tests) {
+                        let patientId = t.patient_id || t.patientId || null;
+                        if (!patientId && (t.patient_name || t.name)) {
+                            const parts = String(t.patient_name || t.name).trim().split(/\s+/);
+                            const firstName = parts[0] || '';
+                            const lastName = parts.slice(1).join(' ') || '';
+                            const found = await appDb.get('SELECT id FROM patients WHERE first_name = ? AND last_name = ? ORDER BY created_at DESC', [firstName, lastName]);
+                            if (found?.id) patientId = found.id;
+                        }
+                        if (!patientId) continue;
+                        const id = require('uuid').v4();
+                        await appDb.run(
+                            `INSERT INTO tests (id, patient_id, machine_type, eye, test_date, raw_data, created_at, updated_at)
+                             VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+                            [
+                                id,
+                                patientId,
+                                t.machine_type || t.machine || null,
+                                t.eye || 'both',
+                                t.test_date || t.date || new Date().toISOString(),
+                                typeof t.raw_data === 'string' ? t.raw_data : JSON.stringify(t.raw_data || {})
+                            ]
+                        );
+                        imported.tests += 1;
                     }
-                    if (!patientId) continue;
-                    const id = require('uuid').v4();
-                    await appDb.run(
-                        `INSERT INTO tests (id, patient_id, machine_type, eye, test_date, raw_data, created_at, updated_at)
-                         VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
-                        [
-                            id,
-                            patientId,
-                            t.machine_type || t.machine || null,
-                            t.eye || 'both',
-                            t.test_date || t.date || new Date().toISOString(),
-                            typeof t.raw_data === 'string' ? t.raw_data : JSON.stringify(t.raw_data || {})
-                        ]
-                    );
-                    imported.tests += 1;
                 }
             }
 
             if (hasInventory) {
-                const iTable = tableNames.has('inventory') ? 'inventory' : (tableNames.has('items') ? 'items' : 'stock');
-                const items = await getAll(`SELECT * FROM ${iTable}`);
-                for (const it of items) {
-                    const code = it.item_code || it.code || null;
-                    if (code) {
-                        const exists = await appDb.get('SELECT id FROM inventory WHERE item_code = ?', [code]);
-                        if (exists?.id) continue;
+                const rawTable = tableNames.has('inventory') ? 'inventory' : (tableNames.has('items') ? 'items' : 'stock');
+                const iTable = validateTableName(rawTable);
+                if (iTable) {
+                    const items = await getAll(`SELECT * FROM ${iTable}`);
+                    for (const it of items) {
+                        const code = it.item_code || it.code || null;
+                        if (code) {
+                            const exists = await appDb.get('SELECT id FROM inventory WHERE item_code = ?', [code]);
+                            if (exists?.id) continue;
+                        }
+                        const id = require('uuid').v4();
+                        await appDb.run(
+                            `INSERT INTO inventory (id, item_code, item_name, category, description, manufacturer, model_number, serial_number,
+                             current_quantity, minimum_quantity, maximum_quantity, unit_of_measure, unit_cost, supplier_name, supplier_contact,
+                             purchase_date, expiry_date, location, status, last_updated_by, notes, image_path, created_at, updated_at)
+                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+                            [
+                                id,
+                                code,
+                                it.item_name || it.name || '',
+                                it.category || 'other',
+                                it.description || null,
+                                it.manufacturer || null,
+                                it.model_number || null,
+                                it.serial_number || null,
+                                it.current_quantity || it.quantity || 0,
+                                it.minimum_quantity || 0,
+                                it.maximum_quantity || 100,
+                                it.unit_of_measure || 'pieces',
+                                it.unit_cost || 0,
+                                it.supplier_name || null,
+                                it.supplier_contact || null,
+                                it.purchase_date || null,
+                                it.expiry_date || null,
+                                it.location || null,
+                                it.status || 'active',
+                                null,
+                                it.notes || null,
+                                it.image_path || null
+                            ]
+                        );
+                        imported.inventory += 1;
                     }
-                    const id = require('uuid').v4();
-                    await appDb.run(
-                        `INSERT INTO inventory (id, item_code, item_name, category, description, manufacturer, model_number, serial_number,
-                         current_quantity, minimum_quantity, maximum_quantity, unit_of_measure, unit_cost, supplier_name, supplier_contact,
-                         purchase_date, expiry_date, location, status, last_updated_by, notes, image_path, created_at, updated_at)
-                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
-                        [
-                            id,
-                            code,
-                            it.item_name || it.name || '',
-                            it.category || 'other',
-                            it.description || null,
-                            it.manufacturer || null,
-                            it.model_number || null,
-                            it.serial_number || null,
-                            it.current_quantity || it.quantity || 0,
-                            it.minimum_quantity || 0,
-                            it.maximum_quantity || 100,
-                            it.unit_of_measure || 'pieces',
-                            it.unit_cost || 0,
-                            it.supplier_name || null,
-                            it.supplier_contact || null,
-                            it.purchase_date || null,
-                            it.expiry_date || null,
-                            it.location || null,
-                            it.status || 'active',
-                            null,
-                            it.notes || null,
-                            it.image_path || null
-                        ]
-                    );
-                    imported.inventory += 1;
                 }
             }
 
             if (hasChat) {
-                const cTable = tableNames.has('chat') ? 'chat' : 'messages';
-                const msgs = await getAll(`SELECT * FROM ${cTable}`);
-                for (const m of msgs) {
-                    const id = require('uuid').v4();
-                    await appDb.run(
-                        `INSERT INTO chat (id, sender_id, receiver_id, message_text, attachment, timestamp, status, reply_to_id)
-                         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-                        [
-                            id,
-                            m.sender_id || m.sender || null,
-                            m.receiver_id || m.receiver || null,
-                            m.message_text || m.text || '',
-                            m.attachment || null,
-                            m.timestamp || new Date().toISOString(),
-                            m.status || 'unread',
-                            m.reply_to_id || null
-                        ]
-                    );
-                    imported.chat += 1;
+                const rawTable = tableNames.has('chat') ? 'chat' : 'messages';
+                const cTable = validateTableName(rawTable);
+                if (cTable) {
+                    const msgs = await getAll(`SELECT * FROM ${cTable}`);
+                    for (const m of msgs) {
+                        const id = require('uuid').v4();
+                        await appDb.run(
+                            `INSERT INTO chat (id, sender_id, receiver_id, message_text, attachment, timestamp, status, reply_to_id)
+                             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                            [
+                                id,
+                                m.sender_id || m.sender || null,
+                                m.receiver_id || m.receiver || null,
+                                m.message_text || m.text || '',
+                                m.attachment || null,
+                                m.timestamp || new Date().toISOString(),
+                                m.status || 'unread',
+                                m.reply_to_id || null
+                            ]
+                        );
+                        imported.chat += 1;
+                    }
                 }
             }
 
-            // Import all additional tables that are not handled by legacy mapping logic.
             const mappedSourceTables = new Set([
                 'users', 'staff', 'admins', 'employees',
                 'patients', 'clients', 'client', 'customer',
@@ -1853,7 +1905,9 @@ class DatabaseService {
             }
 
             await appDb.run('COMMIT');
-            try { extDb.close(); } catch { }
+            try { extDb.close(); } catch (err) {
+                console.warn('[DatabaseService] extDb.close() failed:', err?.message);
+            }
             return {
                 success: true,
                 mode: 'import',
@@ -1865,7 +1919,9 @@ class DatabaseService {
             try {
                 const db = await this.getDatabase();
                 await db.run('ROLLBACK');
-            } catch { }
+            } catch (err) {
+                console.warn('[DatabaseService] ROLLBACK failed:', err?.message);
+            }
             return { success: false, error: error.message };
         }
     }

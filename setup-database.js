@@ -27,6 +27,11 @@ async function setupDatabase() {
     console.log('🏥 Eye Clinic Database Setup');
     console.log('============================\n');
 
+    // Generate random passwords for security
+    const adminPassword = `Admin${Math.random().toString(36).slice(2, 10)}!`;
+    const doctorPassword = `Doctor${Math.random().toString(36).slice(2, 10)}!`;
+    const assistantPassword = `Asst${Math.random().toString(36).slice(2, 10)}!`;
+
     const dbPath = path.join(__dirname, 'eye_clinic.db');
     
     // Remove existing database if it exists
@@ -51,7 +56,7 @@ async function setupDatabase() {
         await db.createUser({
             name: 'System Administrator',
             email: 'admin@clinic.com',
-            password: 'admin123',
+            password: adminPassword,
             role: 'admin',
             gender: 'other'
         });
@@ -59,7 +64,7 @@ async function setupDatabase() {
         await db.createUser({
             name: 'Dr. John Smith',
             email: 'doctor@clinic.com',
-            password: 'doctor123',
+            password: doctorPassword,
             role: 'doctor',
             gender: 'male'
         });
@@ -67,7 +72,7 @@ async function setupDatabase() {
         await db.createUser({
             name: 'Mary Johnson',
             email: 'assistant@clinic.com',
-            password: 'assistant123',
+            password: assistantPassword,
             role: 'assistant',
             gender: 'female'
         });
@@ -80,9 +85,9 @@ async function setupDatabase() {
         console.log('\n🎉 Database setup completed successfully!');
         console.log('\n📋 Default Login Credentials:');
         console.log('┌─────────────────────────────────────────┐');
-        console.log('│ Admin:     admin@clinic.com / admin123  │');
-        console.log('│ Doctor:    doctor@clinic.com / doctor123│');
-        console.log('│ Assistant: assistant@clinic.com / assi..│');
+        console.log('│ Admin:     admin@clinic.com / ' + adminPassword + '  │');
+        console.log('│ Doctor:    doctor@clinic.com / ' + doctorPassword + ' │');
+        console.log('│ Assistant: assistant@clinic.com / ' + assistantPassword.substring(0, 8) + '.. │');
         console.log('└─────────────────────────────────────────┘');
         console.log('\n📁 Database file created at:', dbPath);
         

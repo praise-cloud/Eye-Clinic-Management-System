@@ -13,9 +13,9 @@
     "electron-dev": "cross-env NODE_ENV=development node scripts/run-electron.js",
     "dist": "vite build && electron-builder --publish=never",
     "dist:win": "vite build && electron-builder --win dir --publish=never",
-    "setup-db": "node scripts\\setup-database.js",
+    "setup-db": "node scripts/setup-database.js",
     "postinstall": "electron-builder install-app-deps",
-    "seed-admin": "node scripts\\create-admin.js",
+    "seed-admin": "node scripts/create-admin.js",
     "test": "jest"
   },
   "keywords": [
@@ -32,32 +32,21 @@
     "appId": "com.eyeclinic.app",
     "productName": "KORENE EYE CLINIC NIG. LTD",
     "directories": {
-      "output": "release"
+      "output": "installer-output"
     },
     "files": [
       "dist/**/*",
       "electron/**/*",
+      "src/**/*",
       "database/**/*",
       "database.js",
-      "services/**/*",
-      "src/**/*",
-      "assets/**/*",
       "package.json"
     ],
-    "extraResources": [
-      {
-        "from": "assets",
-        "to": "assets",
-        "filter": [
-          "**/*"
-        ]
-      }
-    ],
+    "asarUnpack": "node_modules/**/*",
     "artifactName": "${productName}-${version}.${ext}",
     "buildDependenciesFromSource": false,
     "npmRebuild": false,
     "nodeGypRebuild": false,
-    "beforeBuild": null,
     "win": {
       "target": [
         {
@@ -67,15 +56,17 @@
           ]
         }
       ],
-      "icon": "src/assets/images/logo.png",
       "signAndEditExecutable": false
+    },
+    "portable": {
+      "artifactName": "${productName}-Portable.${ext}"
     },
     "extraMetadata": {
       "main": "electron/main.js"
     }
   },
   "electronRebuildConfig": {
-    "buildFromSource": true
+    "buildFromSource": false
   },
   "devDependencies": {
     "@babel/preset-env": "^7.28.5",
@@ -115,6 +106,7 @@
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "react-router-dom": "^7.9.4",
+    "sql.js": "^1.14.1",
     "sqlite3": "^6.0.1",
     "tailwindcss": "^3.4.17",
     "uuid": "^13.0.0",

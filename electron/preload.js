@@ -253,7 +253,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
         const subscription = (event, data) => callback(data);
         ipcRenderer.on(channel, subscription);
         return () => ipcRenderer.removeListener(channel, subscription);
-    }
+    },
+
+    // Network Configuration APIs
+    getNetworkConfig: () => ipcRenderer.invoke('network:getConfig'),
+    saveNetworkConfig: (config) => ipcRenderer.invoke('network:saveConfig', config),
+    testNetworkConnection: (serverPath) => ipcRenderer.invoke('network:testConnection', serverPath),
+    selectNetworkFolder: () => ipcRenderer.invoke('network:selectFolder'),
+
+    // Network Sync APIs
+    getSyncStatus: () => ipcRenderer.invoke('network:getSyncStatus'),
+    performSync: () => ipcRenderer.invoke('network:performSync'),
+    getConflicts: () => ipcRenderer.invoke('network:getConflicts'),
+    resolveConflict: (id, resolution) => ipcRenderer.invoke('network:resolveConflict', { id, resolution }),
 });
 
 // Listen for preload events

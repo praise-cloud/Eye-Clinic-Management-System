@@ -127,7 +127,7 @@ class SyncService {
           payload = { ...rowData, ...payload };
         }
       } catch (err) {
-        // If the local table is missing, keep payload as-is.
+        console.warn('[SyncService] applyChange enrichment failed:', err?.message);
       }
     }
 

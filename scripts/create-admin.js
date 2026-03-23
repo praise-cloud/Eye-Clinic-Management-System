@@ -34,12 +34,15 @@ async function createAdmin() {
   const db = new Database();
   await db.initialize();
 
+  // Generate random password for security
+  const adminPassword = `Admin${Math.random().toString(36).slice(2, 10)}!`;
+
   try {
     const id = await ensureUser(db, {
       first_name: 'Admin',
       last_name: 'User',
       email: 'admin@clinic.com',
-      password: 'admin123',
+      password: adminPassword,
       gender: 'other',
       role: 'admin',
       phone_number: null
@@ -47,7 +50,7 @@ async function createAdmin() {
 
     console.log('Admin user ready:', id);
     console.log('Email: admin@clinic.com');
-    console.log('Password: admin123');
+    console.log('Password: ' + adminPassword);
     process.exit(0);
   } catch (error) {
     console.error('Error creating admin:', error);

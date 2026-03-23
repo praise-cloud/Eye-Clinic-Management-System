@@ -1,11 +1,25 @@
 ﻿# Context
 
-Last updated: 2026-03-20 15:27:00
+Last updated: 2026-03-23 01:30:00
 
 ## Purpose
 This file consolidates all markdown documentation for this project and will be updated whenever changes are made to the application.
 
-## Recent Changes
+## Recent Changes (March 23, 2026)
+- Implemented complete multi-computer network database synchronization system:
+  - Network Configuration Screen with network mode toggle, server path input, and test connection
+  - Auto-sync timer (30-second interval) with manual sync button
+  - Sync status display (last sync time, auto-sync indicator)
+  - Conflict detection and resolution panel
+  - WAL mode enabled for network databases (better concurrent access)
+  - LAN shared-folder sync via JSON export/import files
+  - 4 new IPC handlers: getSyncStatus, performSync, getConflicts, resolveConflict
+- Added custom icons (WifiIcon, WifiOffIcon, CloseIcon, RefreshIcon, CheckCircleIcon, XCircleIcon, AlertCircleIcon) to Icons.jsx to replace lucide-react
+- Fixed Settings icon import (changed to GearIcon)
+- Created comprehensive installation guide (INSTALLATION_GUIDE.md) for multi-computer deployment
+- Created quick start guide (QUICK_START.md) for technicians
+
+## Earlier Changes
 - Added SQL Server configuration, connection testing, and manual sync trigger (offline-first; SQLite remains primary).
 - Implemented sync queue and SQL Server sync worker.
 - Expanded SQLite schema creation + safe column migrations.

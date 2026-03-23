@@ -3,6 +3,23 @@ const path = require('path');
 const { app } = require('electron');
 const DatabaseService = require('./DatabaseService');
 
+const ALLOWED_TABLE_NAMES = new Set([
+    'users', 'patients', 'tests', 'inventory',
+    'pharmacy_drugs', 'prescriptions', 'reports',
+    'chat', 'notifications'
+]);
+
+const validateTableName = (tableName) => {
+    if (!tableName || typeof tableName !== 'string') return null;
+    const normalized = tableName.toLowerCase().trim();
+    return ALLOWED_TABLE_NAMES.has(normalized) ? normalized : null;
+};
+
+const validateColumnName = (colName) => {
+    if (!colName || typeof colName !== 'string') return null;
+    return /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(colName) ? colName : null;
+};
+
 class LanSyncService {
   getConfigPath() {
     const dir = app.getPath('userData');
@@ -14,7 +31,8 @@ class LanSyncService {
     if (!fs.existsSync(cfgPath)) return {};
     try {
       return JSON.parse(fs.readFileSync(cfgPath, 'utf-8'));
-    } catch {
+    } catch (err) {
+      console.warn('[LanSyncService] readConfig failed:', err?.message);
       return {};
     }
   }
@@ -73,21 +91,27 @@ class LanSyncService {
     const changes = [];
     for (const row of pending) {
       let payload = row.payload ? JSON.parse(row.payload) : {};
-      const table = row.table_name;
-      const key = this.getTableConfig()[table]?.key || 'id';
+      const rawTable = row.table_name;
+      const safeTable = validateTableName(rawTable);
+      if (!safeTable) {
+        console.warn('[LanSyncService] Skipping export for invalid table:', rawTable);
+        continue;
+      }
+      const config = this.getTableConfig()[safeTable];
+      const key = config?.key || 'id';
       const recordId = row.record_id || payload[key];
 
-      // Enrich payload with full row if needed.
-      const missing = !recordId || Object.keys(payload || {}).length < 3 || (!payload?.updated_at && !payload?.created_at);
-      if (!payload || missing) {
+      if (!payload || !recordId || Object.keys(payload || {}).length < 3) {
         try {
-          const full = await db.get(`SELECT * FROM ${table} WHERE ${key} = ?`, [recordId]);
+          const full = await db.get(`SELECT * FROM ${safeTable} WHERE ${key} = ?`, [recordId]);
           if (full) payload = { ...full, ...payload };
-        } catch { }
+        } catch (err) {
+          console.warn('[LanSyncService] exportChanges enrichment failed:', err?.message);
+        }
       }
 
       changes.push({
-        table,
+        table: safeTable,
         operation: row.operation,
         record_id: recordId,
         payload,
@@ -131,17 +155,21 @@ class LanSyncService {
 
   async applyChange(change, tableConfig) {
     const db = await DatabaseService.getDatabase();
-    const { table, operation, record_id, payload = {}, updated_at } = change;
-    const config = tableConfig[table];
+    const { table: rawTable, operation, record_id, payload = {}, updated_at } = change;
+    const safeTable = validateTableName(rawTable);
+    if (!safeTable) {
+      return { skipped: true, reason: 'invalid_table' };
+    }
+    const config = tableConfig[safeTable];
     if (!config) return { skipped: true, reason: 'unsupported_table' };
 
-    const key = config.key || 'id';
-    const local = await db.get(`SELECT * FROM ${table} WHERE ${key} = ?`, [record_id]);
+    const safeKey = validateColumnName(config.key) || 'id';
+    const local = await db.get(`SELECT * FROM ${safeTable} WHERE ${safeKey} = ?`, [record_id]);
     const localUpdated = local?.[config.updated] || local?.updated_at || local?.created_at || null;
     const remoteUpdated = updated_at || payload?.[config.updated] || payload?.updated_at || payload?.created_at || null;
 
     if (operation === 'delete') {
-      await db.run(`DELETE FROM ${table} WHERE ${key} = ?`, [record_id]);
+      await db.run(`DELETE FROM ${safeTable} WHERE ${safeKey} = ?`, [record_id]);
       return { applied: true };
     }
 
@@ -149,21 +177,21 @@ class LanSyncService {
       const localTs = new Date(localUpdated).getTime();
       const remoteTs = new Date(remoteUpdated).getTime();
       if (!Number.isNaN(localTs) && !Number.isNaN(remoteTs) && localTs > remoteTs) {
-        await this.recordConflict(table, record_id, local, payload, localUpdated, remoteUpdated);
+        await this.recordConflict(safeTable, record_id, local, payload, localUpdated, remoteUpdated);
         return { skipped: true, reason: 'local_newer' };
       }
     }
 
-    if (payload[key] === undefined) payload[key] = record_id;
-    const cols = Object.keys(payload);
+    if (payload[safeKey] === undefined) payload[safeKey] = record_id;
+    const cols = Object.keys(payload).filter((c) => validateColumnName(c));
     if (!cols.length) return { skipped: true, reason: 'empty_payload' };
 
     const placeholders = cols.map(() => '?').join(', ');
-    const updates = cols.filter((c) => c !== key).map((c) => `${c} = excluded.${c}`).join(', ');
+    const updates = cols.filter((c) => c !== safeKey).map((c) => `${c} = excluded.${c}`).join(', ');
     const values = cols.map((c) => payload[c]);
 
-    const sql = `INSERT INTO ${table} (${cols.join(', ')}) VALUES (${placeholders})
-                 ON CONFLICT(${key}) DO UPDATE SET ${updates}`;
+    const sql = `INSERT INTO ${safeTable} (${cols.join(', ')}) VALUES (${placeholders})
+                 ON CONFLICT(${safeKey}) DO UPDATE SET ${updates}`;
     await db.run(sql, values);
     return { applied: true };
   }
