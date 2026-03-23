@@ -19,6 +19,8 @@ const NetworkConfigScreen = ({ onClose, onSave }) => {
     const [conflicts, setConflicts] = useState([]);
     const [showConflicts, setShowConflicts] = useState(false);
     const [error, setError] = useState('');
+    const [availableDrives, setAvailableDrives] = useState([]);
+    const [pathWarning, setPathWarning] = useState('');
 
     useEffect(() => {
         loadConfig();
@@ -44,6 +46,15 @@ const NetworkConfigScreen = ({ onClose, onSave }) => {
                 const result = await window.electronAPI.getSyncStatus();
                 if (result.success) {
                     setSyncStatus(result.status);
+                    setAvailableDrives(result.status?.availableDrives || []);
+                    
+                    if (result.status?.pathNeedsUpdate && result.status?.pathValidationMessage) {
+                        setPathWarning(result.status.pathValidationMessage);
+                        
+                        if (result.status.suggestedPath) {
+                            setConfig(prev => ({ ...prev, serverPath: result.status.suggestedPath }));
+                        }
+                    }
                 }
             }
             if (window.electronAPI?.getConflicts) {
@@ -218,6 +229,7 @@ const NetworkConfigScreen = ({ onClose, onSave }) => {
                                         onChange={(e) => {
                                             setConfig({ ...config, serverPath: e.target.value });
                                             setTestResult(null);
+                                            setPathWarning('');
                                         }}
                                         placeholder="\\SERVERNAME\EyeClinicDB"
                                         className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
@@ -233,6 +245,48 @@ const NetworkConfigScreen = ({ onClose, onSave }) => {
                                     Example: \\192.168.1.100\EyeClinicDB or \\DESKTOP-SERVER\EyeClinicDB
                                 </p>
                             </div>
+
+                            {pathWarning && (
+                                <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-300 dark:border-yellow-600 rounded-lg">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <AlertCircleIcon className="w-5 h-5 text-yellow-500" />
+                                        <p className="text-sm font-medium text-yellow-700 dark:text-yellow-400">
+                                            Path Changed
+                                        </p>
+                                    </div>
+                                    <p className="text-sm text-yellow-600 dark:text-yellow-300">
+                                        {pathWarning}
+                                    </p>
+                                </div>
+                            )}
+
+                            {availableDrives.length > 0 && (
+                                <div className="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                                    <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                        Available Drives
+                                    </p>
+                                    <div className="flex flex-wrap gap-2">
+                                        {availableDrives.map((drive) => (
+                                            <button
+                                                key={drive.letter}
+                                                onClick={() => {
+                                                    setConfig({ ...config, serverPath: drive.path });
+                                                    setPathWarning('');
+                                                    setTestResult(null);
+                                                }}
+                                                className={`px-3 py-1 text-sm rounded border ${
+                                                    config.serverPath === drive.path
+                                                        ? 'bg-blue-100 dark:bg-blue-900/30 border-blue-300 dark:border-blue-600 text-blue-700 dark:text-blue-300'
+                                                        : 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:border-blue-300'
+                                                }`}
+                                            >
+                                                {drive.letter} ({drive.type})
+                                                {drive.volumeName && <span className="ml-1 text-gray-500">- {drive.volumeName}</span>}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
 
                             <div className="flex gap-2">
                                 <button

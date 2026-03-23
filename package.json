@@ -30,7 +30,7 @@
   "type": "commonjs",
   "build": {
     "appId": "com.eyeclinic.app",
-    "productName": "KORENE EYE CLINIC NIG. LTD",
+    "productName": "KORENE",
     "directories": {
       "output": "installer-output"
     },
@@ -43,14 +43,14 @@
       "package.json"
     ],
     "asarUnpack": "node_modules/**/*",
-    "artifactName": "${productName}-${version}.${ext}",
+    "artifactName": "${productName}.${ext}",
     "buildDependenciesFromSource": false,
     "npmRebuild": false,
     "nodeGypRebuild": false,
     "win": {
       "target": [
         {
-          "target": "portable",
+          "target": "nsis",
           "arch": [
             "x64"
           ]
@@ -58,8 +58,12 @@
       ],
       "signAndEditExecutable": false
     },
-    "portable": {
-      "artifactName": "${productName}-Portable.${ext}"
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "artifactName": "${productName}.${ext}"
     },
     "extraMetadata": {
       "main": "electron/main.js"

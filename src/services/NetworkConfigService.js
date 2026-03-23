@@ -1,27 +1,31 @@
 const fs = require('fs');
 const path = require('path');
-const { app } = require('electron');
 const LanSyncService = require('./LanSyncService');
+const { execSync } = require('child_process');
 
 class NetworkConfigService {
     constructor() {
         this.configPath = null;
         this.config = null;
         this.syncTimer = null;
-        this.init();
+        this.initialized = false;
     }
 
     init() {
+        if (this.initialized) return;
         try {
+            const { app } = require('electron');
             const userDataPath = app.getPath('userData');
             if (!fs.existsSync(userDataPath)) {
                 fs.mkdirSync(userDataPath, { recursive: true });
             }
             this.configPath = path.join(userDataPath, 'network-config.json');
             this._loadConfigFromFile();
+            this.initialized = true;
         } catch (error) {
             console.error('[NetworkConfig] Init error:', error.message);
             this.config = this.getDefaultConfig();
+            this.initialized = true;
         }
     }
 
@@ -54,9 +58,111 @@ class NetworkConfigService {
         }
     }
 
+    getAvailableDrives() {
+        try {
+            const { execSync } = require('child_process');
+            const output = execSync('wmic logicaldisk get name,drivetype,volumename', { encoding: 'utf8', timeout: 5000 });
+            const drives = [];
+            const lines = output.trim().split('\n').slice(1);
+            
+            for (const line of lines) {
+                const parts = line.trim().split(/\s+/);
+                if (parts.length >= 2) {
+                    const driveLetter = parts[0];
+                    const driveType = parseInt(parts[1]) || 0;
+                    const volumeName = parts.slice(2).join(' ') || '';
+                    
+                    const drivePath = driveLetter + '\\';
+                    let driveTypeName = 'Unknown';
+                    let isRemovable = false;
+                    
+                    switch (driveType) {
+                        case 2:
+                            driveTypeName = 'Removable (USB)';
+                            isRemovable = true;
+                            break;
+                        case 3:
+                            driveTypeName = 'Local Disk';
+                            break;
+                        case 4:
+                            driveTypeName = 'Network Drive';
+                            break;
+                        case 5:
+                            driveTypeName = 'CD/DVD';
+                            break;
+                    }
+                    
+                    drives.push({
+                        letter: driveLetter,
+                        path: drivePath,
+                        type: driveTypeName,
+                        isRemovable,
+                        volumeName: volumeName.trim(),
+                        exists: fs.existsSync(drivePath)
+                    });
+                }
+            }
+            
+            return drives;
+        } catch (error) {
+            console.warn('[NetworkConfig] Could not get available drives:', error.message);
+            return [];
+        }
+    }
+
+    findRemovableDrive() {
+        const drives = this.getAvailableDrives();
+        const removable = drives.filter(d => d.isRemovable && d.exists);
+        
+        if (removable.length > 0) {
+            return removable[0];
+        }
+        
+        return null;
+    }
+
+    validateStoredPath() {
+        const config = this.getConfig();
+        
+        if (!config.serverPath) {
+            return { valid: false, needsSetup: true, message: 'No network path configured' };
+        }
+        
+        if (!fs.existsSync(config.serverPath)) {
+            console.warn(`[NetworkConfig] Stored path ${config.serverPath} not found. Attempting to find alternative...`);
+            
+            const removableDrive = this.findRemovableDrive();
+            
+            if (removableDrive) {
+                console.log(`[NetworkConfig] Found removable drive: ${removableDrive.path}`);
+                return {
+                    valid: false,
+                    needsSetup: false,
+                    pathChanged: true,
+                    oldPath: config.serverPath,
+                    suggestedPath: removableDrive.path,
+                    message: `Drive ${config.serverPath} not found. Suggesting: ${removableDrive.path} (${removableDrive.volumeName || 'Removable Drive'})`
+                };
+            }
+            
+            return {
+                valid: false,
+                needsSetup: true,
+                pathChanged: true,
+                oldPath: config.serverPath,
+                suggestedPath: '',
+                message: `Configured path ${config.serverPath} not found. Please select a new path.`
+            };
+        }
+        
+        return { valid: true, needsSetup: false };
+    }
+
     configureLanSync() {
         if (this.config.isNetworkMode && this.config.serverPath) {
-            LanSyncService.setSyncPath(this.config.serverPath);
+            if (fs.existsSync(this.config.serverPath)) {
+                LanSyncService.setSyncPath(this.config.serverPath);
+            }
         }
     }
 
@@ -120,7 +226,11 @@ class NetworkConfigService {
                 this.config = { ...this.config, ...config };
 
                 if (config.serverPath && config.serverPath !== this.config.serverPath) {
-                    LanSyncService.setSyncPath(config.serverPath);
+                    if (fs.existsSync(config.serverPath)) {
+                        LanSyncService.setSyncPath(config.serverPath);
+                    } else {
+                        console.warn('[NetworkConfig] Attempting to save invalid path:', config.serverPath);
+                    }
                 }
 
                 if (config.isNetworkMode !== undefined && config.isNetworkMode !== prevNetworkMode) {
@@ -221,16 +331,24 @@ class NetworkConfigService {
         try {
             const conflicts = await LanSyncService.getConflicts();
             const config = this.getConfig();
+            const pathValidation = this.validateStoredPath();
+            const availableDrives = this.getAvailableDrives();
 
             return {
                 isNetworkMode: config.isNetworkMode,
-                serverPath: config.serverPath,
+                serverPath: pathValidation.valid ? config.serverPath : (pathValidation.suggestedPath || config.serverPath),
+                serverPathOriginal: config.serverPath,
                 autoSync: config.autoSync,
                 syncInterval: config.syncInterval,
                 lastSync: config.lastSync,
                 connectionStatus: config.connectionStatus,
                 pendingConflicts: conflicts.length,
-                isAutoSyncRunning: this.syncTimer !== null
+                isAutoSyncRunning: this.syncTimer !== null,
+                pathNeedsUpdate: pathValidation.pathChanged,
+                pathNeedsSetup: pathValidation.needsSetup,
+                suggestedPath: pathValidation.suggestedPath || '',
+                pathValidationMessage: pathValidation.message,
+                availableDrives: availableDrives
             };
         } catch (error) {
             console.error('[NetworkConfig] Get sync status error:', error.message);
