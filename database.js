@@ -20,17 +20,27 @@ class Database {
             const userDataPath = app.getPath('userData');
             const configPath = path.join(userDataPath, 'network-config.json');
 
+            console.log('[Database] Looking for config at:', configPath);
+
             if (fs.existsSync(configPath)) {
                 try {
                     const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
-                    if (config.isNetworkMode && config.serverPath) {
-                        const networkPath = path.join(config.serverPath, 'eye_clinic.db');
-                        console.log('[Database] Using network database:', networkPath);
+                    console.log('[Database] Config loaded:', JSON.stringify({ ...config, serverPath: config.serverPath ? '(set)' : '(empty)' }));
+                    
+                    const serverPath = config.serverPath || '';
+                    if (config.isNetworkMode && serverPath && typeof serverPath === 'string' && serverPath.trim() !== '') {
+                        const networkPath = path.join(serverPath, 'eye_clinic.db');
+                        console.log('[Database] NETWORK MODE: Using shared database at:', networkPath);
+                        console.log('[Database] Network path exists:', fs.existsSync(serverPath));
                         return networkPath;
+                    } else {
+                        console.log('[Database] LOCAL MODE: Using local database (network mode disabled or path empty)');
                     }
                 } catch (e) {
                     console.warn('[Database] Could not read network config:', e.message);
                 }
+            } else {
+                console.log('[Database] No config file found, using local database');
             }
 
             if (!fs.existsSync(userDataPath)) {
@@ -38,7 +48,7 @@ class Database {
             }
             return path.join(userDataPath, 'eye_clinic.db');
         } catch (error) {
-            console.warn('[Database] Fallback to local path');
+            console.warn('[Database] Fallback to local path, error:', error.message);
             return path.join(__dirname, 'eye_clinic.db');
         }
     }
@@ -54,38 +64,53 @@ class Database {
                 console.warn('[Database] Could not create directory:', mkErr.message);
             }
 
-            const isNetworkPath = this.dbPath.startsWith('\\\\') || this.dbPath.includes('\\\\');
+            const isNetworkPath = this.dbPath.startsWith('\\\\') || this.dbPath.includes('\\\\') || this.dbPath.includes(':');
+            const isOnNetworkDrive = isNetworkPath && !this.dbPath.includes('\\AppData');
+            
+            console.log('[Database] Initializing database...');
+            console.log('[Database] Path:', this.dbPath);
+            console.log('[Database] Is network path:', isNetworkPath);
             
             this.db = new sqlite3.Database(this.dbPath, sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE, (err) => {
                 if (err) {
-                    console.error('Error opening database:', err);
+                    console.error('[Database] Error opening database:', err);
                     reject(err);
                     return;
                 }
 
-                console.log('Connected to SQLite database at:', this.dbPath);
+                console.log('[Database] Connected successfully at:', this.dbPath);
                 
                 this.db.serialize(() => {
                     if (isNetworkPath) {
                         this.db.run('PRAGMA journal_mode=WAL', (err) => {
-                            if (err) console.warn('[Database] WAL mode failed, using default:', err.message);
+                            if (err) console.warn('[Database] WAL mode failed:', err.message);
                             else console.log('[Database] WAL mode enabled for network database');
                         });
                         this.db.run('PRAGMA locking_mode=NORMAL', (err) => {
-                            if (err) console.warn('[Database] Locking mode set:', err.message);
+                            if (err) console.warn('[Database] Locking mode failed:', err.message);
+                            else console.log('[Database] NORMAL locking mode set');
                         });
                         this.db.run('PRAGMA synchronous=NORMAL', (err) => {
-                            if (err) console.warn('[Database] Sync mode set:', err.message);
+                            if (err) console.warn('[Database] Sync mode failed:', err.message);
+                            else console.log('[Database] SYNCHRONOUS NORMAL set');
+                        });
+                        this.db.run('PRAGMA busy_timeout=30000', (err) => {
+                            if (err) console.warn('[Database] Busy timeout failed:', err.message);
+                            else console.log('[Database] BUSY TIMEOUT set to 30s');
                         });
                     } else {
                         this.db.run('PRAGMA journal_mode=DELETE', (err) => {
-                            if (err) console.warn('[Database] Journal mode set:', err.message);
+                            if (err) console.warn('[Database] Journal mode failed:', err.message);
+                            else console.log('[Database] Journal mode set to DELETE for local');
                         });
                     }
                 });
 
                 this.createTables()
-                    .then(resolve)
+                    .then(() => {
+                        console.log('[Database] Tables created/verified');
+                        resolve();
+                    })
                     .catch(reject);
             });
         });
@@ -348,14 +373,107 @@ class Database {
                 console.log('Migration completed: Added reply_to_id column to chat table');
             }
 
-            // Check if image_path column exists in inventory table
-            const inventoryTableInfo = await this.all("PRAGMA table_info(inventory)");
-            const hasImagePathColumn = inventoryTableInfo.some(column => column.name === 'image_path');
+            // Create sync_queue table if not exists
+            try {
+                await this.run(`
+                    CREATE TABLE IF NOT EXISTS sync_queue (
+                        id TEXT PRIMARY KEY,
+                        table_name TEXT NOT NULL,
+                        operation TEXT NOT NULL,
+                        record_id TEXT NOT NULL,
+                        data TEXT,
+                        status TEXT DEFAULT 'pending',
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        retry_count INTEGER DEFAULT 0
+                    )
+                `);
+                console.log('Migration: Created sync_queue table');
+            } catch (e) {
+                console.warn('sync_queue table creation:', e.message);
+            }
 
-            if (!hasImagePathColumn) {
-                console.log('Adding image_path column to inventory table...');
-                await this.run('ALTER TABLE inventory ADD COLUMN image_path TEXT');
-                console.log('Migration completed: Added image_path column to inventory table');
+            // Add missing columns to patients table
+            const patientsTableInfo = await this.all("PRAGMA table_info(patients)");
+            const existingPatientCols = new Set(patientsTableInfo.map(c => c.name));
+            
+            const patientColsToAdd = [
+                { name: 'email', type: 'TEXT' },
+                { name: 'client_type', type: 'TEXT' },
+                { name: 'marital_status', type: 'TEXT' }
+            ];
+            
+            for (const col of patientColsToAdd) {
+                if (!existingPatientCols.has(col.name)) {
+                    try {
+                        await this.run(`ALTER TABLE patients ADD COLUMN ${col.name} ${col.type}`);
+                        console.log(`Migration: Added column ${col.name} to patients`);
+                    } catch (e) {
+                        if (!e.message.includes('duplicate column name')) {
+                            console.warn(`Patients col ${col.name} skipped:`, e.message);
+                        }
+                    }
+                }
+            }
+
+            // Add all missing columns to inventory table
+            const inventoryTableInfo = await this.all("PRAGMA table_info(inventory)");
+            const existingInventoryCols = new Set(inventoryTableInfo.map(c => c.name));
+            const inventoryColsToAdd = [
+                { name: 'category', type: 'TEXT' },
+                { name: 'description', type: 'TEXT' },
+                { name: 'manufacturer', type: 'TEXT' },
+                { name: 'model_number', type: 'TEXT' },
+                { name: 'serial_number', type: 'TEXT' },
+                { name: 'maximum_quantity', type: 'INTEGER DEFAULT 100' },
+                { name: 'unit_of_measure', type: 'TEXT DEFAULT "pieces"' },
+                { name: 'unit_cost', type: 'REAL DEFAULT 0' },
+                { name: 'supplier_name', type: 'TEXT' },
+                { name: 'supplier_contact', type: 'TEXT' },
+                { name: 'purchase_date', type: 'TEXT' },
+                { name: 'expiry_date', type: 'TEXT' },
+                { name: 'location', type: 'TEXT' },
+                { name: 'last_updated_by', type: 'TEXT' },
+                { name: 'notes', type: 'TEXT' },
+                { name: 'image_path', type: 'TEXT' }
+            ];
+            for (const col of inventoryColsToAdd) {
+                if (!existingInventoryCols.has(col.name)) {
+                    try {
+                        await this.run(`ALTER TABLE inventory ADD COLUMN ${col.name} ${col.type}`);
+                        console.log(`Migration: Added column ${col.name} to inventory`);
+                    } catch (e) {
+                        if (!e.message.includes('duplicate column name')) {
+                            console.warn(`Inventory col ${col.name} skipped:`, e.message);
+                        }
+                    }
+                }
+            }
+
+            // Add all missing columns to pharmacy_drugs table
+            const drugsTableInfo = await this.all("PRAGMA table_info(pharmacy_drugs)");
+            const existingDrugCols = new Set(drugsTableInfo.map(c => c.name));
+            const drugColsToAdd = [
+                { name: 'drug_form', type: 'TEXT' },
+                { name: 'strength', type: 'TEXT' },
+                { name: 'pack_size', type: 'TEXT' },
+                { name: 'unit_price', type: 'REAL DEFAULT 0' },
+                { name: 'supplier_name', type: 'TEXT' },
+                { name: 'supplier_contact', type: 'TEXT' },
+                { name: 'expiry_date', type: 'TEXT' },
+                { name: 'last_updated_by', type: 'TEXT' },
+                { name: 'notes', type: 'TEXT' }
+            ];
+            for (const col of drugColsToAdd) {
+                if (!existingDrugCols.has(col.name)) {
+                    try {
+                        await this.run(`ALTER TABLE pharmacy_drugs ADD COLUMN ${col.name} ${col.type}`);
+                        console.log(`Migration: Added column ${col.name} to pharmacy_drugs`);
+                    } catch (e) {
+                        if (!e.message.includes('duplicate column name')) {
+                            console.warn(`Drug col ${col.name} skipped:`, e.message);
+                        }
+                    }
+                }
             }
 
             // Check if phone_number column exists in users table
@@ -476,20 +594,49 @@ class Database {
     async updateUser(userId, userData) {
         const { first_name, last_name, email, role, phone_number, gender, password } = userData;
 
-        let query = `
-            UPDATE users
-            SET first_name = ?, last_name = ?, email = ?, role = ?, phone_number = ?, gender = ?, updated_at = CURRENT_TIMESTAMP
-        `;
-        let params = [first_name, last_name, email, role, phone_number || null, gender || 'other'];
+        // Build dynamic query only for provided fields
+        let setClauses = [];
+        let params = [];
+
+        if (first_name !== undefined) {
+            setClauses.push('first_name = ?');
+            params.push(first_name);
+        }
+        if (last_name !== undefined) {
+            setClauses.push('last_name = ?');
+            params.push(last_name);
+        }
+        if (email !== undefined) {
+            setClauses.push('email = ?');
+            params.push(email);
+        }
+        if (role !== undefined) {
+            setClauses.push('role = ?');
+            params.push(role);
+        }
+        if (phone_number !== undefined) {
+            setClauses.push('phone_number = ?');
+            params.push(phone_number || null);
+        }
+        if (gender !== undefined) {
+            setClauses.push('gender = ?');
+            params.push(gender || 'other');
+        }
 
         if (password) {
             const saltRounds = 10;
             const passwordHash = await bcrypt.hash(password, saltRounds);
-            query += `, password_hash = ?`;
+            setClauses.push('password_hash = ?');
             params.push(passwordHash);
         }
 
-        query += ` WHERE id = ?`;
+        if (setClauses.length === 0) {
+            throw new Error('No fields to update');
+        }
+
+        setClauses.push('updated_at = CURRENT_TIMESTAMP');
+
+        const query = `UPDATE users SET ${setClauses.join(', ')} WHERE id = ?`;
         params.push(userId);
 
         try {

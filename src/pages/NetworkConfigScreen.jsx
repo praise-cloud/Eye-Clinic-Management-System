@@ -1,30 +1,29 @@
 import React, { useState, useEffect } from 'react';
-import { CloseIcon, WifiIcon, WifiOffIcon, RefreshIcon, CheckCircleIcon, XCircleIcon, AlertCircleIcon } from '../components/Icons';
+import { CloseIcon, WifiIcon, WifiOffIcon, RefreshIcon, CheckCircleIcon, XCircleIcon, AlertCircleIcon, FolderIcon } from '../components/Icons';
 
 const NetworkConfigScreen = ({ onClose, onSave }) => {
     const [config, setConfig] = useState({
         isNetworkMode: false,
         serverPath: '',
         autoSync: true,
-        syncInterval: 30000,
-        lastSync: null,
-        connectionStatus: 'disconnected'
+        presenceInterval: 5000,
+        cvfWatchPath: ''
     });
     const [syncStatus, setSyncStatus] = useState(null);
     const [testing, setTesting] = useState(false);
+    const [cvfTesting, setCvfTesting] = useState(false);
     const [testResult, setTestResult] = useState(null);
+    const [cvfTestResult, setCvfTestResult] = useState(null);
     const [saving, setSaving] = useState(false);
-    const [syncing, setSyncing] = useState(false);
-    const [syncMessage, setSyncMessage] = useState('');
-    const [conflicts, setConflicts] = useState([]);
-    const [showConflicts, setShowConflicts] = useState(false);
     const [error, setError] = useState('');
     const [availableDrives, setAvailableDrives] = useState([]);
     const [pathWarning, setPathWarning] = useState('');
+    const [successMessage, setSuccessMessage] = useState('');
 
     useEffect(() => {
         loadConfig();
         loadSyncStatus();
+        loadCvfWatchPath();
     }, []);
 
     const loadConfig = async () => {
@@ -32,7 +31,7 @@ const NetworkConfigScreen = ({ onClose, onSave }) => {
             if (window.electronAPI?.getNetworkConfig) {
                 const result = await window.electronAPI.getNetworkConfig();
                 if (result.success) {
-                    setConfig(result.config);
+                    setConfig(prev => ({ ...prev, ...result.config }));
                 }
             }
         } catch (err) {
@@ -50,21 +49,24 @@ const NetworkConfigScreen = ({ onClose, onSave }) => {
                     
                     if (result.status?.pathNeedsUpdate && result.status?.pathValidationMessage) {
                         setPathWarning(result.status.pathValidationMessage);
-                        
-                        if (result.status.suggestedPath) {
-                            setConfig(prev => ({ ...prev, serverPath: result.status.suggestedPath }));
-                        }
                     }
-                }
-            }
-            if (window.electronAPI?.getConflicts) {
-                const result = await window.electronAPI.getConflicts();
-                if (result.success) {
-                    setConflicts(result.conflicts || []);
                 }
             }
         } catch (err) {
             console.error('Failed to load sync status:', err);
+        }
+    };
+
+    const loadCvfWatchPath = async () => {
+        try {
+            if (window.electronAPI?.getCvfWatchPath) {
+                const result = await window.electronAPI.getCvfWatchPath();
+                if (result?.success && result.path) {
+                    setConfig(prev => ({ ...prev, cvfWatchPath: result.path }));
+                }
+            }
+        } catch (err) {
+            console.error('Failed to load CVF watch path:', err);
         }
     };
 
@@ -88,47 +90,47 @@ const NetworkConfigScreen = ({ onClose, onSave }) => {
         }
     };
 
+    const handleTestCvfFolder = async () => {
+        if (!config.cvfWatchPath) {
+            setError('Please enter a CVF watch folder path');
+            return;
+        }
+
+        setCvfTesting(true);
+        setCvfTestResult(null);
+
+        try {
+            const result = await window.electronAPI.testNetworkConnection(config.cvfWatchPath);
+            setCvfTestResult(result);
+        } catch (err) {
+            setCvfTestResult({ success: false, error: err.message });
+        } finally {
+            setCvfTesting(false);
+        }
+    };
+
     const handleBrowse = async () => {
         try {
             const result = await window.electronAPI.selectNetworkFolder();
             if (result.success && result.path) {
                 setConfig({ ...config, serverPath: result.path });
                 setTestResult(null);
+                setPathWarning('');
             }
         } catch (err) {
             setError('Failed to select folder');
         }
     };
 
-    const handleSync = async () => {
-        if (syncing) return;
-        
-        setSyncing(true);
-        setSyncMessage('');
-        
+    const handleBrowseCvfFolder = async () => {
         try {
-            const result = await window.electronAPI.performSync();
-            if (result.success) {
-                setSyncMessage(`Synced! Exported: ${result.exported}, Imported: ${result.imported}`);
-                await loadSyncStatus();
-            } else {
-                setSyncMessage(result.error || 'Sync failed');
+            const result = await window.electronAPI.selectNetworkFolder();
+            if (result.success && result.path) {
+                setConfig({ ...config, cvfWatchPath: result.path });
+                setCvfTestResult(null);
             }
         } catch (err) {
-            setSyncMessage('Sync error: ' + err.message);
-        } finally {
-            setSyncing(false);
-        }
-    };
-
-    const handleResolveConflict = async (id, resolution) => {
-        try {
-            const result = await window.electronAPI.resolveConflict(id, resolution);
-            if (result.success) {
-                await loadSyncStatus();
-            }
-        } catch (err) {
-            console.error('Failed to resolve conflict:', err);
+            setError('Failed to select folder');
         }
     };
 
@@ -140,12 +142,19 @@ const NetworkConfigScreen = ({ onClose, onSave }) => {
 
         setSaving(true);
         setError('');
+        setSuccessMessage('');
 
         try {
             const result = await window.electronAPI.saveNetworkConfig(config);
             if (result.success) {
+                if (config.cvfWatchPath) {
+                    await window.electronAPI.setCvfWatchPath?.(config.cvfWatchPath);
+                }
+                setSuccessMessage('Configuration saved! Changes will take effect immediately.');
                 if (onSave) onSave(config);
-                if (onClose) onClose();
+                setTimeout(() => {
+                    if (onClose) onClose();
+                }, 1500);
             } else {
                 setError(result.error || 'Failed to save configuration');
             }
@@ -161,16 +170,12 @@ const NetworkConfigScreen = ({ onClose, onSave }) => {
             isNetworkMode: false,
             serverPath: '',
             autoSync: true,
-            syncInterval: 30000
+            presenceInterval: 5000,
+            cvfWatchPath: ''
         });
         setTestResult(null);
-        setSyncMessage('');
-    };
-
-    const formatLastSync = (lastSync) => {
-        if (!lastSync) return 'Never';
-        const date = new Date(lastSync);
-        return date.toLocaleString();
+        setCvfTestResult(null);
+        setSuccessMessage('');
     };
 
     return (
@@ -201,7 +206,9 @@ const NetworkConfigScreen = ({ onClose, onSave }) => {
                                     Network Mode
                                 </p>
                                 <p className="text-sm text-gray-500">
-                                    {config.isNetworkMode ? 'Using shared database' : 'Using local database'}
+                                    {config.isNetworkMode 
+                                        ? 'All computers share one database on the network path' 
+                                        : 'Using local database (each computer has its own data)'}
                                 </p>
                             </div>
                         </div>
@@ -220,7 +227,7 @@ const NetworkConfigScreen = ({ onClose, onSave }) => {
                         <>
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                    Server Network Path
+                                    Shared Database Network Path
                                 </label>
                                 <div className="flex gap-2">
                                     <input
@@ -231,7 +238,7 @@ const NetworkConfigScreen = ({ onClose, onSave }) => {
                                             setTestResult(null);
                                             setPathWarning('');
                                         }}
-                                        placeholder="\\SERVERNAME\EyeClinicDB"
+                                        placeholder="\\SERVERNAME\SharedFolder"
                                         className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
                                     />
                                     <button
@@ -242,7 +249,7 @@ const NetworkConfigScreen = ({ onClose, onSave }) => {
                                     </button>
                                 </div>
                                 <p className="mt-1 text-sm text-gray-500">
-                                    Example: \\192.168.1.100\EyeClinicDB or \\DESKTOP-SERVER\EyeClinicDB
+                                    Example: \\192.168.1.100\EyeClinic or \\DESKTOP-PC\EyeClinicShared
                                 </p>
                             </div>
 
@@ -251,7 +258,7 @@ const NetworkConfigScreen = ({ onClose, onSave }) => {
                                     <div className="flex items-center gap-2 mb-2">
                                         <AlertCircleIcon className="w-5 h-5 text-yellow-500" />
                                         <p className="text-sm font-medium text-yellow-700 dark:text-yellow-400">
-                                            Path Changed
+                                            Path Warning
                                         </p>
                                     </div>
                                     <p className="text-sm text-yellow-600 dark:text-yellow-300">
@@ -318,118 +325,131 @@ const NetworkConfigScreen = ({ onClose, onSave }) => {
                                 </div>
                             )}
 
-                            <div className="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg space-y-3">
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-3">
-                                        <RefreshIcon className="w-5 h-5 text-gray-400" />
-                                        <div>
-                                            <p className="font-medium text-gray-800 dark:text-white">Auto Sync</p>
-                                            <p className="text-sm text-gray-500">Sync data automatically</p>
-                                        </div>
+                            <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-700">
+                                <div className="flex items-start gap-3">
+                                    <WifiIcon className="w-5 h-5 text-blue-500 mt-0.5" />
+                                    <div>
+                                        <p className="font-medium text-blue-800 dark:text-blue-300 mb-1">
+                                            How Network Mode Works
+                                        </p>
+                                        <ul className="text-sm text-blue-700 dark:text-blue-400 space-y-1">
+                                            <li>All computers access the same database file on the shared folder</li>
+                                            <li>No data sync/export needed - changes are saved directly to the shared database</li>
+                                            <li>Place your existing database file (eye_clinic.db) in the shared folder, or it will be created automatically</li>
+                                            <li>Each computer shows online users from other computers in the Admin Dashboard</li>
+                                        </ul>
                                     </div>
-                                    <label className="relative inline-flex items-center cursor-pointer">
-                                        <input
-                                            type="checkbox"
-                                            checked={config.autoSync}
-                                            onChange={(e) => setConfig({ ...config, autoSync: e.target.checked })}
-                                            className="sr-only peer"
-                                        />
-                                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
-                                    </label>
                                 </div>
-
-                                <div className="text-sm text-gray-600 dark:text-gray-400">
-                                    <span className="font-medium">Last Sync:</span> {formatLastSync(syncStatus?.lastSync)}
-                                </div>
-
-                                {syncStatus?.isAutoSyncRunning && (
-                                    <div className="text-sm text-blue-600 dark:text-blue-400 flex items-center gap-1">
-                                        <RefreshIcon className="w-3 h-3 animate-spin" />
-                                        Auto-sync active
-                                    </div>
-                                )}
-
-                                <button
-                                    onClick={handleSync}
-                                    disabled={syncing}
-                                    className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:opacity-50 transition"
-                                >
-                                    {syncing ? (
-                                        <RefreshIcon className="w-4 h-4 animate-spin" />
-                                    ) : (
-                                        <RefreshIcon className="w-4 h-4" />
-                                    )}
-                                    {syncing ? 'Syncing...' : 'Sync Now'}
-                                </button>
-
-                                {syncMessage && (
-                                    <div className="text-sm text-gray-600 dark:text-gray-400 text-center">
-                                        {syncMessage}
-                                    </div>
-                                )}
                             </div>
-
-                            {conflicts.length > 0 && (
-                                <div className="border border-yellow-300 dark:border-yellow-600 rounded-lg overflow-hidden">
-                                    <button
-                                        onClick={() => setShowConflicts(!showConflicts)}
-                                        className="w-full flex items-center justify-between p-4 bg-yellow-50 dark:bg-yellow-900/20 hover:bg-yellow-100 dark:hover:bg-yellow-900/30 transition"
-                                    >
-                                        <div className="flex items-center gap-2">
-                                            <AlertCircleIcon className="w-5 h-5 text-yellow-500" />
-                                            <span className="font-medium text-yellow-800 dark:text-yellow-200">
-                                                {conflicts.length} Sync Conflict{conflicts.length > 1 ? 's' : ''}
-                                            </span>
-                                        </div>
-                                        <RefreshIcon className={`w-4 h-4 text-yellow-500 transition ${showConflicts ? 'rotate-180' : ''}`} />
-                                    </button>
-                                    
-                                    {showConflicts && (
-                                        <div className="p-4 space-y-3 max-h-60 overflow-y-auto">
-                                            {conflicts.map((conflict) => (
-                                                <div key={conflict.id} className="p-3 bg-white dark:bg-gray-700 rounded border border-gray-200 dark:border-gray-600">
-                                                    <div className="text-sm font-medium text-gray-800 dark:text-white mb-2">
-                                                        {conflict.table_name}: {conflict.record_id}
-                                                    </div>
-                                                    <div className="flex gap-2">
-                                                        <button
-                                                            onClick={() => handleResolveConflict(conflict.id, 'keep_local')}
-                                                            className="flex-1 px-3 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600"
-                                                        >
-                                                            Keep Local
-                                                        </button>
-                                                        <button
-                                                            onClick={() => handleResolveConflict(conflict.id, 'apply_remote')}
-                                                            className="flex-1 px-3 py-1 text-sm bg-green-500 text-white rounded hover:bg-green-600"
-                                                        >
-                                                            Use Remote
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-                            )}
                         </>
                     )}
 
                     {!config.isNetworkMode && (
-                        <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg">
+                        <div className="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
                             <div className="flex items-center gap-2">
-                                <AlertCircleIcon className="w-5 h-5 text-yellow-500" />
-                                <p className="text-sm text-yellow-700 dark:text-yellow-400">
-                                    Each computer will have its own local database. Enable network mode to share a single database across multiple computers.
+                                <WifiOffIcon className="w-5 h-5 text-gray-400" />
+                                <p className="text-sm text-gray-600 dark:text-gray-400">
+                                    <strong>Local Mode:</strong> Each computer has its own database. 
+                                    Enable Network Mode to share a single database across multiple computers on the same network.
                                 </p>
                             </div>
                         </div>
                     )}
+
+                    {/* CVF Watch Folder Section */}
+                    <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
+                        <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-4 flex items-center gap-2">
+                            <FolderIcon className="w-5 h-5 text-green-500" />
+                            CVF Machine Integration
+                        </h3>
+                        
+                        <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-700 mb-4">
+                            <div className="flex items-start gap-3">
+                                <FolderIcon className="w-5 h-5 text-green-500 mt-0.5" />
+                                <div>
+                                    <p className="font-medium text-green-800 dark:text-green-300 mb-1">
+                                        Henson 8000 PDF Folder
+                                    </p>
+                                    <p className="text-sm text-green-700 dark:text-green-400">
+                                        Set the network path where the Henson 8000 exports PDF results.
+                                        New PDFs will appear in the CVF Workspace for review and linking to patients.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                CVF PDF Watch Folder
+                            </label>
+                            <div className="flex gap-2">
+                                <input
+                                    type="text"
+                                    value={config.cvfWatchPath}
+                                    onChange={(e) => {
+                                        setConfig({ ...config, cvfWatchPath: e.target.value });
+                                        setCvfTestResult(null);
+                                    }}
+                                    placeholder="\\192.168.1.100\PDF-CVFResults"
+                                    className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 dark:bg-gray-700 dark:text-white"
+                                />
+                                <button
+                                    onClick={handleBrowseCvfFolder}
+                                    className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition"
+                                >
+                                    Browse
+                                </button>
+                            </div>
+                            <p className="mt-1 text-sm text-gray-500">
+                                Example: {config.cvfWatchPath || '\\192.168.1.100\\PDF-CVFResults'}
+                            </p>
+                        </div>
+
+                        <div className="flex gap-2 mt-4">
+                            <button
+                                onClick={handleTestCvfFolder}
+                                disabled={cvfTesting || !config.cvfWatchPath}
+                                className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                            >
+                                {cvfTesting ? (
+                                    <RefreshIcon className="w-4 h-4 animate-spin" />
+                                ) : (
+                                    <FolderIcon className="w-4 h-4" />
+                                )}
+                                {cvfTesting ? 'Testing...' : 'Test CVF Folder'}
+                            </button>
+                        </div>
+
+                        {cvfTestResult && (
+                            <div className={`mt-4 p-4 rounded-lg ${cvfTestResult.success ? 'bg-green-50 dark:bg-green-900/20' : 'bg-red-50 dark:bg-red-900/20'}`}>
+                                <div className="flex items-center gap-2">
+                                    {cvfTestResult.success ? (
+                                        <CheckCircleIcon className="w-5 h-5 text-green-500" />
+                                    ) : (
+                                        <XCircleIcon className="w-5 h-5 text-red-500" />
+                                    )}
+                                    <p className={cvfTestResult.success ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'}>
+                                        {cvfTestResult.message || cvfTestResult.error}
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+                    </div>
 
                     {error && (
                         <div className="p-4 bg-red-50 dark:bg-red-900/20 rounded-lg">
                             <div className="flex items-center gap-2">
                                 <XCircleIcon className="w-5 h-5 text-red-500" />
                                 <p className="text-sm text-red-700 dark:text-red-400">{error}</p>
+                            </div>
+                        </div>
+                    )}
+
+                    {successMessage && (
+                        <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
+                            <div className="flex items-center gap-2">
+                                <CheckCircleIcon className="w-5 h-5 text-green-500" />
+                                <p className="text-sm text-green-700 dark:text-green-400">{successMessage}</p>
                             </div>
                         </div>
                     )}

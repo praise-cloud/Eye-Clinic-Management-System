@@ -174,9 +174,19 @@ const useUser = () => {
       setLoading(true)
       setError(null)
 
+      const currentUserId = user?.id;
+      if (!currentUserId) {
+        throw new Error('No user logged in');
+      }
+
       let updatedUser
       if (window.electronAPI?.updateUser) {
-        updatedUser = await window.electronAPI.updateUser(user.id, updates)
+        updatedUser = await window.electronAPI.updateUser(currentUserId, updates, currentUserId)
+        if (updatedUser?.success !== false) {
+          updatedUser = updatedUser?.user || { ...user, ...updates };
+        } else {
+          updatedUser = { ...user, ...updates };
+        }
       } else {
         updatedUser = { ...user, ...updates }
       }

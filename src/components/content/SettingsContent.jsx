@@ -259,18 +259,23 @@ const SettingsContent = () => {
         phone_number: formData.phone,
         gender: formData.gender
       }
+      let result;
       if (updateProfile) {
-        await updateProfile(updates)
+        result = await updateProfile(updates)
       } else if (window.electronAPI?.updateUser) {
-        await window.electronAPI.updateUser(user.id, updates, user.id)
+        result = await window.electronAPI.updateUser(user.id, updates, user.id)
       }
-      setIsEditing(false)
-      setSuccessMessage('Profile updated successfully')
-      setShowSuccess(true)
-      setTimeout(() => setShowSuccess(false), 3000)
+      if (result?.success !== false) {
+        setIsEditing(false)
+        setSuccessMessage('Profile updated successfully')
+        setShowSuccess(true)
+        setTimeout(() => setShowSuccess(false), 3000)
+      } else {
+        alert('Failed to update profile: ' + (result?.error || 'Unknown error'))
+      }
     } catch (error) {
       console.error('Error saving profile:', error)
-      alert('Failed to update profile')
+      alert('Failed to update profile: ' + error.message)
     } finally {
       setLoading(false)
     }
@@ -306,17 +311,22 @@ const SettingsContent = () => {
     }
     setLoading(true)
     try {
+      let result;
       if (window.electronAPI?.updateUser) {
-        await window.electronAPI.updateUser(user.id, { password: formData.newPassword }, user.id)
+        result = await window.electronAPI.updateUser(user.id, { password: formData.newPassword }, user.id)
       }
-      setFormData(prev => ({ ...prev, currentPassword: '', newPassword: '', confirmPassword: '' }))
-      setIsChangingPassword(false)
-      setSuccessMessage('Password changed successfully')
-      setShowSuccess(true)
-      setTimeout(() => setShowSuccess(false), 3000)
+      if (result?.success !== false) {
+        setFormData(prev => ({ ...prev, currentPassword: '', newPassword: '', confirmPassword: '' }))
+        setIsChangingPassword(false)
+        setSuccessMessage('Secret/Password updated successfully')
+        setShowSuccess(true)
+        setTimeout(() => setShowSuccess(false), 3000)
+      } else {
+        alert('Failed to change password: ' + (result?.error || 'Unknown error'))
+      }
     } catch (error) {
       console.error('Error changing password:', error)
-      alert('Failed to change password')
+      alert('Failed to change password: ' + error.message)
     } finally {
       setLoading(false)
     }
@@ -508,29 +518,6 @@ const SettingsContent = () => {
               </div>
               <button onClick={handleSaveDbPath} className="w-full btn btn-primary py-3.5">
                 Update Network Path
-              </button>
-              <button
-                className="w-full btn btn-ghost bg-slate-50 py-3.5 text-xs font-bold ring-1 ring-slate-200"
-                onClick={async () => {
-                  try {
-                    if (!window.electronAPI?.selectFile) return;
-                    const result = await window.electronAPI.selectFile({
-                      title: 'Choose SQLite database',
-                      filters: [{ name: 'SQLite', extensions: ['db', 'sqlite','bak'] }]
-                    });
-                    const chosen = result?.filePath || result?.path || result?.file || null;
-                    if (!chosen) return;
-                    if (!window.electronAPI?.importDb) return;
-                    const res = await window.electronAPI.importDb(chosen);
-                    if (res?.success) {
-                      setSuccessMessage('Database context switched successfully.');
-                      setShowSuccess(true);
-                      setTimeout(() => setShowSuccess(false), 4000);
-                    }
-                  } catch (err) { }
-                }}
-              >
-                Import Local Context
               </button>
             </div>
           </div>

@@ -266,6 +266,23 @@ contextBridge.exposeInMainWorld('electronAPI', {
     performSync: () => ipcRenderer.invoke('network:performSync'),
     getConflicts: () => ipcRenderer.invoke('network:getConflicts'),
     resolveConflict: (id, resolution) => ipcRenderer.invoke('network:resolveConflict', { id, resolution }),
+
+    // Enhanced Network APIs
+    getOnlineUsersDetailed: () => ipcRenderer.invoke('network:getOnlineUsers'),
+    getNetworkSyncStatus: () => ipcRenderer.invoke('network:getSyncStatusDetailed'),
+    getActivityLogsFiltered: (filters) => ipcRenderer.invoke('network:getActivityLogsFiltered', filters),
+    
+    // Presence listeners for real-time updates
+    onPresenceUpdate: (callback) => {
+        const subscription = (event, data) => callback(data);
+        ipcRenderer.on('presence:update', subscription);
+        return () => ipcRenderer.removeListener('presence:update', subscription);
+    },
+    onSyncStatusUpdate: (callback) => {
+        const subscription = (event, data) => callback(data);
+        ipcRenderer.on('sync:statusUpdate', subscription);
+        return () => ipcRenderer.removeListener('sync:statusUpdate', subscription);
+    },
 });
 
 // Listen for preload events

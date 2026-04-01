@@ -336,6 +336,25 @@ class DatabaseService {
             marital_status
         } = patientData;
 
+        if (patient_id) {
+            const existingById = await db.get('SELECT id FROM patients WHERE patient_id = ? AND id != ?', [patient_id, id]);
+            if (existingById?.id) {
+                return { success: false, error: 'A client with this Patient ID already exists.' };
+            }
+        }
+        if (email) {
+            const existingByEmail = await db.get('SELECT id FROM patients WHERE email = ? AND id != ?', [email, id]);
+            if (existingByEmail?.id) {
+                return { success: false, error: 'A client with this email already exists.' };
+            }
+        }
+        if (contact) {
+            const existingByContact = await db.get('SELECT id FROM patients WHERE contact = ? AND id != ?', [contact, id]);
+            if (existingByContact?.id) {
+                return { success: false, error: 'A client with this phone number already exists.' };
+            }
+        }
+
         const query = `
             UPDATE patients
             SET patient_id = ?, first_name = ?, last_name = ?, dob = ?, gender = ?, contact = ?,
@@ -588,7 +607,7 @@ class DatabaseService {
                 maximum_quantity, unit_of_measure, unit_cost, supplier_name,
                 supplier_contact, purchase_date, expiry_date, location, status,
                 last_updated_by, notes, image_path, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         `;
 
         const params = [
@@ -766,7 +785,7 @@ class DatabaseService {
                 unit_price, current_quantity, minimum_quantity, status,
                 supplier_name, supplier_contact, expiry_date, last_updated_by,
                 notes, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         `;
 
         const params = [
@@ -1289,6 +1308,14 @@ class DatabaseService {
             "SELECT COUNT(*) as count FROM tests WHERE date(test_date) = date('now','localtime')"
         );
 
+        const todayPatientIntakeRow = await db.get(
+            "SELECT COUNT(*) as count FROM patients WHERE date(created_at) = date('now','localtime')"
+        );
+
+        const yesterdayPatientIntakeRow = await db.get(
+            "SELECT COUNT(*) as count FROM patients WHERE date(created_at) = date('now','localtime', '-1 day')"
+        );
+
         const pendingTestsRow = await db.get(
             "SELECT COUNT(*) as count FROM tests WHERE raw_data IS NULL OR TRIM(raw_data) = '' OR TRIM(raw_data) = '{}'"
         );
@@ -1363,6 +1390,8 @@ class DatabaseService {
             totalTests: testsRow?.count || 0,
             totalInventory: inventoryRow?.count || 0,
             todayAppointments: todayAppointmentsRow?.count || 0,
+            todayPatientIntake: todayPatientIntakeRow?.count || 0,
+            yesterdayPatientIntake: yesterdayPatientIntakeRow?.count || 0,
             pendingTests: pendingTestsRow?.count || 0,
             totalFulfilledPrescriptions: fulfilledPrescriptionsRow?.count || 0,
             pendingAppointments,
@@ -1559,7 +1588,7 @@ class DatabaseService {
                                 `INSERT INTO inventory (id, item_code, item_name, category, description, manufacturer, model_number, serial_number,
                                  current_quantity, minimum_quantity, maximum_quantity, unit_of_measure, unit_cost, supplier_name, supplier_contact,
                                  purchase_date, expiry_date, location, status, last_updated_by, notes, image_path, created_at, updated_at)
-                                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+                                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
                                 [
                                     id,
                                     code,
@@ -1820,7 +1849,7 @@ class DatabaseService {
                             `INSERT INTO inventory (id, item_code, item_name, category, description, manufacturer, model_number, serial_number,
                              current_quantity, minimum_quantity, maximum_quantity, unit_of_measure, unit_cost, supplier_name, supplier_contact,
                              purchase_date, expiry_date, location, status, last_updated_by, notes, image_path, created_at, updated_at)
-                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
                             [
                                 id,
                                 code,

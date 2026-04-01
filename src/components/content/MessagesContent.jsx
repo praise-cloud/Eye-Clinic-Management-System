@@ -32,65 +32,93 @@ const MessagesContent = () => {
   useEffect(() => {
     if (!currentUser || !electronAPI) return;
 
-        const load = async () => {
+    const load = async () => {
       try {
         // Set current user online
         await electronAPI.setUserOnline(currentUser.id);
 
-        // LAN-only mode: no cloud sync
-
-        // Get users with presence status
-        const res = await electronAPI.getUsersWithPresence();
-        if (res?.success) {
-          const others = res.users.filter(u => u.id !== currentUser.id);
-          setAvailableUsers(others);
-
-          const pendingChatUserId = sessionStorage.getItem('pendingChatUserId');
-          if (pendingChatUserId) {
-            const matched = others.find(u => String(u.id) === String(pendingChatUserId));
-            if (matched) {
-              setOtherUser(matched);
-            }
-            sessionStorage.removeItem('pendingChatUserId');
+        // Get users with presence status - try enhanced network API first
+        let usersData = [];
+        try {
+          const networkRes = await electronAPI.getOnlineUsersDetailed();
+          if (networkRes?.success && networkRes.users?.length > 0) {
+            usersData = networkRes.users.map(u => ({
+              id: u.user_id,
+              first_name: u.name?.split(' ')[0] || '',
+              last_name: u.name?.split(' ').slice(1).join(' ') || '',
+              email: u.email,
+              role: u.role,
+              is_online: u.is_online,
+              last_seen: u.last_seen,
+              device_name: u.device_name
+            }));
+            // Update online users state for presence display
+            setOnlineUsers(usersData.filter(u => u.is_online).map(u => String(u.id)));
+          } else {
+            throw new Error('No network users');
           }
-
-          // calculate unread count per user
-          const counts = {};
-          for (const u of others) {
-            const msgRes = await electronAPI.getMessages({
-              userId: currentUser.id,
-              otherUserId: u.id,
-              limit: 50,
-              offset: 0,
-            });
-            if (msgRes.success) {
-              const unread = msgRes.messages.filter(
-                m => m.receiver_id === currentUser.id && m.status !== 'read'
-              ).length;
-              if (unread > 0) counts[u.id] = unread;
-            }
+        } catch {
+          // Fallback to local presence
+          const res = await electronAPI.getUsersWithPresence();
+          if (res?.success) {
+            usersData = res.users;
           }
-          setUnreadCounts(counts);
         }
+
+        const others = usersData.filter(u => String(u.id) !== String(currentUser.id));
+        setAvailableUsers(others);
+
+        const pendingChatUserId = sessionStorage.getItem('pendingChatUserId');
+        if (pendingChatUserId) {
+          const matched = others.find(u => String(u.id) === String(pendingChatUserId));
+          if (matched) {
+            setOtherUser(matched);
+          }
+          sessionStorage.removeItem('pendingChatUserId');
+        }
+
+        // calculate unread count per user
+        const counts = {};
+        for (const u of others) {
+          const msgRes = await electronAPI.getMessages({
+            userId: currentUser.id,
+            otherUserId: u.id,
+            limit: 50,
+            offset: 0,
+          });
+          if (msgRes.success) {
+            const unread = msgRes.messages.filter(
+              m => m.receiver_id === currentUser.id && m.status !== 'read'
+            ).length;
+            if (unread > 0) counts[u.id] = unread;
+          }
+        }
+        setUnreadCounts(counts);
       } catch (e) {
         console.error(e);
       }
     };
     load();
 
+    // Refresh presence periodically
+    const presenceInterval = setInterval(load, 10000);
+
     // Set user offline on unmount
     return () => {
+      clearInterval(presenceInterval);
       if (electronAPI && currentUser?.id) {
         electronAPI.setUserOffline(currentUser.id);
       }
     };
   }, [currentUser?.id]);
 
-  // Presence
+  // Presence update listener
   useEffect(() => {
     if (!electronAPI) return;
-    const off = electronAPI.onIpcEvent('presence-update', ids => {
-      setOnlineUsers(ids.map(String));
+    const off = electronAPI.onIpcEvent('presence:update', data => {
+      if (data?.online_users) {
+        setOnlineUsers(data.online_users.map(String));
+      }
     });
     return () => off && off();
   }, []);
@@ -392,7 +420,12 @@ const MessagesContent = () => {
                       </span>
                     )}
                   </div>
-                  <p className={`text-[10px] font-black uppercase tracking-widest mt-1 opacity-70`}>{user.role}</p>
+                  <div className="flex items-center gap-1 mt-0.5">
+                    <p className={`text-[10px] font-black uppercase tracking-widest opacity-70`}>{user.role}</p>
+                    {user.device_name && (
+                      <span className="text-[8px] text-blue-400 dark:text-blue-300 truncate max-w-[60px]">({user.device_name})</span>
+                    )}
+                  </div>
                 </div>
               </button>
             );
@@ -423,12 +456,18 @@ const MessagesContent = () => {
                 </div>
                 <div>
                   <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">{otherUserName}</h3>
-                  <div className="flex items-center gap-2 mt-0.5">
+                  <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                     <span className={`text-[10px] font-black uppercase tracking-widest ${otherUser?.is_online ? 'text-emerald-500' : 'text-slate-400'}`}>
                       {otherUser?.is_online ? 'Active Now' : 'Disconnected'}
                     </span>
                     <span className="text-slate-200">|</span>
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{otherUser?.role}</span>
+                    {otherUser?.device_name && (
+                      <>
+                        <span className="text-slate-200">|</span>
+                        <span className="text-[10px] font-bold text-blue-500 uppercase tracking-widest">{otherUser.device_name}</span>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
@@ -480,7 +519,7 @@ const MessagesContent = () => {
                           })()}
 
                           {msg.message_text && msg.message_text !== 'File attachment' && (
-                            <p className="leading-relaxed font-medium">{msg.message_text}</p>
+                            <p className="leading-relaxed font-medium pr-8">{msg.message_text}</p>
                           )}
 
                           {msg.attachment && (
@@ -515,22 +554,49 @@ const MessagesContent = () => {
                             </div>
                           )}
 
-                          {/* Message Actions (Floating) */}
-                          <div className={`absolute top-0 ${isMe ? '-left-10' : '-right-10'} opacity-0 group-hover:opacity-100 transition-opacity flex flex-col gap-1`}>
-                            <button
-                              onClick={() => setReplyTo(msg)}
-                              className="w-8 h-8 rounded-full bg-white dark:bg-slate-900 shadow-sm border border-slate-100 dark:border-slate-800 flex items-center justify-center text-slate-400 hover:text-indigo-600 transition-colors"
-                            >
-                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>
-                            </button>
-                            {isMe && (
+                          {/* Message Actions (3-dot menu - positioned at top right, always accessible) */}
+                          <div className={`absolute top-2 ${isMe ? 'right-2' : 'right-2'} opacity-0 group-hover:opacity-100 transition-opacity`}>
+                            <div className="relative">
                               <button
-                                onClick={() => setDeleteConfirm(msg)}
-                                className="w-8 h-8 rounded-full bg-white dark:bg-slate-900 shadow-sm border border-slate-100 dark:border-slate-800 flex items-center justify-center text-slate-400 hover:text-rose-600 transition-colors"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setActiveMenu(activeMenu === msg.id ? null : msg.id);
+                                }}
+                                className={`w-7 h-7 rounded-full flex items-center justify-center transition-colors ${isMe ? 'hover:bg-indigo-500 text-white/60 hover:text-white' : 'bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-400'}`}
                               >
-                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                                  <circle cx="12" cy="5" r="2" />
+                                  <circle cx="12" cy="12" r="2" />
+                                  <circle cx="12" cy="19" r="2" />
+                                </svg>
                               </button>
-                            )}
+                              {activeMenu === msg.id && (
+                                <div className={`absolute ${isMe ? 'right-0' : 'right-0'} top-8 z-50 py-1 min-w-[140px] rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 ${isMe ? 'bg-indigo-600' : 'bg-white dark:bg-slate-800'}`}>
+                                  <button
+                                    onClick={() => {
+                                      setReplyTo(msg);
+                                      setActiveMenu(null);
+                                    }}
+                                    className={`w-full px-4 py-2 text-xs font-medium text-left flex items-center gap-2 hover:opacity-80 transition-opacity ${isMe ? 'text-white' : 'text-slate-700 dark:text-slate-200'}`}
+                                  >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>
+                                    Reply
+                                  </button>
+                                  {isMe && (
+                                    <button
+                                      onClick={() => {
+                                        setDeleteConfirm(msg);
+                                        setActiveMenu(null);
+                                      }}
+                                      className={`w-full px-4 py-2 text-xs font-medium text-left flex items-center gap-2 hover:opacity-80 transition-opacity ${isMe ? 'text-white' : 'text-rose-600'}`}
+                                    >
+                                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                      Delete
+                                    </button>
+                                  )}
+                                </div>
+                              )}
+                            </div>
                           </div>
                         </div>
                         <div className="mt-1 flex items-center gap-2 px-1">

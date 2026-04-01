@@ -22,6 +22,7 @@ const DoctorsDashboard = ({ activeSection }) => {
   const [clientList, setClientList] = useState([]);
   const [quickViewPatient, setQuickViewPatient] = useState(null);
   const [prescribePatient, setPrescribePatient] = useState(null);
+  const [patientSearchTerm, setPatientSearchTerm] = useState('');
   const getInitialCaseNoteForm = (doctorName = '') => ({
     patientId: '',
     visitDate: '',
@@ -83,6 +84,19 @@ const DoctorsDashboard = ({ activeSection }) => {
     pendingEvaluations: 4 // Mocked or fetched from elsewhere
   });
 
+  // Helper function to calculate age from DOB
+  const calculateAge = (dob) => {
+    if (!dob) return '';
+    const birthDate = new Date(dob);
+    const today = new Date();
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
+    return age;
+  };
+
   // Load patients from database
   const loadPatients = async () => {
     try {
@@ -93,16 +107,16 @@ const DoctorsDashboard = ({ activeSection }) => {
         const transformedPatients = result.patients.map(patient => ({
           id: patient.id,
           name: `${patient.first_name} ${patient.last_name}`,
-          date: patient.dob,
+          dob: patient.dob || '',
           case: patient.reason_for_visit || 'Not specified',
           phone: patient.contact || patient.phone_number || '',
           email: patient.email || '',
-          patient_id: patient.patient_id,
-          first_name: patient.first_name,
-          last_name: patient.last_name,
-          gender: patient.gender,
-          address: patient.address,
-          reason_for_visit: patient.reason_for_visit
+          patient_id: patient.patient_id || '',
+          first_name: patient.first_name || '',
+          last_name: patient.last_name || '',
+          gender: patient.gender || '',
+          address: patient.address || '',
+          reason_for_visit: patient.reason_for_visit || ''
         }));
 
         setClientList(transformedPatients);
@@ -110,10 +124,16 @@ const DoctorsDashboard = ({ activeSection }) => {
         setError(result.error || 'Failed to load patients');
       }
     } catch (err) {
+      console.error('Failed to load patients:', err);
       setError('Failed to load patients');
     } finally {
       setLoading(false);
     }
+  };
+
+  // Get selected patient helper
+  const getSelectedPatient = () => {
+    return clientList.find(p => p.id === caseNoteForm.patientId) || null;
   };
 
   const fetchDashboardStats = async () => {
@@ -379,21 +399,57 @@ const DoctorsDashboard = ({ activeSection }) => {
           </button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="md:col-span-2">
             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Patient Name</label>
+            <input
+              type="text"
+              value={patientSearchTerm}
+              onChange={(e) => setPatientSearchTerm(e.target.value)}
+              onFocus={() => {}}
+              placeholder="Search by name..."
+              list="patient-name-list"
+              className="w-full mt-2 px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-sm"
+            />
+            <datalist id="patient-name-list">
+              {clientList.map((p) => (
+                <option key={p.id} value={p.name} />
+              ))}
+            </datalist>
             <select
               value={caseNoteForm.patientId}
-              onChange={(e) => setCaseNoteForm(prev => ({ ...prev, patientId: e.target.value }))}
+              onChange={(e) => {
+                const selectedPatient = clientList.find(p => p.id === e.target.value);
+                setCaseNoteForm(prev => ({ ...prev, patientId: e.target.value }));
+                if (selectedPatient) {
+                  setPatientSearchTerm(selectedPatient.name);
+                }
+              }}
               className="w-full mt-2 px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-sm"
             >
               <option value="">Select client</option>
-              {clientList.map((p) => (
+              {clientList
+                .filter(p => 
+                  patientSearchTerm === '' || 
+                  p.name.toLowerCase().includes(patientSearchTerm.toLowerCase()) ||
+                  (p.patient_id && p.patient_id.toLowerCase().includes(patientSearchTerm.toLowerCase()))
+                )
+                .map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name} {p.patient_id ? `(ID: ${p.patient_id})` : ''}
                 </option>
               ))}
             </select>
+          </div>
+          <div>
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Patient ID</label>
+            <input
+              type="text"
+              value={getSelectedPatient()?.patient_id || ''}
+              readOnly
+              placeholder="Auto-filled"
+              className="w-full mt-2 px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-100 dark:bg-slate-800 text-sm font-mono"
+            />
           </div>
           <div>
             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Visiting Date</label>
@@ -404,7 +460,7 @@ const DoctorsDashboard = ({ activeSection }) => {
               className="w-full mt-2 px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-sm"
             />
           </div>
-          <div className="md:col-span-3">
+          <div className="md:col-span-4">
             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Attach CVF Result</label>
             <select
               value={caseNoteForm.cvfTestId}
@@ -418,7 +474,7 @@ const DoctorsDashboard = ({ activeSection }) => {
                 const labelResult = t.payload?.result || t.payload?.diagnosis || 'No summary';
                 return (
                   <option key={t.id} value={t.id}>
-                    {labelDate} � {labelResult}
+                    {labelDate} - {labelResult}
                   </option>
                 );
               })}
@@ -440,29 +496,23 @@ const DoctorsDashboard = ({ activeSection }) => {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
           <div className="space-y-4">
-            <div>
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Patient ID</label>
-              <input
-                value={clientList.find(p => p.id === caseNoteForm.patientId)?.patient_id || ''}
-                readOnly
-                className="w-full mt-2 input-premium bg-slate-50 dark:bg-slate-800"
-              />
-            </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Date of Birth</label>
                 <input
-                  value={clientList.find(p => p.id === caseNoteForm.patientId)?.date || ''}
+                  value={getSelectedPatient()?.dob || ''}
                   readOnly
-                  className="w-full mt-2 input-premium bg-slate-50 dark:bg-slate-800"
+                  placeholder="Select patient first"
+                  className="w-full mt-2 px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-100 dark:bg-slate-800 text-sm"
                 />
               </div>
               <div>
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Age</label>
                 <input
-                  value={clientList.find(p => p.id === caseNoteForm.patientId)?.date ? (new Date().getFullYear() - new Date(clientList.find(p => p.id === caseNoteForm.patientId)?.date).getFullYear()) : ''}
+                  value={getSelectedPatient()?.dob ? calculateAge(getSelectedPatient().dob) : ''}
                   readOnly
-                  className="w-full mt-2 input-premium bg-slate-50 dark:bg-slate-800"
+                  placeholder="--"
+                  className="w-full mt-2 px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-100 dark:bg-slate-800 text-sm"
                 />
               </div>
             </div>

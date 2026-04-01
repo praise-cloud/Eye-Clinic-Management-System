@@ -2,11 +2,13 @@ import React, { useState, useEffect } from 'react'
 import * as patientService from '../../services/patientService'
 import * as testService from '../../services/testService'
 
-const UploadTestModal = ({ onClose, currentUser }) => {
+const UploadResultModal = ({ onClose, currentUser }) => {
   const [patients, setPatients] = useState([])
   const [formData, setFormData] = useState({
     patientId: '',
     patientName: '',
+    patientDob: '',
+    patientAge: '',
     testType: '',
     testDate: new Date().toISOString().split('T')[0],
     testFile: null,
@@ -21,6 +23,23 @@ const UploadTestModal = ({ onClose, currentUser }) => {
   const [cvfTests, setCvfTests] = useState([])
   const [cvfLoading, setCvfLoading] = useState(false)
   const [selectedCvf, setSelectedCvf] = useState(null)
+  const [patientSearchTerm, setPatientSearchTerm] = useState('')
+
+  const calculateAge = (dob) => {
+    if (!dob) return '';
+    const birthDate = new Date(dob);
+    const today = new Date();
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
+    return age;
+  };
+
+  const getSelectedPatient = () => {
+    return patients.find(p => String(p.id) === String(formData.patientId)) || null;
+  };
 
   const testTypes = [
     'Visual Acuity Test',
@@ -83,11 +102,17 @@ const UploadTestModal = ({ onClose, currentUser }) => {
       const nameStr = selectedPatient
         ? (selectedPatient.name || `${selectedPatient.first_name || ''} ${selectedPatient.last_name || ''}`.trim())
         : '';
+      const dob = selectedPatient?.dob || selectedPatient?.date_of_birth || '';
       setFormData(prev => ({
         ...prev,
         patientId: value,
-        patientName: nameStr
+        patientName: nameStr,
+        patientDob: dob,
+        patientAge: dob ? calculateAge(dob) : ''
       }));
+      if (selectedPatient) {
+        setPatientSearchTerm(nameStr);
+      }
     } else {
       setFormData(prev => ({
         ...prev,
@@ -157,7 +182,7 @@ const UploadTestModal = ({ onClose, currentUser }) => {
         throw new Error('Only doctors can create test results')
       }
       if (!formData.patientId || !formData.patientName || !formData.testType) {
-        throw new Error('Client and test type are required')
+        throw new Error('Client and result type are required')
       }
 
       const testData = {
@@ -229,22 +254,63 @@ const UploadTestModal = ({ onClose, currentUser }) => {
             {/* Subject Selection */}
             <div>
               <label className="block text-[10px] font-black text-indigo-500 uppercase tracking-widest mb-4">Diagnostic Client</label>
-              <div className="flex flex-col">
-                <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Select Registered Client *</label>
-                <select
-                  name="patientId"
-                  value={formData.patientId}
-                  onChange={handleInputChange}
-                  required
-                  className="input-premium appearance-none"
-                >
-                  <option value="">Choose client...</option>
-                  {patients.map(patient => (
-                    <option key={patient.id} value={patient.id}>
-                      {patient.name || `${patient.first_name || ''} ${patient.last_name || ''}`.trim()} — {patient.id}
-                    </option>
-                  ))}
-                </select>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="md:col-span-2 flex flex-col">
+                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Search Client *</label>
+                  <input
+                    type="text"
+                    value={patientSearchTerm}
+                    onChange={(e) => setPatientSearchTerm(e.target.value)}
+                    placeholder="Search by name or ID..."
+                    list="test-patient-list"
+                    className="input-premium mb-2"
+                  />
+                  <datalist id="test-patient-list">
+                    {patients.map((p) => (
+                      <option key={p.id} value={p.name || `${p.first_name || ''} ${p.last_name || ''}`.trim()} />
+                    ))}
+                  </datalist>
+                  <select
+                    name="patientId"
+                    value={formData.patientId}
+                    onChange={handleInputChange}
+                    required
+                    className="input-premium appearance-none"
+                  >
+                    <option value="">Choose client...</option>
+                    {patients
+                      .filter(p => 
+                        patientSearchTerm === '' || 
+                        (p.name || `${p.first_name || ''} ${p.last_name || ''}`.trim()).toLowerCase().includes(patientSearchTerm.toLowerCase()) ||
+                        (p.patient_id && p.patient_id.toLowerCase().includes(patientSearchTerm.toLowerCase()))
+                      )
+                      .map(patient => (
+                        <option key={patient.id} value={patient.id}>
+                          {patient.name || `${patient.first_name || ''} ${patient.last_name || ''}`.trim()} {patient.patient_id ? `(ID: ${patient.patient_id})` : ''}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+                <div className="flex flex-col">
+                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Date of Birth</label>
+                  <input
+                    type="text"
+                    value={getSelectedPatient()?.dob || getSelectedPatient()?.date_of_birth || ''}
+                    readOnly
+                    placeholder="Auto-filled"
+                    className="input-premium bg-slate-50 dark:bg-slate-800"
+                  />
+                </div>
+                <div className="flex flex-col">
+                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Age</label>
+                  <input
+                    type="text"
+                    value={formData.patientAge || ''}
+                    readOnly
+                    placeholder="--"
+                    className="input-premium bg-slate-50 dark:bg-slate-800"
+                  />
+                </div>
               </div>
             </div>
 
@@ -253,7 +319,7 @@ const UploadTestModal = ({ onClose, currentUser }) => {
               <label className="block text-[10px] font-black text-emerald-500 uppercase tracking-widest mb-4">Procedure Detail</label>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Modality / Test Type *</label>
+                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Modality / Result Type *</label>
                   <select
                     name="testType"
                     value={formData.testType}
@@ -423,4 +489,4 @@ const UploadTestModal = ({ onClose, currentUser }) => {
   )
 }
 
-export default UploadTestModal
+export default UploadResultModal

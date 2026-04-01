@@ -1,11 +1,62 @@
 ﻿# Context
 
-Last updated: 2026-03-23 01:30:00
+Last updated: 2026-03-24
 
 ## Purpose
 This file consolidates all markdown documentation for this project and will be updated whenever changes are made to the application.
 
-## Recent Changes (March 23, 2026)
+## Recent Changes (March 24, 2026) - Network Architecture Simplification
+
+### Simplified Multi-Computer Networking (Peer-to-Peer Shared Database)
+The networking architecture has been simplified significantly:
+
+**Before (Complex Sync):**
+- Each computer had its own local database
+- JSON sync files were exported/imported to share data
+- Complex conflict resolution
+- Multiple timers for different sync operations
+
+**After (Simple Shared Database):**
+- All computers share ONE SQLite database file on a network path (e.g., `\\192.168.1.100\EyeClinic`)
+- NO data sync/export/import needed - changes are saved directly to the shared database
+- WAL mode enabled for better concurrent access
+- Only presence broadcast remains (shows online users from other computers)
+- Network path is persisted in `network-config.json` and used on every app start
+
+### Key Changes:
+1. **database.js** - Enhanced to properly read network path from config and enable WAL mode
+2. **LanSyncService.js** - Simplified: removed data sync, only presence broadcast remains
+3. **NetworkConfigService.js** - Removed sync timers, only manages presence and config persistence
+4. **NetworkConfigScreen.jsx** - Simplified UI: removed sync/export/import features
+5. **AdminDashboard.jsx** - Updated Network Status panel (no longer shows sync status)
+6. **main.js** - Initializes NetworkConfigService on startup
+
+### How Network Mode Works Now:
+1. Admin enables Network Mode and selects a shared folder path (e.g., `\\SERVER\EyeClinic`)
+2. The path is saved to `network-config.json`
+3. On every app start, the database connects to `\\SERVER\EyeClinic\eye_clinic.db`
+4. All computers see the same data instantly (no sync needed)
+5. Each computer broadcasts presence (every 5s) to show who is online
+6. Admin Dashboard shows all connected computers/devices
+
+### Setup Instructions:
+1. Create a shared folder on one computer (e.g., `\\DESKTOP-PC\EyeClinic`)
+2. Share the folder with other computers on the network
+3. On FIRST computer: Enable Network Mode, browse to the shared folder, save
+4. Copy or place existing `eye_clinic.db` in the shared folder (or it will be created)
+5. On OTHER computers: Repeat step 3 - they will use the same database
+6. All computers will now share data automatically
+
+### Previous Changes (March 24, 2026)
+- Online Users Panel on Admin Dashboard showing all connected users with device names
+- Activity Log with time filters (5 mins, 1 hour, 24 hours, 7 days, all time)
+- Device names shown in chat and admin dashboard
+- Today's Intake tracking: Now shows new clients registered today (separate from tests done today)
+- Renamed "Tests" to "Results" throughout the UI
+- Enhanced Results CRUD operations (View, Edit, Delete)
+- New IPC handlers: getOnlineUsersDetailed, getActivityLogsFiltered, getSyncStatusDetailed
+
+## Changes (March 23, 2026)
 - Implemented complete multi-computer network database synchronization system:
   - Network Configuration Screen with network mode toggle, server path input, and test connection
   - Auto-sync timer (30-second interval) with manual sync button
@@ -46,11 +97,14 @@ This file consolidates all markdown documentation for this project and will be u
 
 # Eye Clinic Management System
 
-An offline-first Electron desktop application for clinic operations. It provides role-based workflows for admins, doctors, and assistants to manage patients, tests, prescriptions, inventory, reports, and internal messaging. The system stores data locally in SQLite for reliability, supports legacy data import (including `.bak` conversion), and includes CVF/Henson 8000 workflows for case-study collaboration. Optional SQL Server sync is available for environments that require a central server while keeping local SQLite as the primary store.
+An offline-first Electron desktop application for clinic operations. It provides role-based workflows for admins, doctors, and assistants to manage patients, results, prescriptions, inventory, reports, and internal messaging. The system stores data locally in SQLite for reliability, supports legacy data import (including `.bak` conversion), and includes CVF/Henson 8000 workflows for case-study collaboration. Optional SQL Server sync is available for environments that require a central server while keeping local SQLite as the primary store.
 
 ## Highlights
 - Role-based access for admin, doctor, assistant
-- Patients, tests, prescriptions, inventory, reports
+- Patients, results, prescriptions, inventory, reports
+- Multi-computer networking with real-time presence and sync
+- Online users panel with device names
+- Activity logs with time filters synced across network
 - Internal chat + notifications
 - Legacy import with multi-strategy `.bak` conversion
 - CVF workspace for doctor/assistant collaboration

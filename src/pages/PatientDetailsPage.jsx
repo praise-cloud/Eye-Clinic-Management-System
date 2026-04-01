@@ -401,7 +401,7 @@ const PatientDetailsPage = () => {
                     ) : activeResultsTab === 'results' ? (
                         resultTests.length === 0 ? (
                             <div className="p-10 text-center">
-                                <p className="text-sm font-bold text-slate-600 dark:text-slate-400">No test records found</p>
+                                <p className="text-sm font-bold text-slate-600 dark:text-slate-400">No result records found</p>
                             </div>
                         ) : (
                             resultView === 'cards' ? (

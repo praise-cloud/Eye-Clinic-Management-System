@@ -1,11 +1,10 @@
-// main.js — FINAL BULLETPROOF VERSION (copy & paste exactly)
+// main.js — Eye Clinic Management System
 const electron = require('electron');
 if (!electron || !electron.app || !electron.BrowserWindow) {
   const { spawn } = require('child_process');
   const electronBinary = typeof electron === 'string' ? electron : require('electron');
   const env = { ...process.env };
   delete env.ELECTRON_RUN_AS_NODE;
-  // Never forward arbitrary CLI args here; they can be interpreted as app paths.
   spawn(electronBinary, ['.'], {
     env,
     stdio: 'inherit',
@@ -18,6 +17,7 @@ const path = require('path');
 
 // Services
 const Database = require('../database.js');
+const NetworkConfigService = require('../src/services/NetworkConfigService');
 const IPCHandlers = require('./ipc/handlers');
 let mainWindow = null;
 let dbInstance = null;
@@ -66,23 +66,34 @@ function createWindow() {
   }, 5000);
 }
 
-// MAIN STARTUP — THIS IS THE ONLY PLACE app.whenReady() IS USED
+// MAIN STARTUP
 app.whenReady().then(async () => {
   console.log('Starting Eye Clinic App...');
 
   try {
-    // 1. Database
+    // 1. Initialize Network Config (loads from disk, starts presence broadcast)
+    console.log('Initializing network config...');
+    NetworkConfigService.init();
+    const netConfig = NetworkConfigService.getConfig();
+    console.log('Network config loaded:', JSON.stringify({
+      isNetworkMode: netConfig.isNetworkMode,
+      serverPath: netConfig.serverPath ? '(set)' : '(not set)',
+      deviceName: netConfig.deviceName || '(not set)'
+    }));
+
+    // 2. Database
+    console.log('Initializing database...');
     dbInstance = new Database();
     await dbInstance.initialize();
     console.log('Database ready');
 
-    // 2. IPC Handlers (login, chat, patients, etc.)
+    // 3. IPC Handlers
     new IPCHandlers();
 
-    // 3. Open window
+    // 4. Open window
     createWindow();
 
-    console.log('APP FULLY STARTED — Login + Chat = 100% WORKING');
+    console.log('APP FULLY STARTED');
 
   } catch (err) {
     console.error('FATAL ERROR:', err);

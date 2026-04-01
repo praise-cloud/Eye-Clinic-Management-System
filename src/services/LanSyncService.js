@@ -1,24 +1,8 @@
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 const { app } = require('electron');
 const DatabaseService = require('./DatabaseService');
-
-const ALLOWED_TABLE_NAMES = new Set([
-    'users', 'patients', 'tests', 'inventory',
-    'pharmacy_drugs', 'prescriptions', 'reports',
-    'chat', 'notifications'
-]);
-
-const validateTableName = (tableName) => {
-    if (!tableName || typeof tableName !== 'string') return null;
-    const normalized = tableName.toLowerCase().trim();
-    return ALLOWED_TABLE_NAMES.has(normalized) ? normalized : null;
-};
-
-const validateColumnName = (colName) => {
-    if (!colName || typeof colName !== 'string') return null;
-    return /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(colName) ? colName : null;
-};
 
 class LanSyncService {
   getConfigPath() {
@@ -50,6 +34,16 @@ class LanSyncService {
     return id;
   }
 
+  getDeviceName() {
+    const cfg = this.readConfig();
+    return String(cfg.device_name || os.hostname() || 'Unknown Device').trim();
+  }
+
+  setDeviceName(name) {
+    const cfg = this.readConfig();
+    this.writeConfig({ ...cfg, device_name: name });
+  }
+
   getSyncPath() {
     const cfg = this.readConfig();
     return String(cfg.lan_sync_path || '');
@@ -60,235 +54,226 @@ class LanSyncService {
     this.writeConfig({ ...cfg, lan_sync_path: syncPath });
   }
 
-  getTableConfig() {
-    return {
-      users: { key: 'id', updated: 'updated_at' },
-      patients: { key: 'id', updated: 'updated_at' },
-      tests: { key: 'id', updated: 'updated_at' },
-      inventory: { key: 'id', updated: 'updated_at' },
-      pharmacy_drugs: { key: 'id', updated: 'updated_at' },
-      prescriptions: { key: 'id', updated: 'updated_at' },
-      reports: { key: 'id', updated: 'updated_at' },
-      chat: { key: 'id', updated: 'timestamp' },
-      notifications: { key: 'id', updated: 'created_at' }
-    };
-  }
-
-  async exportChanges() {
+  async broadcastPresence() {
     const syncPath = this.getSyncPath();
-    if (!syncPath) return { success: false, error: 'LAN sync folder not configured' };
-    if (!fs.existsSync(syncPath)) return { success: false, error: 'LAN sync folder not found' };
-
-    const db = await DatabaseService.getDatabase();
-    const pending = await db.all(`SELECT * FROM sync_queue WHERE status = 'pending' ORDER BY created_at ASC`);
-    if (!pending.length) return { success: true, exported: 0, file: null };
-
-    const deviceId = this.getDeviceId();
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const fileName = `sync_${deviceId}_${timestamp}.json`;
-    const filePath = path.join(syncPath, fileName);
-
-    const changes = [];
-    for (const row of pending) {
-      let payload = row.payload ? JSON.parse(row.payload) : {};
-      const rawTable = row.table_name;
-      const safeTable = validateTableName(rawTable);
-      if (!safeTable) {
-        console.warn('[LanSyncService] Skipping export for invalid table:', rawTable);
-        continue;
-      }
-      const config = this.getTableConfig()[safeTable];
-      const key = config?.key || 'id';
-      const recordId = row.record_id || payload[key];
-
-      if (!payload || !recordId || Object.keys(payload || {}).length < 3) {
-        try {
-          const full = await db.get(`SELECT * FROM ${safeTable} WHERE ${key} = ?`, [recordId]);
-          if (full) payload = { ...full, ...payload };
-        } catch (err) {
-          console.warn('[LanSyncService] exportChanges enrichment failed:', err?.message);
-        }
-      }
-
-      changes.push({
-        table: safeTable,
-        operation: row.operation,
-        record_id: recordId,
-        payload,
-        updated_at: payload?.updated_at || payload?.created_at || null
-      });
+    if (!syncPath) {
+      console.log('[LanSyncService] No sync path configured, skipping presence broadcast');
+      return { success: false, error: 'No sync path configured' };
+    }
+    if (!fs.existsSync(syncPath)) {
+      console.warn('[LanSyncService] Sync path not accessible:', syncPath);
+      return { success: false, error: 'Sync path not found' };
     }
 
-    const envelope = {
-      device_id: deviceId,
-      created_at: new Date().toISOString(),
-      changes
-    };
-
-    fs.writeFileSync(filePath, JSON.stringify(envelope, null, 2));
-    await db.run(`UPDATE sync_queue SET status = 'sent', updated_at = CURRENT_TIMESTAMP WHERE status = 'pending'`);
-
-    return { success: true, exported: changes.length, file: filePath };
-  }
-
-  async getProcessedList() {
-    const db = await DatabaseService.getDatabase();
-    const row = await db.get(`SELECT value FROM sync_state WHERE key = 'lan_sync_processed'`);
-    if (!row?.value) return [];
     try {
-      return JSON.parse(row.value) || [];
-    } catch {
-      return [];
+      const db = await DatabaseService.getDatabase();
+      const deviceId = this.getDeviceId();
+      const deviceName = this.getDeviceName();
+
+      const onlineUsers = await db.all(`
+        SELECT up.user_id, up.is_online, up.last_seen, up.session_id,
+               u.first_name, u.last_name, u.email, u.role
+        FROM user_presence up
+        LEFT JOIN users u ON up.user_id = u.id
+        WHERE up.is_online = 1
+      `);
+
+      const presenceData = {
+        device_id: deviceId,
+        device_name: deviceName,
+        timestamp: new Date().toISOString(),
+        online_users: onlineUsers.map(u => ({
+          user_id: u.user_id,
+          email: u.email,
+          name: `${u.first_name || ''} ${u.last_name || ''}`.trim(),
+          role: u.role,
+          session_id: u.session_id,
+          last_seen: u.last_seen
+        }))
+      };
+
+      const filePath = path.join(syncPath, `presence_${deviceId}.json`);
+      fs.writeFileSync(filePath, JSON.stringify(presenceData, null, 2));
+
+      return { success: true, online_count: onlineUsers.length };
+    } catch (error) {
+      console.warn('[LanSyncService] broadcastPresence error:', error.message);
+      return { success: false, error: error.message };
     }
   }
 
-  async saveProcessedList(list) {
-    const db = await DatabaseService.getDatabase();
-    const trimmed = list.slice(-500);
-    await db.run(
-      `INSERT INTO sync_state (key, value)
-       VALUES ('lan_sync_processed', ?)
-       ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
-      [JSON.stringify(trimmed)]
-    );
-  }
-
-  async applyChange(change, tableConfig) {
-    const db = await DatabaseService.getDatabase();
-    const { table: rawTable, operation, record_id, payload = {}, updated_at } = change;
-    const safeTable = validateTableName(rawTable);
-    if (!safeTable) {
-      return { skipped: true, reason: 'invalid_table' };
-    }
-    const config = tableConfig[safeTable];
-    if (!config) return { skipped: true, reason: 'unsupported_table' };
-
-    const safeKey = validateColumnName(config.key) || 'id';
-    const local = await db.get(`SELECT * FROM ${safeTable} WHERE ${safeKey} = ?`, [record_id]);
-    const localUpdated = local?.[config.updated] || local?.updated_at || local?.created_at || null;
-    const remoteUpdated = updated_at || payload?.[config.updated] || payload?.updated_at || payload?.created_at || null;
-
-    if (operation === 'delete') {
-      await db.run(`DELETE FROM ${safeTable} WHERE ${safeKey} = ?`, [record_id]);
-      return { applied: true };
-    }
-
-    if (local && localUpdated && remoteUpdated) {
-      const localTs = new Date(localUpdated).getTime();
-      const remoteTs = new Date(remoteUpdated).getTime();
-      if (!Number.isNaN(localTs) && !Number.isNaN(remoteTs) && localTs > remoteTs) {
-        await this.recordConflict(safeTable, record_id, local, payload, localUpdated, remoteUpdated);
-        return { skipped: true, reason: 'local_newer' };
-      }
-    }
-
-    if (payload[safeKey] === undefined) payload[safeKey] = record_id;
-    const cols = Object.keys(payload).filter((c) => validateColumnName(c));
-    if (!cols.length) return { skipped: true, reason: 'empty_payload' };
-
-    const placeholders = cols.map(() => '?').join(', ');
-    const updates = cols.filter((c) => c !== safeKey).map((c) => `${c} = excluded.${c}`).join(', ');
-    const values = cols.map((c) => payload[c]);
-
-    const sql = `INSERT INTO ${safeTable} (${cols.join(', ')}) VALUES (${placeholders})
-                 ON CONFLICT(${safeKey}) DO UPDATE SET ${updates}`;
-    await db.run(sql, values);
-    return { applied: true };
-  }
-
-  async recordConflict(table, recordId, local, remote, localUpdated, remoteUpdated) {
-    const db = await DatabaseService.getDatabase();
-    const id = require('uuid').v4();
-    await db.run(
-      `INSERT INTO sync_conflicts (id, table_name, record_id, local_payload, remote_payload, local_updated_at, remote_updated_at, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')`,
-      [
-        id,
-        table,
-        recordId,
-        JSON.stringify(local || {}),
-        JSON.stringify(remote || {}),
-        localUpdated || null,
-        remoteUpdated || null
-      ]
-    );
-  }
-
-  async importChanges() {
+  async broadcastDataUpdate(tableName, action, recordId, record = null) {
     const syncPath = this.getSyncPath();
-    if (!syncPath) return { success: false, error: 'LAN sync folder not configured' };
-    if (!fs.existsSync(syncPath)) return { success: false, error: 'LAN sync folder not found' };
-
-    const deviceId = this.getDeviceId();
-    const processed = await this.getProcessedList();
-
-    const files = fs.readdirSync(syncPath)
-      .filter((name) => name.endsWith('.json') && name.startsWith('sync_'))
-      .sort();
-
-    let applied = 0;
-    let skipped = 0;
-
-    const tableConfig = this.getTableConfig();
-
-    for (const name of files) {
-      if (processed.includes(name)) continue;
-      if (name.includes(deviceId)) {
-        processed.push(name);
-        continue;
-      }
-
-      const filePath = path.join(syncPath, name);
-      try {
-        const raw = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
-        const changes = Array.isArray(raw?.changes) ? raw.changes : [];
-        for (const change of changes) {
-          const res = await this.applyChange(change, tableConfig);
-          if (res?.applied) applied += 1;
-          else skipped += 1;
-        }
-        processed.push(name);
-      } catch {
-        // Ignore malformed files but mark as processed to avoid loops.
-        processed.push(name);
-      }
+    if (!syncPath) {
+      return { success: false, error: 'No sync path configured' };
+    }
+    if (!fs.existsSync(syncPath)) {
+      return { success: false, error: 'Sync path not found' };
     }
 
-    await this.saveProcessedList(processed);
-    return { success: true, applied, skipped, files_processed: processed.length };
+    try {
+      const deviceId = this.getDeviceId();
+      const deviceName = this.getDeviceName();
+
+      const updateNotification = {
+        device_id: deviceId,
+        device_name: deviceName,
+        table: tableName,
+        action: action,
+        record_id: recordId,
+        record: record,
+        timestamp: new Date().toISOString()
+      };
+
+      const filePath = path.join(syncPath, `data_update_${Date.now()}_${deviceId}.json`);
+      fs.writeFileSync(filePath, JSON.stringify(updateNotification, null, 2));
+
+      return { success: true };
+    } catch (error) {
+      console.warn('[LanSyncService] broadcastDataUpdate error:', error.message);
+      return { success: false, error: error.message };
+    }
+  }
+
+  async checkForDataUpdates() {
+    const syncPath = this.getSyncPath();
+    if (!syncPath) {
+      return { hasUpdates: false, updates: [] };
+    }
+    if (!fs.existsSync(syncPath)) {
+      return { hasUpdates: false, updates: [] };
+    }
+
+    try {
+      const deviceId = this.getDeviceId();
+      const files = fs.readdirSync(syncPath).filter(f => f.startsWith('data_update_') && f.endsWith('.json'));
+      const updates = [];
+
+      for (const file of files) {
+        try {
+          const filePath = path.join(syncPath, file);
+          const content = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+
+          if (content.device_id !== deviceId) {
+            const fileAge = Date.now() - new Date(content.timestamp).getTime();
+            if (fileAge < 300000) {
+              updates.push(content);
+            }
+          }
+
+          fs.unlinkSync(filePath);
+        } catch (e) {
+          console.warn('[LanSyncService] Failed to process update file:', file, e.message);
+        }
+      }
+
+      return { hasUpdates: updates.length > 0, updates };
+    } catch (error) {
+      console.warn('[LanSyncService] checkForDataUpdates error:', error.message);
+      return { hasUpdates: false, updates: [] };
+    }
+  }
+
+  async getAllOnlineUsers() {
+    const syncPath = this.getSyncPath();
+    if (!syncPath) {
+      return { success: false, error: 'No sync path configured', users: [] };
+    }
+    if (!fs.existsSync(syncPath)) {
+      return { success: false, error: 'Sync path not found', users: [] };
+    }
+
+    try {
+      const db = await DatabaseService.getDatabase();
+      const deviceId = this.getDeviceId();
+      const myPresence = await db.all(`
+        SELECT up.user_id, up.is_online, up.last_seen, up.session_id,
+               u.first_name, u.last_name, u.email, u.role
+        FROM user_presence up
+        LEFT JOIN users u ON up.user_id = u.id
+      `);
+
+      const allOnlineUsers = [];
+      const seenUserIds = new Set();
+
+      for (const myUser of myPresence) {
+        allOnlineUsers.push({
+          user_id: myUser.user_id,
+          email: myUser.email,
+          name: `${myUser.first_name || ''} ${myUser.last_name || ''}`.trim(),
+          role: myUser.role,
+          is_online: myUser.is_online === 1,
+          last_seen: myUser.last_seen,
+          device_id: deviceId,
+          device_name: this.getDeviceName(),
+          is_current_device: true
+        });
+        if (myUser.user_id) seenUserIds.add(myUser.user_id);
+      }
+
+      const presenceFiles = fs.readdirSync(syncPath)
+        .filter(name => name.startsWith('presence_') && name.endsWith('.json') && !name.includes(deviceId));
+
+      for (const fileName of presenceFiles) {
+        try {
+          const filePath = path.join(syncPath, fileName);
+          const content = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+
+          const fileAge = Date.now() - new Date(content.timestamp).getTime();
+          const isStale = fileAge > 60000;
+
+          for (const user of (content.online_users || [])) {
+            if (!seenUserIds.has(user.user_id)) {
+              allOnlineUsers.push({
+                ...user,
+                is_online: !isStale,
+                last_seen: content.timestamp,
+                device_id: content.device_id,
+                device_name: content.device_name,
+                is_current_device: false,
+                is_stale: isStale
+              });
+              seenUserIds.add(user.user_id);
+            }
+          }
+        } catch (err) {
+          console.warn('[LanSyncService] Failed to read presence file:', fileName, err.message);
+        }
+      }
+
+      return {
+        success: true,
+        users: allOnlineUsers,
+        total_online: allOnlineUsers.filter(u => u.is_online && !u.is_current_device).length + myPresence.filter(u => u.is_online === 1).length
+      };
+    } catch (error) {
+      console.warn('[LanSyncService] getAllOnlineUsers error:', error.message);
+      return { success: false, error: error.message, users: [] };
+    }
   }
 
   async getConflicts() {
-    const db = await DatabaseService.getDatabase();
-    const rows = await db.all(
-      `SELECT * FROM sync_conflicts WHERE status = 'pending' ORDER BY created_at DESC`
-    );
-    return rows || [];
+    return [];
   }
 
-  async resolveConflict(id, resolution = 'keep_local') {
-    const db = await DatabaseService.getDatabase();
-    const row = await db.get(`SELECT * FROM sync_conflicts WHERE id = ?`, [id]);
-    if (!row) return { success: false, error: 'Conflict not found' };
-
-    if (resolution === 'apply_remote') {
-      const remote = row.remote_payload ? JSON.parse(row.remote_payload) : {};
-      const change = {
-        table: row.table_name,
-        operation: 'upsert',
-        record_id: row.record_id,
-        payload: remote,
-        updated_at: row.remote_updated_at
-      };
-      await this.applyChange(change, this.getTableConfig());
-    }
-
-    await db.run(
-      `UPDATE sync_conflicts SET status = 'resolved', resolution = ?, resolved_at = CURRENT_TIMESTAMP WHERE id = ?`,
-      [resolution, id]
-    );
-
+  async resolveConflict() {
     return { success: true };
+  }
+
+  async exportChanges() {
+    return { success: true, exported: 0 };
+  }
+
+  async importChanges() {
+    return { success: true, applied: 0 };
+  }
+
+  async exportActivityLogs() {
+    return { success: true, exported: 0 };
+  }
+
+  async importActivityLogs() {
+    return { success: true, imported: 0 };
   }
 }
 

@@ -181,7 +181,7 @@ const SignupScreen = ({ selectedRole, onComplete, onBack, onBackToWelcome }) => 
             <div className="flex gap-4 pt-4">
               <button
                 type="button"
-                onClick={() => setLocalSelectedRole(null)}
+                onClick={handleBack}
                 className="flex-1 px-6 py-3.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-black tracking-widest uppercase hover:bg-slate-200 dark:hover:bg-slate-700 transition-all"
               >
                 Back

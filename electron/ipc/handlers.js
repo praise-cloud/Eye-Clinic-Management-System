@@ -351,7 +351,11 @@ class IPCHandlers {
           if (!patientData[f]) return { success: false, error: `${f} required` };
         }
 
-        const patient = await DatabaseService.createPatient(patientData);
+        const result = await DatabaseService.createPatient(patientData);
+        if (result?.error) {
+          return result;
+        }
+        const patient = result;
         if (currentUser?.id) {
           await DatabaseService.logActivity(
             currentUser.id,
@@ -371,7 +375,11 @@ class IPCHandlers {
     ipcMain.handle('patients:update', async (event, { id, patientData }) => {
       try {
         if (!id) return { success: false, error: 'Patient ID required' };
-        const patient = await DatabaseService.updatePatient(id, patientData);
+        const result = await DatabaseService.updatePatient(id, patientData);
+        if (result?.error) {
+          return result;
+        }
+        const patient = result;
         if (currentUser?.id) {
           await DatabaseService.logActivity(
             currentUser.id,
@@ -1166,6 +1174,14 @@ class IPCHandlers {
         }
 
         BrowserWindow.getAllWindows().forEach(w => w.webContents.send('data:update', { table: 'users', action: 'create', record: user }));
+
+        try {
+          const LanSyncService = require('../../src/services/LanSyncService');
+          await LanSyncService.broadcastDataUpdate('users', 'create', user.id, user);
+        } catch (syncErr) {
+          console.warn('[Admin] Failed to broadcast user creation:', syncErr.message);
+        }
+
         return { success: true, user };
       } catch (error) {
         console.error('Admin create user error:', error);
@@ -1192,6 +1208,14 @@ class IPCHandlers {
         }
 
         BrowserWindow.getAllWindows().forEach(w => w.webContents.send('data:update', { table: 'users', action: 'update', userId }));
+
+        try {
+          const LanSyncService = require('../../src/services/LanSyncService');
+          await LanSyncService.broadcastDataUpdate('users', 'update', userId, { id: userId, status: isActive ? 'active' : 'inactive' });
+        } catch (syncErr) {
+          console.warn('[Admin] Failed to broadcast user status update:', syncErr.message);
+        }
+
         return { success: true, ...result };
       } catch (error) {
         console.error('Admin update user status error:', error);
@@ -1232,6 +1256,14 @@ class IPCHandlers {
         }
 
         BrowserWindow.getAllWindows().forEach(w => w.webContents.send('data:update', { table: 'users', action: 'update', record: updatedUser }));
+
+        try {
+          const LanSyncService = require('../../src/services/LanSyncService');
+          await LanSyncService.broadcastDataUpdate('users', 'update', userId, updatedUser);
+        } catch (syncErr) {
+          console.warn('[Admin] Failed to broadcast user update:', syncErr.message);
+        }
+
         return { success: true, user: updatedUser };
       } catch (error) {
         console.error('Admin update user error:', error);
@@ -1258,6 +1290,14 @@ class IPCHandlers {
         }
 
         BrowserWindow.getAllWindows().forEach(w => w.webContents.send('data:update', { table: 'users', action: 'delete', userId }));
+
+        try {
+          const LanSyncService = require('../../src/services/LanSyncService');
+          await LanSyncService.broadcastDataUpdate('users', 'delete', userId);
+        } catch (syncErr) {
+          console.warn('[Admin] Failed to broadcast user deletion:', syncErr.message);
+        }
+
         return result;
       } catch (error) {
         console.error('Admin delete user error:', error);
@@ -2563,6 +2603,120 @@ class IPCHandlers {
         return buildErrorResponse(error, { scope: 'network', action: 'resolveConflict' });
       }
     });
+
+    safeHandle('network:getOnlineUsers', async () => {
+      try {
+        if (!currentUser) return { success: false, error: 'Authentication required' };
+        const result = await NetworkConfigService.getOnlineUsers();
+        return result;
+      } catch (error) {
+        return buildErrorResponse(error, { scope: 'network', action: 'getOnlineUsers' });
+      }
+    });
+
+    safeHandle('network:getSyncStatusDetailed', async () => {
+      try {
+        if (!currentUser) return { success: false, error: 'Authentication required' };
+        const status = await NetworkConfigService.getSyncStatus();
+        return { success: true, status };
+      } catch (error) {
+        return buildErrorResponse(error, { scope: 'network', action: 'getSyncStatusDetailed' });
+      }
+    });
+
+    safeHandle('network:getActivityLogsFiltered', async (event, filters = {}) => {
+      try {
+        if (!currentUser) return { success: false, error: 'Authentication required' };
+        const { timeRange = '24h', userId = null, entityType = null, limit = 100 } = filters;
+        
+        const db = await DatabaseService.getDatabase();
+        
+        let timeCondition = '';
+        const now = Date.now();
+        
+        switch (timeRange) {
+          case '5m':
+            timeCondition = `AND al.timestamp > datetime('now', '-5 minutes')`;
+            break;
+          case '1h':
+            timeCondition = `AND al.timestamp > datetime('now', '-1 hour')`;
+            break;
+          case '24h':
+            timeCondition = `AND al.timestamp > datetime('now', '-24 hours')`;
+            break;
+          case '7d':
+            timeCondition = `AND al.timestamp > datetime('now', '-7 days')`;
+            break;
+          case 'all':
+            timeCondition = '';
+            break;
+          default:
+            timeCondition = `AND al.timestamp > datetime('now', '-24 hours')`;
+        }
+        
+        const userCondition = userId ? `AND al.user_id = ?` : '';
+        const entityCondition = entityType ? `AND al.entity_type = ?` : '';
+        
+        const params = [];
+        if (userId) params.push(userId);
+        if (entityType) params.push(entityType);
+        
+        const logs = await db.all(`
+          SELECT al.*, u.first_name, u.last_name, u.email, u.role
+          FROM activity_logs al
+          LEFT JOIN users u ON al.user_id = u.id
+          WHERE 1=1 ${timeCondition} ${userCondition} ${entityCondition}
+          ORDER BY al.timestamp DESC
+          LIMIT ?
+        `, [...params, Number(limit) || 100]);
+        
+        const formattedLogs = logs.map(log => ({
+          id: log.id,
+          user_id: log.user_id,
+          user_name: `${log.first_name || ''} ${log.last_name || ''}`.trim(),
+          user_email: log.email,
+          user_role: log.role,
+          action_type: log.action_type,
+          entity_type: log.entity_type,
+          entity_id: log.entity_id,
+          description: log.description,
+          timestamp: log.timestamp,
+          time_ago: this.getTimeAgo(log.timestamp)
+        }));
+        
+        const countResult = await db.get(`
+          SELECT COUNT(*) as total FROM activity_logs al
+          WHERE 1=1 ${timeCondition} ${userCondition} ${entityCondition}
+        `, params);
+        
+        return {
+          success: true,
+          logs: formattedLogs,
+          total: countResult?.total || 0,
+          filters: { timeRange, userId, entityType }
+        };
+      } catch (error) {
+        console.error('Get filtered activity logs error:', error);
+        return buildErrorResponse(error, { scope: 'network', action: 'getActivityLogsFiltered' });
+      }
+    });
+  }
+
+  getTimeAgo(timestamp) {
+    if (!timestamp) return 'Unknown';
+    const now = Date.now();
+    const then = new Date(timestamp).getTime();
+    const diff = now - then;
+    
+    const minutes = Math.floor(diff / 60000);
+    const hours = Math.floor(diff / 3600000);
+    const days = Math.floor(diff / 86400000);
+    
+    if (minutes < 1) return 'Just now';
+    if (minutes < 60) return `${minutes}m ago`;
+    if (hours < 24) return `${hours}h ago`;
+    if (days < 7) return `${days}d ago`;
+    return new Date(timestamp).toLocaleDateString();
   }
 
   registerCvfHandlers() {

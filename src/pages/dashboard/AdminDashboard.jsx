@@ -24,7 +24,7 @@ const AdminDashboard = () => {
   const [editingUser, setEditingUser] = useState(null);
   const [showDeleteModal, setShowDeleteModal] = useState(null);
   const [showUserModal, setShowUserModal] = useState(false);
-  const [formData, setFormData] = useState({ firstName: '', lastName: '', email: '', password: '', role: 'doctor' });
+  const [formData, setFormData] = useState({ firstName: '', lastName: '', email: '', password: '', role: 'doctor', phoneNumber: '', gender: '' });
   const [stats, setStats] = useState({
     totalUsers: 0,
     totalPatients: 0,
@@ -50,6 +50,10 @@ const AdminDashboard = () => {
   const [caseStudiesOffset, setCaseStudiesOffset] = useState(0);
   const caseStudiesLimit = 20;
   const [showNetworkConfig, setShowNetworkConfig] = useState(false);
+  const [onlineUsers, setOnlineUsers] = useState([]);
+  const [syncStatus, setSyncStatus] = useState(null);
+  const [activityFilter, setActivityFilter] = useState('24h');
+  const [filteredLogs, setFilteredLogs] = useState([]);
 
   const handleSectionClick = (section) => {
     if (section === 'system-settings') {
@@ -143,6 +147,42 @@ const AdminDashboard = () => {
     }
   };
 
+  const loadOnlineUsers = async () => {
+    if (!window.electronAPI) return;
+    try {
+      const res = await window.electronAPI.getOnlineUsersDetailed();
+      if (res?.success) {
+        setOnlineUsers(res.users || []);
+      }
+    } catch (error) {
+      console.error('Error loading online users:', error);
+    }
+  };
+
+  const loadSyncStatus = async () => {
+    if (!window.electronAPI) return;
+    try {
+      const res = await window.electronAPI.getSyncStatus();
+      if (res?.success) {
+        setSyncStatus(res.status);
+      }
+    } catch (error) {
+      console.error('Error loading sync status:', error);
+    }
+  };
+
+  const loadFilteredActivityLogs = async (timeRange = '24h') => {
+    if (!window.electronAPI) return;
+    try {
+      const res = await window.electronAPI.getActivityLogsFiltered({ timeRange, limit: 100 });
+      if (res?.success && Array.isArray(res.logs)) {
+        setFilteredLogs(res.logs);
+      }
+    } catch (error) {
+      console.error('Error loading filtered activity logs:', error);
+    }
+  };
+
   const handleAddUser = async () => {
     if (!window.electronAPI) return;
     try {
@@ -180,6 +220,8 @@ const AdminDashboard = () => {
           last_name: formData.lastName,
           email: formData.email,
           role: formData.role,
+          phone_number: formData.phoneNumber,
+          gender: formData.gender,
           password: formData.password || undefined // Only update if provided
         },
         user?.id // Admin user performing the update
@@ -187,7 +229,7 @@ const AdminDashboard = () => {
       if (res.success) {
         setShowUserModal(false);
         setEditingUser(null);
-        setFormData({ firstName: '', lastName: '', email: '', password: '', role: 'doctor' });
+        setFormData({ firstName: '', lastName: '', email: '', password: '', role: 'doctor', phoneNumber: '', gender: '' });
         fetchUsers(); // Re-fetch users to include the updated user
         loadStats();
         loadActivityLogs();
@@ -272,6 +314,9 @@ const AdminDashboard = () => {
     loadStats();
     loadActivityLogs();
     loadRevenueLogs();
+    loadOnlineUsers();
+    loadSyncStatus();
+    loadFilteredActivityLogs(activityFilter);
 
     if (window.electronAPI) {
       const unsubscribe = window.electronAPI.onIpcEvent('data:update', (payload) => {
@@ -279,10 +324,22 @@ const AdminDashboard = () => {
         loadStats();
         loadActivityLogs();
         loadRevenueLogs();
+        loadOnlineUsers();
+        loadSyncStatus();
       });
       return unsubscribe;
     }
   }, []);
+
+  // Reload online users and sync status periodically
+  React.useEffect(() => {
+    const interval = setInterval(() => {
+      loadOnlineUsers();
+      loadSyncStatus();
+      loadFilteredActivityLogs(activityFilter);
+    }, 10000);
+    return () => clearInterval(interval);
+  }, [activityFilter]);
 
   React.useEffect(() => {
     const loadDbPath = async () => {
@@ -931,32 +988,182 @@ Please restart the application to load all imported data.
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <StatCard title="Total Users" value={stats.totalUsers} icon={<UsersIcon className="w-6 h-6 text-blue-600" />} />
         <StatCard title="Total Patients" value={stats.totalPatients} icon={<UsersIcon className="w-6 h-6 text-green-600" />} />
-        <StatCard title="Total Tests" value={stats.totalTests} icon={<DocumentIcon className="w-6 h-6 text-purple-600" />} />
+        <StatCard title="Total Results" value={stats.totalTests} icon={<DocumentIcon className="w-6 h-6 text-purple-600" />} />
         <StatCard title="Inventory Items" value={stats.totalInventory} icon={<InventoryIcon className="w-6 h-6 text-orange-600" />} />
-        <StatCard title="Today's Appointments" value={stats.todayAppointments} icon={<ChartIcon className="w-6 h-6 text-red-600" />} />
-        <StatCard title="Pending Tests" value={stats.pendingTests} icon={<DocumentIcon className="w-6 h-6 text-yellow-600" />} />
+        <StatCard title="Today's Results" value={stats.todayAppointments} icon={<ChartIcon className="w-6 h-6 text-red-600" />} />
+        <StatCard title="Pending Results" value={stats.pendingTests} icon={<DocumentIcon className="w-6 h-6 text-yellow-600" />} />
       </div>
 
-      {/* Recent Activity */}
+      {/* Online Users Panel */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
-        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Recent System Activity</h3>
+        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Online Users</h3>
+          <div className="flex items-center gap-4">
+            <span className="text-sm text-gray-500 dark:text-gray-400">
+              {onlineUsers.filter(u => u.is_online).length} of {users.length} online
+            </span>
+            <button
+              onClick={() => { loadOnlineUsers(); loadSyncStatus(); }}
+              className="text-blue-600 hover:text-blue-800 text-sm"
+            >
+              Refresh
+            </button>
+          </div>
         </div>
         <div className="p-6">
-          <div className="space-y-4">
-            {systemLogs.map((log) => (
-              <div key={log.id} className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-700 last:border-b-0">
-                <div className="flex items-center space-x-3">
-                  <div className={`w-2 h-2 rounded-full ${log.status === 'success' ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                  <div>
-                    <p className="text-sm font-medium text-gray-900 dark:text-white">{log.action}</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">by {log.user}</p>
+          {onlineUsers.length === 0 ? (
+            <p className="text-gray-500 dark:text-gray-400 text-sm">No users online</p>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {onlineUsers.map((u) => (
+                <div key={u.user_id} className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                  <div className="relative">
+                    <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-white font-semibold">
+                      {u.name ? u.name.charAt(0).toUpperCase() : '?'}
+                    </div>
+                    <div className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white ${
+                      u.is_online ? 'bg-green-500' : 'bg-gray-400'
+                    }`}></div>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{u.name || 'Unknown'}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">{u.role || 'user'}</p>
+                    <p className="text-xs text-gray-400 dark:text-gray-500 truncate">
+                      {u.device_name ? `on ${u.device_name}` : (u.is_current_device ? 'This computer' : 'Unknown device')}
+                    </p>
+                  </div>
+                  <div className={`px-2 py-1 text-xs rounded-full ${
+                    u.is_online 
+                      ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300' 
+                      : 'bg-gray-100 text-gray-600 dark:bg-gray-600 dark:text-gray-300'
+                  }`}>
+                    {u.is_online ? 'Online' : (u.is_stale ? 'Away' : 'Offline')}
                   </div>
                 </div>
-                <span className="text-xs text-gray-500 dark:text-gray-400">{log.timestamp}</span>
-              </div>
-            ))}
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Network Status Panel */}
+      {syncStatus && syncStatus.isNetworkMode && (
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
+          <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Network Status</h3>
+            <span className={`px-3 py-1 text-xs font-medium rounded-full ${
+              syncStatus.connectionStatus === 'connected' 
+                ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300'
+                : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300'
+            }`}>
+              {syncStatus.connectionStatus === 'connected' ? 'Connected' : 'Disconnected'}
+            </span>
           </div>
+          <div className="p-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Database Path</p>
+                <p className="text-sm font-medium text-gray-900 dark:text-white break-all">
+                  {syncStatus.serverPath || 'Not configured'}
+                </p>
+              </div>
+              <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">This Device</p>
+                <p className="text-sm font-medium text-gray-900 dark:text-white">
+                  {syncStatus.deviceName || 'Unknown'}
+                </p>
+              </div>
+              <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Connected Devices</p>
+                <p className="text-lg font-bold text-blue-600 dark:text-blue-400">
+                  {syncStatus.totalOnlineUsers || 0}
+                </p>
+                <p className="text-xs text-gray-500">devices sharing database</p>
+              </div>
+            </div>
+            <div className="mt-4">
+              <button
+                onClick={() => setShowNetworkConfig(true)}
+                className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 text-sm"
+              >
+                Configure Network
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Activity Log with Filters */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
+        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center flex-wrap gap-3">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">System Activity</h3>
+          <div className="flex items-center gap-2">
+            <label className="text-sm text-gray-500 dark:text-gray-400">Filter:</label>
+            <select
+              value={activityFilter}
+              onChange={(e) => {
+                setActivityFilter(e.target.value);
+                loadFilteredActivityLogs(e.target.value);
+              }}
+              className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="5m">Last 5 minutes</option>
+              <option value="1h">Last hour</option>
+              <option value="24h">Last 24 hours</option>
+              <option value="7d">Last 7 days</option>
+              <option value="all">All time</option>
+            </select>
+            <span className="text-sm text-gray-500 dark:text-gray-400">
+              ({filteredLogs.length} activities)
+            </span>
+          </div>
+        </div>
+        <div className="p-6 max-h-96 overflow-y-auto">
+          {filteredLogs.length === 0 ? (
+            <p className="text-gray-500 dark:text-gray-400 text-sm text-center py-4">No activities in this time period</p>
+          ) : (
+            <div className="space-y-3">
+              {filteredLogs.map((log) => (
+                <div key={log.id} className="flex items-start gap-3 py-2 border-b border-gray-100 dark:border-gray-700 last:border-b-0">
+                  <div className={`w-2 h-2 mt-2 rounded-full flex-shrink-0 ${
+                    log.action_type === 'error' ? 'bg-red-500' : 
+                    log.action_type === 'create' ? 'bg-green-500' :
+                    log.action_type === 'update' ? 'bg-blue-500' :
+                    log.action_type === 'delete' ? 'bg-red-500' :
+                    'bg-gray-400'
+                  }`}></div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">{log.description}</p>
+                      <span className={`px-1.5 py-0.5 text-xs rounded capitalize ${
+                        log.action_type === 'error' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300' :
+                        log.action_type === 'create' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300' :
+                        log.action_type === 'update' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300' :
+                        log.action_type === 'delete' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300' :
+                        'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
+                      }`}>
+                        {log.action_type}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      <span>by {log.user_name || log.user_email || 'Unknown'}</span>
+                      <span className="text-gray-300 dark:text-gray-600">|</span>
+                      <span>{log.entity_type}</span>
+                      {log.device_name && (
+                        <>
+                          <span className="text-gray-300 dark:text-gray-600">|</span>
+                          <span className="text-blue-600 dark:text-blue-400">{log.device_name}</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  <span className="text-xs text-gray-400 dark:text-gray-500 whitespace-nowrap">
+                    {log.time_ago || new Date(log.timestamp).toLocaleString()}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -1029,10 +1236,12 @@ Please restart the application to load all imported data.
                         onClick={() => {
                           setEditingUser(user);
                           setFormData({
-                            firstName: user.first_name,
-                            lastName: user.last_name,
-                            email: user.email,
-                            role: user.role,
+                            firstName: user.first_name || '',
+                            lastName: user.last_name || '',
+                            email: user.email || '',
+                            role: user.role || 'doctor',
+                            phoneNumber: user.phone_number || '',
+                            gender: user.gender || '',
                             password: '' // Password should not be pre-filled for security
                           });
                           setShowUserModal(true);
@@ -1628,20 +1837,22 @@ Please restart the application to load all imported data.
           <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md">
             <h3 className="text-lg font-semibold mb-4 dark:text-white">{editingUser ? 'Edit User' : 'Add New User'}</h3>
             <div className="space-y-4">
-              <input
-                type="text"
-                placeholder="First Name"
-                value={formData.firstName}
-                onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md"
-              />
-              <input
-                type="text"
-                placeholder="Last Name"
-                value={formData.lastName}
-                onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md"
-              />
+              <div className="grid grid-cols-2 gap-4">
+                <input
+                  type="text"
+                  placeholder="First Name"
+                  value={formData.firstName}
+                  onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md"
+                />
+                <input
+                  type="text"
+                  placeholder="Last Name"
+                  value={formData.lastName}
+                  onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md"
+                />
+              </div>
               <input
                 type="email"
                 placeholder="Email"
@@ -1650,12 +1861,22 @@ Please restart the application to load all imported data.
                 className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md"
               />
               <input
-                type="password"
-                placeholder="Password (leave blank to keep current)"
-                value={formData.password}
-                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                type="tel"
+                placeholder="Phone Number"
+                value={formData.phoneNumber}
+                onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value })}
                 className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md"
               />
+              <select
+                value={formData.gender}
+                onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md"
+              >
+                <option value="">Select Gender</option>
+                <option value="male">Male</option>
+                <option value="female">Female</option>
+                <option value="other">Other</option>
+              </select>
               <select
                 value={formData.role}
                 onChange={(e) => setFormData({ ...formData, role: e.target.value })}
@@ -1665,13 +1886,20 @@ Please restart the application to load all imported data.
                 <option value="assistant">Assistant</option>
                 <option value="admin">Admin</option>
               </select>
+              <input
+                type="password"
+                placeholder="Password (leave blank to keep current)"
+                value={formData.password}
+                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md"
+              />
             </div>
             <div className="flex justify-end space-x-2 mt-6">
               <button
                 onClick={() => {
                   setShowUserModal(false);
                   setEditingUser(null);
-                  setFormData({ name: '', email: '', role: 'doctor' });
+                  setFormData({ firstName: '', lastName: '', email: '', password: '', role: 'doctor', phoneNumber: '', gender: '' });
                 }}
                 className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-white"
               >
