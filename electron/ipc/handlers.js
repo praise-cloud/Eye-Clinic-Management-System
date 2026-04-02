@@ -346,6 +346,12 @@ class IPCHandlers {
 
     ipcMain.handle('patients:create', async (event, patientData) => {
       try {
+        if (!currentUser) return { success: false, error: 'Authentication required' };
+        const role = String(currentUser.role || '').toLowerCase();
+        if (!['admin', 'doctor', 'assistant'].includes(role)) {
+          return { success: false, error: 'Access denied. Only admin, doctor, or assistant can create patients.' };
+        }
+        
         const required = ['first_name', 'last_name', 'dob', 'gender'];
         for (const f of required) {
           if (!patientData[f]) return { success: false, error: `${f} required` };
@@ -374,6 +380,12 @@ class IPCHandlers {
 
     ipcMain.handle('patients:update', async (event, { id, patientData }) => {
       try {
+        if (!currentUser) return { success: false, error: 'Authentication required' };
+        const role = String(currentUser.role || '').toLowerCase();
+        if (!['admin', 'doctor', 'assistant'].includes(role)) {
+          return { success: false, error: 'Access denied. Only admin, doctor, or assistant can update patients.' };
+        }
+        
         if (!id) return { success: false, error: 'Patient ID required' };
         const result = await DatabaseService.updatePatient(id, patientData);
         if (result?.error) {
@@ -398,6 +410,12 @@ class IPCHandlers {
 
     ipcMain.handle('patients:delete', async (event, id) => {
       try {
+        if (!currentUser) return { success: false, error: 'Authentication required' };
+        const role = String(currentUser.role || '').toLowerCase();
+        if (role !== 'admin') {
+          return { success: false, error: 'Access denied. Only admin can delete patients.' };
+        }
+        
         if (!id) return { success: false, error: 'Patient ID required' };
         const result = await DatabaseService.deletePatient(id);
         if (result.success && currentUser?.id) {
@@ -457,6 +475,12 @@ class IPCHandlers {
 
     ipcMain.handle('tests:create', async (event, testData) => {
       try {
+        if (!currentUser) return { success: false, error: 'Authentication required' };
+        const role = String(currentUser.role || '').toLowerCase();
+        if (!['admin', 'doctor'].includes(role)) {
+          return { success: false, error: 'Access denied. Only admin or doctor can create tests.' };
+        }
+        
         const required = ['patient_name', 'machine_type', 'eye', 'raw_data'];
         for (const f of required) {
           if (!testData[f]) return { success: false, error: `${f} required` };
@@ -482,6 +506,12 @@ class IPCHandlers {
 
     ipcMain.handle('tests:update', async (event, { id, testData }) => {
       try {
+        if (!currentUser) return { success: false, error: 'Authentication required' };
+        const role = String(currentUser.role || '').toLowerCase();
+        if (!['admin', 'doctor', 'assistant'].includes(role)) {
+          return { success: false, error: 'Access denied. Only admin, doctor, or assistant can update tests.' };
+        }
+        
         if (!id) return { success: false, error: 'Test ID required' };
         const test = await DatabaseService.updateTest(id, testData);
         BrowserWindow.getAllWindows().forEach(w => w.webContents.send('data:update', { table: 'tests', action: 'update', record: test }));
@@ -503,6 +533,12 @@ class IPCHandlers {
 
     ipcMain.handle('tests:delete', async (event, id) => {
       try {
+        if (!currentUser) return { success: false, error: 'Authentication required' };
+        const role = String(currentUser.role || '').toLowerCase();
+        if (role !== 'admin' && role !== 'doctor') {
+          return { success: false, error: 'Access denied. Only admin or doctor can delete tests.' };
+        }
+        
         if (!id) return { success: false, error: 'Test ID required' };
         const result = await DatabaseService.deleteTest(id);
         if (result?.success) {
@@ -819,6 +855,58 @@ class IPCHandlers {
         return buildErrorResponse(error, { scope: 'inventory', action: 'updateQuantity', entity: 'inventory' });
       }
     });
+
+    ipcMain.handle('inventory:getByCode', async (event, itemCode) => {
+      try {
+        if (!itemCode) return { success: false, error: 'Item code required' };
+        const item = await DatabaseService.getInventoryItemByCode(itemCode);
+        return item ? { success: true, item } : { success: false, error: 'Item not found' };
+      } catch (error) {
+        console.error('Get inventory by code error:', error);
+        return buildErrorResponse(error, { scope: 'inventory', action: 'getByCode', entity: 'inventory' });
+      }
+    });
+
+    ipcMain.handle('inventory:getStatistics', async (event) => {
+      try {
+        const stats = await DatabaseService.getInventoryStatistics();
+        return { success: true, stats };
+      } catch (error) {
+        console.error('Get inventory statistics error:', error);
+        return buildErrorResponse(error, { scope: 'inventory', action: 'getStatistics', entity: 'inventory' });
+      }
+    });
+
+    ipcMain.handle('inventory:getLowStock', async (event) => {
+      try {
+        const items = await DatabaseService.getLowStockItems();
+        return { success: true, items };
+      } catch (error) {
+        console.error('Get low stock items error:', error);
+        return buildErrorResponse(error, { scope: 'inventory', action: 'getLowStock', entity: 'inventory' });
+      }
+    });
+
+    ipcMain.handle('inventory:getExpiring', async (event, days = 30) => {
+      try {
+        const items = await DatabaseService.getExpiringItems(days);
+        return { success: true, items };
+      } catch (error) {
+        console.error('Get expiring items error:', error);
+        return buildErrorResponse(error, { scope: 'inventory', action: 'getExpiring', entity: 'inventory' });
+      }
+    });
+
+    ipcMain.handle('inventory:search', async (event, searchTerm) => {
+      try {
+        if (!searchTerm) return { success: false, error: 'Search term required' };
+        const items = await DatabaseService.searchInventory(searchTerm);
+        return { success: true, items };
+      } catch (error) {
+        console.error('Search inventory error:', error);
+        return buildErrorResponse(error, { scope: 'inventory', action: 'search', entity: 'inventory' });
+      }
+    });
   }
 
   registerPharmacyHandlers() {
@@ -847,6 +935,12 @@ class IPCHandlers {
 
     ipcMain.handle('pharmacy:createDrug', async (event, drugData) => {
       try {
+        if (!currentUser) return { success: false, error: 'Authentication required' };
+        const role = String(currentUser.role || '').toLowerCase();
+        if (!['admin', 'doctor'].includes(role)) {
+          return { success: false, error: 'Access denied. Only admin or doctor can create pharmacy drugs.' };
+        }
+        
         const required = ['drug_code', 'drug_name', 'drug_form', 'strength', 'pack_size', 'unit_price'];
         for (const f of required) {
           if (!drugData[f]) return { success: false, error: `${f} required` };
@@ -874,6 +968,12 @@ class IPCHandlers {
 
     ipcMain.handle('pharmacy:updateDrug', async (event, { id, drugData }) => {
       try {
+        if (!currentUser) return { success: false, error: 'Authentication required' };
+        const role = String(currentUser.role || '').toLowerCase();
+        if (!['admin', 'doctor'].includes(role)) {
+          return { success: false, error: 'Access denied. Only admin or doctor can update pharmacy drugs.' };
+        }
+        
         if (!id) return { success: false, error: 'Drug ID required' };
         const drug = await DatabaseService.updatePharmacyDrug(id, drugData);
         if (currentUser?.id) {
@@ -897,6 +997,12 @@ class IPCHandlers {
 
     ipcMain.handle('pharmacy:deleteDrug', async (event, id) => {
       try {
+        if (!currentUser) return { success: false, error: 'Authentication required' };
+        const role = String(currentUser.role || '').toLowerCase();
+        if (role !== 'admin') {
+          return { success: false, error: 'Access denied. Only admin can delete pharmacy drugs.' };
+        }
+        
         if (!id) return { success: false, error: 'Drug ID required' };
         const result = await DatabaseService.deletePharmacyDrug(id);
         if (result.success && currentUser?.id) {
@@ -922,6 +1028,12 @@ class IPCHandlers {
 
     ipcMain.handle('pharmacy:dispense', async (event, { drugId, patientId, quantity, notes }) => {
       try {
+        if (!currentUser) return { success: false, error: 'Authentication required' };
+        const role = String(currentUser.role || '').toLowerCase();
+        if (!['admin', 'assistant', 'doctor'].includes(role)) {
+          return { success: false, error: 'Access denied. Only admin, doctor, or assistant can dispense pharmacy drugs.' };
+        }
+        
         if (!drugId || !patientId) return { success: false, error: 'Drug and patient are required' };
         const qtyNumber = Number(quantity || 0);
         if (!Number.isFinite(qtyNumber) || qtyNumber <= 0) {
@@ -965,6 +1077,12 @@ class IPCHandlers {
   registerPrescriptionHandlers() {
     ipcMain.handle('prescriptions:create', async (event, prescriptionData) => {
       try {
+        if (!currentUser) return { success: false, error: 'Authentication required' };
+        const role = String(currentUser.role || '').toLowerCase();
+        if (!['admin', 'doctor'].includes(role)) {
+          return { success: false, error: 'Access denied. Only admin or doctor can create prescriptions.' };
+        }
+        
         const required = ['patientId', 'doctorId', 'drugId', 'quantity'];
         for (const f of required) {
           if (!prescriptionData[f]) return { success: false, error: `${f} required` };
@@ -1004,6 +1122,12 @@ class IPCHandlers {
 
     ipcMain.handle('prescriptions:createMultiple', async (event, { patientId, doctorId, items }) => {
       try {
+        if (!currentUser) return { success: false, error: 'Authentication required' };
+        const role = String(currentUser.role || '').toLowerCase();
+        if (!['admin', 'doctor'].includes(role)) {
+          return { success: false, error: 'Access denied. Only admin or doctor can create prescriptions.' };
+        }
+        
         if (!patientId || !doctorId || !items || !Array.isArray(items)) {
           return { success: false, error: 'patientId, doctorId and items array required' };
         }
@@ -1337,6 +1461,19 @@ class IPCHandlers {
         return buildErrorResponse(error, { scope: 'admin', action: 'logActivity' });
       }
     });
+
+    ipcMain.handle('admin:getUserStats', async (event, userId) => {
+      try {
+        if (!currentUser || String(currentUser.role || '').toLowerCase() !== 'admin') {
+          return { success: false, error: 'Admin access required' };
+        }
+        const stats = await DatabaseService.getUserStatistics(userId);
+        return { success: true, stats };
+      } catch (error) {
+        console.error('Get user statistics error:', error);
+        return buildErrorResponse(error, { scope: 'admin', action: 'getUserStats' });
+      }
+    });
   }
 
   registerFileHandlers() {
@@ -1612,18 +1749,46 @@ class IPCHandlers {
           return { success: false, error: 'Script path required' };
         }
 
-        const { exec } = require('child_process');
-        const command = `python "${scriptPath}" ${args.map(a => `"${a}"`).join(' ')}`;
+        // Validate script path to prevent command injection
+        const sanitizedPath = scriptPath.replace(/[;&|`$()]/g, '');
+        if (!fs.existsSync(sanitizedPath)) {
+          return { success: false, error: 'Script file not found' };
+        }
 
+        // Sanitize arguments to prevent command injection
+        const sanitizedArgs = Array.isArray(args) 
+          ? args.map(a => String(a).replace(/[;&|`$()]/g, ''))
+          : [];
+
+        const { spawn } = require('child_process');
+        
         return new Promise((resolve) => {
-          exec(command, (error, stdout, stderr) => {
-            if (error) {
+          let stdout = '';
+          let stderr = '';
+          
+          const process = spawn('python', [sanitizedPath, ...sanitizedArgs]);
+          
+          process.stdout.on('data', (data) => {
+            stdout += data.toString();
+          });
+          
+          process.stderr.on('data', (data) => {
+            stderr += data.toString();
+          });
+          
+          process.on('close', (code) => {
+            if (code !== 0) {
               console.error(`Python script error: ${stderr}`);
-              resolve({ success: false, error: stderr || error.message });
+              resolve({ success: false, error: stderr || `Script exited with code ${code}` });
             } else {
               console.log(`Python script output: ${stdout}`);
               resolve({ success: true, output: stdout });
             }
+          });
+          
+          process.on('error', (error) => {
+            console.error('Python script spawn error:', error);
+            resolve({ success: false, error: error.message });
           });
         });
       } catch (error) {
@@ -2631,10 +2796,12 @@ class IPCHandlers {
         
         const db = await DatabaseService.getDatabase();
         
-        let timeCondition = '';
-        const now = Date.now();
+        // Validate timeRange against allowed values to prevent SQL injection
+        const allowedTimeRanges = ['5m', '1h', '24h', '7d', 'all'];
+        const validatedTimeRange = allowedTimeRanges.includes(timeRange) ? timeRange : '24h';
         
-        switch (timeRange) {
+        let timeCondition = '';
+        switch (validatedTimeRange) {
           case '5m':
             timeCondition = `AND al.timestamp > datetime('now', '-5 minutes')`;
             break;
@@ -2654,12 +2821,18 @@ class IPCHandlers {
             timeCondition = `AND al.timestamp > datetime('now', '-24 hours')`;
         }
         
-        const userCondition = userId ? `AND al.user_id = ?` : '';
-        const entityCondition = entityType ? `AND al.entity_type = ?` : '';
+        // Sanitize userId and entityType to prevent SQL injection
+        const sanitizedUserId = userId ? String(userId).replace(/[^a-zA-Z0-9-]/g, '') : null;
+        const sanitizedEntityType = entityType ? String(entityType).replace(/[^a-zA-Z_]/g, '') : null;
+        
+        const userCondition = sanitizedUserId ? `AND al.user_id = ?` : '';
+        const entityCondition = sanitizedEntityType ? `AND al.entity_type = ?` : '';
         
         const params = [];
-        if (userId) params.push(userId);
-        if (entityType) params.push(entityType);
+        if (sanitizedUserId) params.push(sanitizedUserId);
+        if (sanitizedEntityType) params.push(sanitizedEntityType);
+        
+        const safeLimit = Math.min(Math.max(Number(limit) || 100, 1), 1000);
         
         const logs = await db.all(`
           SELECT al.*, u.first_name, u.last_name, u.email, u.role
@@ -2668,7 +2841,7 @@ class IPCHandlers {
           WHERE 1=1 ${timeCondition} ${userCondition} ${entityCondition}
           ORDER BY al.timestamp DESC
           LIMIT ?
-        `, [...params, Number(limit) || 100]);
+        `, [...params, safeLimit]);
         
         const formattedLogs = logs.map(log => ({
           id: log.id,
@@ -2847,6 +3020,55 @@ class IPCHandlers {
         console.error('Open main window error:', error);
         return buildErrorResponse(error, { scope: 'window', action: 'openMain' });
       }
+    });
+
+    ipcMain.handle('window:closeAuth', async () => {
+      try {
+        const win = BrowserWindow.getFocusedWindow();
+        if (win) {
+          win.close();
+        }
+        return { success: true };
+      } catch (error) {
+        console.error('Close auth window error:', error);
+        return buildErrorResponse(error, { scope: 'window', action: 'closeAuth' });
+      }
+    });
+
+    ipcMain.handle('file:save', async (event, options = {}) => {
+      try {
+        const { content, filename, contentType } = options;
+        if (!content) return { success: false, error: 'Content required' };
+        
+        const { dialog } = require('electron');
+        const win = BrowserWindow.getFocusedWindow();
+        const result = await dialog.showSaveDialog(win, {
+          defaultPath: filename || 'export',
+          filters: contentType === 'json' 
+            ? [{ name: 'JSON', extensions: ['json'] }]
+            : [{ name: 'All Files', extensions: ['*'] }]
+        });
+        
+        if (result.canceled || !result.filePath) {
+          return { success: false, error: 'Save cancelled' };
+        }
+        
+        const fs = require('fs');
+        if (contentType === 'json') {
+          fs.writeFileSync(result.filePath, JSON.stringify(content, null, 2), 'utf-8');
+        } else {
+          fs.writeFileSync(result.filePath, content);
+        }
+        
+        return { success: true, path: result.filePath };
+      } catch (error) {
+        console.error('File save error:', error);
+        return buildErrorResponse(error, { scope: 'file', action: 'save' });
+      }
+    });
+
+    ipcMain.handle('app:checkUpdate', async () => {
+      return { success: true, updateAvailable: false, message: 'Auto-update not configured' };
     });
   }
 

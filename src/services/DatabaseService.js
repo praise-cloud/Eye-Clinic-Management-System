@@ -121,6 +121,49 @@ class DatabaseService {
         return result;
     }
 
+    async getUserStatistics(userId) {
+        const db = await this.getDatabase();
+        const stats = {
+            user: null,
+            activityCount: 0,
+            patientsCreated: 0,
+            testsCreated: 0,
+            prescriptionsCreated: 0,
+            lastActivity: null
+        };
+
+        const user = await db.get('SELECT * FROM users WHERE id = ?', [userId]);
+        stats.user = user;
+
+        if (user) {
+            const activity = await db.get(
+                'SELECT COUNT(*) as count FROM activity_logs WHERE user_id = ?',
+                [userId]
+            );
+            stats.activityCount = Number(activity?.count || 0);
+
+            const patients = await db.get(
+                'SELECT COUNT(*) as count FROM activity_logs WHERE user_id = ? AND action_type = ?',
+                [userId, 'create']
+            );
+            stats.patientsCreated = Number(patients?.count || 0);
+
+            const tests = await db.get(
+                'SELECT COUNT(*) as count FROM activity_logs WHERE user_id = ? AND entity_type = ?',
+                [userId, 'test']
+            );
+            stats.testsCreated = Number(tests?.count || 0);
+
+            const lastLog = await db.get(
+                'SELECT created_at FROM activity_logs WHERE user_id = ? ORDER BY created_at DESC LIMIT 1',
+                [userId]
+            );
+            stats.lastActivity = lastLog?.created_at || null;
+        }
+
+        return stats;
+    }
+
     async getSetting(key) {
         const db = await this.getDatabase();
         return await db.getSetting(key);
@@ -740,6 +783,86 @@ class DatabaseService {
             await this.enqueueSyncChange('inventory', 'delete', id, { id });
         }
         return { success: result.changes > 0 };
+    }
+
+    async getInventoryItemByCode(itemCode) {
+        const db = await this.getDatabase();
+        const query = 'SELECT * FROM inventory WHERE item_code = ?';
+        return await db.get(query, [itemCode]);
+    }
+
+    async getInventoryStatistics() {
+        const db = await this.getDatabase();
+        const stats = {
+            total: 0,
+            totalValue: 0,
+            lowStock: 0,
+            expiring: 0,
+            categories: {}
+        };
+
+        const items = await db.all('SELECT current_quantity, minimum_quantity, unit_cost, expiry_date, category FROM inventory');
+        
+        for (const item of items) {
+            stats.total++;
+            const qty = Number(item.current_quantity || 0);
+            const minQty = Number(item.minimum_quantity || 0);
+            const cost = Number(item.unit_cost || 0);
+            
+            stats.totalValue += qty * cost;
+            
+            if (minQty > 0 && qty <= minQty) {
+                stats.lowStock++;
+            }
+            
+            if (item.expiry_date) {
+                const expiry = new Date(item.expiry_date);
+                const now = new Date();
+                const daysUntilExpiry = Math.ceil((expiry - now) / (1000 * 60 * 60 * 24));
+                if (daysUntilExpiry <= 30 && daysUntilExpiry > 0) {
+                    stats.expiring++;
+                }
+            }
+            
+            const cat = item.category || 'Uncategorized';
+            stats.categories[cat] = (stats.categories[cat] || 0) + 1;
+        }
+
+        return stats;
+    }
+
+    async getLowStockItems() {
+        const db = await this.getDatabase();
+        const query = `
+            SELECT * FROM inventory 
+            WHERE minimum_quantity > 0 AND current_quantity <= minimum_quantity
+            ORDER BY (current_quantity * 1.0 / NULLIF(minimum_quantity, 0)) ASC
+        `;
+        return await db.all(query);
+    }
+
+    async getExpiringItems(days = 30) {
+        const db = await this.getDatabase();
+        const futureDate = new Date();
+        futureDate.setDate(futureDate.getDate() + days);
+        
+        const query = `
+            SELECT * FROM inventory 
+            WHERE expiry_date IS NOT NULL AND expiry_date != '' AND expiry_date <= ?
+            ORDER BY expiry_date ASC
+        `;
+        return await db.all(query, [futureDate.toISOString().split('T')[0]]);
+    }
+
+    async searchInventory(searchTerm) {
+        const db = await this.getDatabase();
+        const term = `%${String(searchTerm).trim()}%`;
+        const query = `
+            SELECT * FROM inventory 
+            WHERE item_code LIKE ? OR item_name LIKE ? OR category LIKE ? OR description LIKE ?
+            ORDER BY item_name ASC
+        `;
+        return await db.all(query, [term, term, term, term]);
     }
 
     async getAllPharmacyDrugs(filters = {}) {
