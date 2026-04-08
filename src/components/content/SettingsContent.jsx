@@ -46,6 +46,10 @@ const SettingsContent = () => {
   const [lanSyncPath, setLanSyncPath] = useState('')
   const [lanSyncStatus, setLanSyncStatus] = useState('')
   const [lanConflicts, setLanConflicts] = useState([])
+  const [networkMode, setNetworkMode] = useState(false)
+  const [testingConnection, setTestingConnection] = useState(false)
+  const [connectionTestResult, setConnectionTestResult] = useState(null)
+  const [onlineUsers, setOnlineUsers] = useState([])
 
   useEffect(() => {
     if (user) {
@@ -85,6 +89,28 @@ const SettingsContent = () => {
       } catch { }
     }
     loadLanSyncPath()
+    const loadNetworkConfig = async () => {
+      try {
+        if (window.electronAPI?.getNetworkConfig) {
+          const result = await window.electronAPI.getNetworkConfig()
+          if (result.success) {
+            setNetworkMode(result.config?.isNetworkMode || false)
+            if (result.config?.serverPath) {
+              setSettings(prev => ({ ...prev, dbPath: result.config.serverPath }))
+            }
+          }
+        }
+        if (window.electronAPI?.getOnlineUsers) {
+          const usersResult = await window.electronAPI.getOnlineUsers()
+          if (usersResult?.users) {
+            setOnlineUsers(usersResult.users)
+          }
+        }
+      } catch { }
+    }
+    loadNetworkConfig()
+    const interval = setInterval(loadNetworkConfig, 10000)
+    return () => clearInterval(interval)
   }, [user])
 
   const handleInputChange = (field, value) => {
@@ -97,6 +123,63 @@ const SettingsContent = () => {
 
   const handleDbPathChange = (value) => {
     setSettings(prev => ({ ...prev, dbPath: value }))
+  }
+
+  const handleTestConnection = async () => {
+    if (!settings.dbPath) {
+      setConnectionTestResult({ success: false, error: 'Please enter a network path' })
+      return
+    }
+    setTestingConnection(true)
+    setConnectionTestResult(null)
+    try {
+      if (window.electronAPI?.testNetworkConnection) {
+        const result = await window.electronAPI.testNetworkConnection(settings.dbPath)
+        setConnectionTestResult(result)
+      } else {
+        setConnectionTestResult({ success: true, message: 'Connection test not available' })
+      }
+    } catch (err) {
+      setConnectionTestResult({ success: false, error: err.message })
+    } finally {
+      setTestingConnection(false)
+    }
+  }
+
+  const handleBrowseFolder = async () => {
+    try {
+      if (window.electronAPI?.selectNetworkFolder) {
+        const result = await window.electronAPI.selectNetworkFolder()
+        if (result.success && result.path) {
+          setSettings(prev => ({ ...prev, dbPath: result.path }))
+          setConnectionTestResult(null)
+        }
+      }
+    } catch (err) {
+      console.error('Failed to browse folder:', err)
+    }
+  }
+
+  const handleSaveNetworkConfig = async () => {
+    try {
+      if (window.electronAPI?.saveNetworkConfig) {
+        const result = await window.electronAPI.saveNetworkConfig({
+          isNetworkMode: networkMode,
+          serverPath: settings.dbPath,
+          autoSync: true
+        })
+        if (result.success) {
+          setSuccessMessage('Network configuration saved. Restart required for changes to take effect.')
+          setShowSuccess(true)
+          setTimeout(() => setShowSuccess(false), 5000)
+        } else {
+          alert(result.error || 'Failed to save network configuration')
+        }
+      }
+    } catch (err) {
+      console.error('Failed to save network config:', err)
+      alert('Failed to save network configuration')
+    }
   }
 
   const handleSqlConfigChange = (field, value) => {
@@ -502,24 +585,129 @@ const SettingsContent = () => {
         {/* Right Column: System & Preferences */}
         <div className="space-y-8">
           <div className="card-premium p-8">
-            <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight mb-2">Environment</h2>
-            <p className="text-sm text-slate-500 font-medium mb-8">Clinical network configuration</p>
-
-            <div className="space-y-6">
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Shared Database Path</label>
-                <input
-                  type="text"
-                  value={settings.dbPath}
-                  onChange={(e) => handleDbPathChange(e.target.value)}
-                  className="input-premium text-xs font-mono"
-                  placeholder="\\Server\Clinic\database.db"
-                />
+            <div className="flex items-center justify-between mb-6 pb-6 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-4">
+                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${networkMode ? 'bg-emerald-100 dark:bg-emerald-900/30' : 'bg-slate-100 dark:bg-slate-800/50'}`}>
+                  <svg className={`w-6 h-6 ${networkMode ? 'text-emerald-600' : 'text-slate-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0" />
+                  </svg>
+                </div>
+                <div>
+                  <h2 className="text-lg font-black text-slate-900 dark:text-white tracking-tight">Network Configuration</h2>
+                  <p className="text-sm text-slate-500 font-medium">Connect to shared clinic database</p>
+                </div>
               </div>
-              <button onClick={handleSaveDbPath} className="w-full btn btn-primary py-3.5">
-                Update Network Path
-              </button>
+              <div className="flex items-center gap-3">
+                <span className={`text-xs font-bold px-3 py-1.5 rounded-full ${networkMode ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'}`}>
+                  {networkMode ? 'Active' : 'Inactive'}
+                </span>
+                <button
+                  onClick={() => setNetworkMode(!networkMode)}
+                  className={`w-14 h-7 rounded-full transition-all duration-300 relative ${networkMode ? 'bg-emerald-500 shadow-lg shadow-emerald-500/30' : 'bg-slate-300'}`}
+                >
+                  <div className={`absolute top-1 w-5 h-5 bg-white rounded-full shadow-md transition-all duration-300 ${networkMode ? 'left-8' : 'left-1'}`} />
+                </button>
+              </div>
             </div>
+
+            <div className={`p-4 rounded-2xl border-2 transition-all duration-300 ${networkMode ? 'bg-emerald-50/50 dark:bg-emerald-900/10 border-emerald-200 dark:border-emerald-800/30' : 'bg-slate-50/50 dark:bg-slate-800/30 border-slate-200 dark:border-slate-700/50'}`}>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Shared Folder Path</label>
+                    {networkMode && (
+                      <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                        <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 8 8"><circle cx="4" cy="4" r="4" /></svg>
+                        Connected
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    <div className="relative flex-1">
+                      <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                      </svg>
+                      <input
+                        type="text"
+                        value={settings.dbPath}
+                        onChange={(e) => handleDbPathChange(e.target.value)}
+                        className="w-full pl-11 pr-4 py-3.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-mono focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                        placeholder="\\ComputerName\EyeClinic"
+                      />
+                    </div>
+                    <button onClick={handleBrowseFolder} className="px-5 py-3.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all">
+                      Browse
+                    </button>
+                  </div>
+                </div>
+
+                {connectionTestResult && (
+                  <div className={`p-3 rounded-xl flex items-center gap-3 ${connectionTestResult.success ? 'bg-emerald-100/50 dark:bg-emerald-900/20' : 'bg-rose-100/50 dark:bg-rose-900/20'}`}>
+                    {connectionTestResult.success ? (
+                      <div className="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center">
+                        <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
+                      </div>
+                    ) : (
+                      <div className="w-8 h-8 rounded-full bg-rose-500 flex items-center justify-center">
+                        <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg>
+                      </div>
+                    )}
+                    <span className={`text-xs font-bold ${connectionTestResult.success ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-700 dark:text-rose-400'}`}>
+                      {connectionTestResult.success ? connectionTestResult.message : connectionTestResult.error}
+                    </span>
+                  </div>
+                )}
+
+                <div className="flex gap-3 pt-2">
+                  <button onClick={handleTestConnection} disabled={testingConnection} className="flex-1 py-3 px-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all flex items-center justify-center gap-2">
+                    {testingConnection ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-slate-300 border-t-indigo-500 rounded-full animate-spin" />
+                        Testing...
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                        Test Connection
+                      </>
+                    )}
+                  </button>
+                  <button onClick={handleSaveNetworkConfig} className="flex-1 py-3 px-4 bg-indigo-600 text-white rounded-xl text-xs font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20 flex items-center justify-center gap-2">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" /></svg>
+                    Save
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {networkMode && onlineUsers.length > 0 && (
+              <div className="mt-6 pt-6 border-t border-slate-100 dark:border-slate-800">
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <h3 className="text-sm font-black text-slate-700 dark:text-slate-300 uppercase tracking-widest">Online Computers</h3>
+                  <span className="px-2 py-0.5 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold rounded-full">{onlineUsers.length}</span>
+                </div>
+                <div className="space-y-2">
+                  {onlineUsers.map((user, idx) => (
+                    <div key={idx} className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800/50 hover:border-indigo-200 dark:hover:border-indigo-800/30 transition-all">
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 rounded-xl bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold text-slate-900 dark:text-white">{user.deviceName || 'Unknown Device'}</p>
+                          <p className="text-xs text-slate-500 font-medium">{user.userName || 'Unknown User'}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                        <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-widest">Online</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {isAdmin && (

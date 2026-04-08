@@ -148,6 +148,7 @@ class Database {
                 reason_for_visit TEXT,
                 client_type TEXT,
                 marital_status TEXT,
+                intake_date DATE,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )`,
@@ -399,7 +400,10 @@ class Database {
             const patientColsToAdd = [
                 { name: 'email', type: 'TEXT' },
                 { name: 'client_type', type: 'TEXT' },
-                { name: 'marital_status', type: 'TEXT' }
+                { name: 'marital_status', type: 'TEXT' },
+                { name: 'address', type: 'TEXT' },
+                { name: 'reason_for_visit', type: 'TEXT' },
+                { name: 'intake_date', type: 'DATE' }
             ];
             
             for (const col of patientColsToAdd) {
@@ -472,6 +476,48 @@ class Database {
                         if (!e.message.includes('duplicate column name')) {
                             console.warn(`Drug col ${col.name} skipped:`, e.message);
                         }
+                    }
+                }
+            }
+
+            // Add unit_price column to pharmacy_dispensations table if missing
+            const dispTableInfo = await this.all("PRAGMA table_info(pharmacy_dispensations)");
+            const hasUnitPrice = dispTableInfo.some(col => col.name === 'unit_price');
+            if (!hasUnitPrice) {
+                try {
+                    await this.run('ALTER TABLE pharmacy_dispensations ADD COLUMN unit_price REAL DEFAULT 0');
+                    console.log('Migration: Added unit_price column to pharmacy_dispensations');
+                } catch (e) {
+                    if (!e.message.includes('duplicate column name')) {
+                        console.warn('unit_price migration skipped:', e.message);
+                    }
+                }
+            }
+
+            // Add patient_id column to revenue table if missing
+            const revenueTableInfo = await this.all("PRAGMA table_info(revenue)");
+            const hasPatientId = revenueTableInfo.some(col => col.name === 'patient_id');
+            if (!hasPatientId) {
+                try {
+                    await this.run('ALTER TABLE revenue ADD COLUMN patient_id TEXT');
+                    console.log('Migration: Added patient_id column to revenue');
+                } catch (e) {
+                    if (!e.message.includes('duplicate column name')) {
+                        console.warn('patient_id migration skipped:', e.message);
+                    }
+                }
+            }
+
+            // Add payload column to sync_queue table if missing
+            const syncTableInfo = await this.all("PRAGMA table_info(sync_queue)");
+            const hasPayload = syncTableInfo.some(col => col.name === 'payload');
+            if (!hasPayload) {
+                try {
+                    await this.run('ALTER TABLE sync_queue ADD COLUMN payload TEXT');
+                    console.log('Migration: Added payload column to sync_queue');
+                } catch (e) {
+                    if (!e.message.includes('duplicate column name')) {
+                        console.warn('payload migration skipped:', e.message);
                     }
                 }
             }

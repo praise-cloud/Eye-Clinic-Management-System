@@ -211,7 +211,7 @@ const PrescribeModal = ({ onClose, currentUser, initialPatientId = '' }) => {
                                 <option value="">Choose client...</option>
                                 {patients.map(patient => (
                                     <option key={patient.id} value={patient.id}>
-                                        {patient.first_name} {patient.last_name} — {patient.id}
+                                        {patient.first_name} {patient.last_name}
                                     </option>
                                 ))}
                             </select>

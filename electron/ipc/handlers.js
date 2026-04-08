@@ -1061,12 +1061,14 @@ class IPCHandlers {
 
         BrowserWindow.getAllWindows().forEach(w => {
           w.webContents.send('data:update', { table: 'pharmacy', action: 'dispense', record: result.dispensation });
+          w.webContents.send('data:update', { table: 'revenue', action: 'create', record: result.revenue });
+          w.webContents.send('data:update', { table: 'dashboard', action: 'refresh' });
           if (result.linkedPrescriptionId) {
             w.webContents.send('data:update', { table: 'prescriptions', action: 'update', recordId: result.linkedPrescriptionId, status: 'dispensed' });
           }
         });
 
-        return { success: true, dispensation: result.dispensation };
+        return { success: true, dispensation: result.dispensation, revenue: result.revenue };
       } catch (error) {
         console.error('Pharmacy dispense error:', error);
         return buildErrorResponse(error, { scope: 'pharmacy', action: 'dispense', entity: 'pharmacy_dispensation' });
@@ -1379,16 +1381,32 @@ class IPCHandlers {
           );
         }
 
-        BrowserWindow.getAllWindows().forEach(w => w.webContents.send('data:update', { table: 'users', action: 'update', record: updatedUser }));
+        const userWithName = {
+          ...currentUser,
+          ...updatedUser,
+          id: userId,
+          role: updatedUser.role || currentUser?.role,
+          name: `${updatedUser.first_name || ''} ${updatedUser.last_name || ''}`.trim() || currentUser?.name,
+          phone: updatedUser.phone_number || currentUser?.phone,
+          email: updatedUser.email || currentUser?.email,
+          gender: updatedUser.gender || currentUser?.gender
+        };
+
+        if (currentUser?.id === userId) {
+          currentUser = userWithName;
+        }
+
+        BrowserWindow.getAllWindows().forEach(w => w.webContents.send('data:update', { table: 'users', action: 'update', record: userWithName }));
+        BrowserWindow.getAllWindows().forEach(w => w.webContents.send('user:profileUpdated', userWithName));
 
         try {
           const LanSyncService = require('../../src/services/LanSyncService');
-          await LanSyncService.broadcastDataUpdate('users', 'update', userId, updatedUser);
+          await LanSyncService.broadcastDataUpdate('users', 'update', userId, userWithName);
         } catch (syncErr) {
           console.warn('[Admin] Failed to broadcast user update:', syncErr.message);
         }
 
-        return { success: true, user: updatedUser };
+        return { success: true, user: userWithName };
       } catch (error) {
         console.error('Admin update user error:', error);
         return buildErrorResponse(error, { scope: 'admin', action: 'updateUser', entity: 'user' });
@@ -2694,9 +2712,6 @@ class IPCHandlers {
 
     safeHandle('network:saveConfig', async (event, config = {}) => {
       try {
-        if (!currentUser || String(currentUser.role || '').toLowerCase() !== 'admin') {
-          return { success: false, error: 'Only admin can change network settings' };
-        }
         const result = NetworkConfigService.saveConfig(config);
         return result;
       } catch (error) {
@@ -3080,6 +3095,16 @@ class IPCHandlers {
       } catch (error) {
         console.error('Get dashboard stats error:', error);
         return buildErrorResponse(error, { scope: 'dashboard', action: 'getStats' });
+      }
+    });
+
+    ipcMain.handle('dashboard:getSalesRecords', async (event, filters = {}) => {
+      try {
+        const records = await DatabaseService.getSalesRecords(filters);
+        return { success: true, records };
+      } catch (error) {
+        console.error('Get sales records error:', error);
+        return buildErrorResponse(error, { scope: 'dashboard', action: 'getSalesRecords' });
       }
     });
   }

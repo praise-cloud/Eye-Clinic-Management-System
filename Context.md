@@ -5,6 +5,65 @@ Last updated: 2026-03-24
 ## Purpose
 This file consolidates all markdown documentation for this project and will be updated whenever changes are made to the application.
 
+## Changes (March 24, 2026) - Hot Reload Removal & Profile Update Fix
+
+### Removed Hot Reload (electron-reload)
+- Removed `electron-reload` from `main.js` to prevent automatic page reloads during development
+- The app no longer reloads when files are changed
+
+### Fixed User Profile Updates to Reflect Immediately
+- Updated `src/hooks/useUser.js`:
+  - `updateProfile()` now dispatches `userProfileUpdated` custom event after successful update
+  - Removed `window.location.reload()` from logout function
+  - Logout now dispatches `userLoggedOut` custom event instead
+  - Added listener for `user:profileUpdated` event from main process
+  - Added listener for `userLoggedOut` custom event for cleanup
+- Updated `electron/ipc/handlers.js`:
+  - `admin:updateUser` handler now updates `currentUser` variable in main process
+  - Returns full user object with `name` and `phone` fields (constructed from first_name, last_name, phone_number)
+  - Broadcasts `user:profileUpdated` event to all windows
+- Updated `electron/preload.js`:
+  - Added `onUserProfileUpdated` callback to listen for profile updates from main process
+- Components using `useUser()` hook (Header, Sidebar, Layout) will automatically re-render with updated user data
+- Profile changes now persist in database AND reflect immediately in all UI components
+
+### Files Modified:
+1. **electron/main.js** - Removed electron-reload block (lines 7-14)
+2. **src/hooks/useUser.js** - Added event listeners and dispatch after profile update/logout
+3. **electron/ipc/handlers.js** - Updated `admin:updateUser` to update currentUser and return full user object
+4. **electron/preload.js** - Added `onUserProfileUpdated` callback
+
+## Changes (March 24, 2026) - Pharmacy Revenue Fix
+
+### Fixed Pharmacy Dispensation Revenue Tracking
+- Added `unit_price` column to `pharmacy_dispensations` table via migration
+- Added `payload` column to `sync_queue` table via migration (was using wrong column name)
+- Added `patient_id` column to `revenue` table via migration
+- Updated `createPharmacyDispensation()` to save `unit_price` to dispensation record
+- Revenue is now properly recorded when drugs are dispensed
+- Dashboard broadcasts `data:update` for `revenue` and `dashboard` tables after dispensation
+- Admin dashboard will now show today's pharmacy sales in real-time
+- Added `getSalesRecords()` method for retrieving sales with patient names
+
+### Fixed Patient Profile Update Error
+- Added missing `address` column to patients table via migration
+- Profile updates now properly save to database
+
+### Admin Dashboard Cleanup
+- Removed all database import functionality (Analyze BAK, Import External Intelligence, Batch Import, Henson imports, etc.)
+- Added Doctor Case Studies tab back to admin sidebar with full functionality
+- Added "Clear Database" button in System Administration section
+- Clear Database now completely wipes the database and restarts with a fresh database
+- Financial Overview card moved from Overview to Financial Oversight section
+- Financial Overview color changed to Indigo/Purple gradient
+
+### Files Modified:
+1. **database.js** - Added migrations for `unit_price`, `payload`, `patient_id`, and `address` columns
+2. **src/services/DatabaseService.js** - Fixed INSERT to include `unit_price`, returns revenue record, added getSalesRecords method
+3. **electron/ipc/handlers.js** - Broadcasts revenue and dashboard refresh events after dispensation
+4. **src/pages/dashboard/AdminDashboard.jsx** - Removed import functions, added Clear Database button, fixed Layout and tab rendering, added Doctor Case Studies page
+5. **src/components/content/MessagesContent.jsx** - Fixed chat bubble width (max-w-md) and text wrapping
+
 ## Recent Changes (March 24, 2026) - Network Architecture Simplification
 
 ### Simplified Multi-Computer Networking (Peer-to-Peer Shared Database)

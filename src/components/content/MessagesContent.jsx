@@ -497,8 +497,8 @@ const MessagesContent = () => {
                   const isMe = msg.sender_id === currentUser.id;
                   return (
                     <div key={`${msg.id}-${index}`} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-                      <div className={`max-w-[80%] flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
-                        <div className={`p-4 rounded-[1.5rem] shadow-sm text-sm relative group ${isMe
+                      <div className={`max-w-md w-full flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
+                        <div className={`p-4 rounded-[1.5rem] shadow-sm text-sm relative group max-w-md w-full ${isMe
                           ? 'bg-indigo-600 text-white rounded-tr-none'
                           : 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-100 rounded-tl-none'
                           }`}>
@@ -519,7 +519,7 @@ const MessagesContent = () => {
                           })()}
 
                           {msg.message_text && msg.message_text !== 'File attachment' && (
-                            <p className="leading-relaxed font-medium pr-8">{msg.message_text}</p>
+                            <p className="leading-relaxed font-medium pr-8 break-words overflow-wrap-anywhere">{msg.message_text}</p>
                           )}
 
                           {msg.attachment && (

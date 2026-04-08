@@ -51,6 +51,7 @@ const PatientDetailsPage = () => {
                         email: p.email || '',
                         case: p.reason_for_visit || '',
                         date: p.dob || '',
+                        intake_date: p.intake_date || '',
                         gender: p.gender || '',
                         address: p.address || ''
                     });
@@ -183,18 +184,24 @@ const PatientDetailsPage = () => {
 
     const handleSave = async (updatedData) => {
         try {
+            const nameParts = (updatedData.name || '').trim().split(/\s+/);
+            const first_name = nameParts[0] || '';
+            const last_name = nameParts.slice(1).join(' ') || '';
+            
             const res = await window.electronAPI.updatePatient(id, {
-                first_name: updatedData.first_name || patient.first_name,
-                last_name: updatedData.last_name || patient.last_name,
-                dob: updatedData.date || patient.date,
-                contact: updatedData.phone || patient.phone,
+                patient_id: patient.patient_id,
+                first_name: first_name || patient.first_name,
+                last_name: last_name || patient.last_name,
+                dob: updatedData.dob || patient.dob,
+                intake_date: updatedData.intake_date || patient.intake_date,
+                contact: updatedData.phone || patient.contact,
                 email: updatedData.email || patient.email,
-                reason_for_visit: updatedData.case || patient.case,
-                gender: updatedData.gender || patient.gender
+                reason_for_visit: updatedData.case || patient.reason_for_visit,
+                gender: updatedData.gender || patient.gender,
+                address: updatedData.address || patient.address
             });
             if (res.success) {
-                // Refresh local state
-                setPatient(prev => ({ ...prev, ...updatedData }));
+                setPatient(prev => ({ ...prev, ...res.patient, updated_at: new Date().toISOString() }));
             } else {
                 alert('Update failed: ' + res.error);
             }
@@ -711,27 +718,35 @@ const PatientDetailsPage = () => {
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                                    {documents.map((doc) => (
+                                    {documents.map((doc) => {
+                                        const isCaseNote = doc.report_type === 'case_note_document';
+                                        const caseNoteData = isCaseNote ? (doc.payload || {}) : {};
+                                        return (
                                         <tr key={doc.id} className="hover:bg-slate-50/50 dark:hover:bg-indigo-900/10 transition-colors">
                                             <td className="px-8 py-6">
                                                 <p className="text-sm font-bold text-slate-900 dark:text-white leading-tight">
-                                                    {doc.title || 'Untitled Document'}
+                                                    {isCaseNote ? `Case Note - ${formatDate(caseNoteData.visit_date)}` : (doc.title || 'Untitled Document')}
                                                 </p>
+                                                {isCaseNote && caseNoteData.doctor_name && (
+                                                    <p className="text-xs text-slate-500 font-medium mt-0.5">By Dr. {caseNoteData.doctor_name}</p>
+                                                )}
                                             </td>
                                             <td className="px-8 py-6">
                                                 <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest ${
                                                     doc.isCvfAttachment
-                                                        ? 'bg-indigo-100 text-indigo-700'
-                                                        : 'bg-emerald-100 text-emerald-700'
+                                                        ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400'
+                                                        : isCaseNote
+                                                        ? 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400'
+                                                        : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
                                                 }`}>
-                                                    {doc.isCvfAttachment ? 'CVF Case Study' : (doc.report_type || 'report')}
+                                                    {doc.isCvfAttachment ? 'CVF Case Study' : isCaseNote ? 'Case Note' : (doc.report_type || 'report')}
                                                 </span>
                                             </td>
                                             <td className="px-8 py-6 text-[11px] font-black text-slate-500 uppercase tracking-widest">
                                                 {new Date(doc.report_date || doc.created_at || Date.now()).toLocaleString()}
                                             </td>
                                             <td className="px-8 py-6 text-xs text-slate-600 dark:text-slate-400">
-                                                {doc.isCvfAttachment ? 'Henson 8000' : 'Clinical Report'}
+                                                {doc.isCvfAttachment ? 'Henson 8000' : isCaseNote ? 'Doctor Note' : 'Clinical Report'}
                                             </td>
                                             <td className="px-8 py-6">
                                                 <div className="flex justify-end gap-2">
@@ -750,7 +765,8 @@ const PatientDetailsPage = () => {
                                                 </div>
                                             </td>
                                         </tr>
-                                    ))}
+                                        );
+                                    })}
                                 </tbody>
                             </table>
                         </div>
@@ -872,10 +888,10 @@ const PatientDetailsPage = () => {
                             <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
                                 <div>
                                     <h3 className="text-lg font-black text-slate-900 dark:text-white tracking-tight">
-                                        {viewingDocument.title || 'Client Document'}
+                                        {viewingDocument.report_type === 'case_note_document' ? `Case Note - ${formatDate(viewingDocument.payload?.visit_date)}` : (viewingDocument.title || 'Client Document')}
                                     </h3>
                                     <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mt-2">
-                                        {viewingDocument.isCvfAttachment ? 'CVF Case Study Attachment' : (viewingDocument.report_type || 'Report')}
+                                        {viewingDocument.isCvfAttachment ? 'CVF Case Study Attachment' : viewingDocument.report_type === 'case_note_document' ? 'Case Note Document' : (viewingDocument.report_type || 'Report')}
                                     </p>
                                 </div>
                                 <button
@@ -909,6 +925,51 @@ const PatientDetailsPage = () => {
                                             <p className="text-sm font-medium text-slate-700 dark:text-slate-300 whitespace-pre-line">
                                                 {viewingDocument.payload?.notes || 'No notes provided.'}
                                             </p>
+                                        </div>
+                                    </>
+                                ) : viewingDocument.report_type === 'case_note_document' ? (
+                                    <>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div>
+                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Doctor</p>
+                                                <p className="text-sm font-bold text-slate-900 dark:text-white">Dr. {viewingDocument.payload?.doctor_name || 'N/A'}</p>
+                                            </div>
+                                            <div>
+                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Visit Date</p>
+                                                <p className="text-sm font-medium text-slate-700 dark:text-slate-300">{formatDate(viewingDocument.payload?.visit_date)}</p>
+                                            </div>
+                                        </div>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div>
+                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Diagnosis</p>
+                                                <p className="text-sm font-medium text-slate-700 dark:text-slate-300">{viewingDocument.payload?.diagnosis || '-'}</p>
+                                            </div>
+                                            <div>
+                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Recommendation</p>
+                                                <p className="text-sm font-medium text-slate-700 dark:text-slate-300">{viewingDocument.payload?.recommendation || '-'}</p>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Case Details</p>
+                                            <p className="text-sm font-medium text-slate-700 dark:text-slate-300 whitespace-pre-line">{viewingDocument.payload?.case_details || '-'}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Case History</p>
+                                            <p className="text-sm font-medium text-slate-700 dark:text-slate-300 whitespace-pre-line">{viewingDocument.payload?.case_history || '-'}</p>
+                                        </div>
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                            <div>
+                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Final Rx OD</p>
+                                                <p className="text-sm font-mono text-slate-700 dark:text-slate-300">{viewingDocument.payload?.final_rx?.od || '-'}</p>
+                                            </div>
+                                            <div>
+                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Final Rx OS</p>
+                                                <p className="text-sm font-mono text-slate-700 dark:text-slate-300">{viewingDocument.payload?.final_rx?.os || '-'}</p>
+                                            </div>
+                                            <div>
+                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Lens Type</p>
+                                                <p className="text-sm font-medium text-slate-700 dark:text-slate-300">{viewingDocument.payload?.lens_type || '-'}</p>
+                                            </div>
                                         </div>
                                     </>
                                 ) : (

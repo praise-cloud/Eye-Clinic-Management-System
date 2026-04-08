@@ -6,45 +6,70 @@ const useUser = () => {
   const [error, setError] = useState(null)
 
   // Initialize user from storage
- useEffect(() => {
-  const initializeUser = async () => {
-    setLoading(true);
-    try {
-      // 1. Get user from main process (most authoritative)
-      const result = await (window.electronAPI?.getCurrentUser?.() ?? null);
-      if (result?.success && result.user) {
-        const userData = result.user;
-        setUser(userData);
-        localStorage.setItem('currentUser', JSON.stringify(userData));
-        setLoading(false);
-        return;
-      }
+  useEffect(() => {
+    const initializeUser = async () => {
+      setLoading(true);
+      try {
+        // 1. Get user from main process (most authoritative)
+        const result = await (window.electronAPI?.getCurrentUser?.() ?? null);
+        if (result?.success && result.user) {
+          const userData = result.user;
+          setUser(userData);
+          localStorage.setItem('currentUser', JSON.stringify(userData));
+          setLoading(false);
+          return;
+        }
 
-      // 2. Fallback: localStorage (in case main process restarted)
-      const stored = localStorage.getItem('currentUser');
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        // Quick validation with main process
-        const check = await (window.electronAPI?.isAuthenticated?.() ?? false);
-        if (check) {
-          setUser(parsed);
+        // 2. Fallback: localStorage (in case main process restarted)
+        const stored = localStorage.getItem('currentUser');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          // Quick validation with main process
+          const check = await (window.electronAPI?.isAuthenticated?.() ?? false);
+          if (check) {
+            setUser(parsed);
+          } else {
+            localStorage.removeItem('currentUser');
+            setUser(null);
+          }
         } else {
-          localStorage.removeItem('currentUser');
           setUser(null);
         }
-      } else {
+      } catch (err) {
+        console.error('Session init error:', err);
         setUser(null);
+      } finally {
+        setLoading(false);
       }
-    } catch (err) {
-      console.error('Session init error:', err);
-      setUser(null);
-    } finally {
-      setLoading(false);
-    }
-  };
+    };
 
-  initializeUser();
-}, []);
+    initializeUser();
+
+    // Listen for profile updates from main process
+    const handleProfileUpdate = (updatedUser) => {
+      if (updatedUser) {
+        setUser(updatedUser);
+        localStorage.setItem('currentUser', JSON.stringify(updatedUser));
+      }
+    };
+
+    // Listen for user logged out
+    const handleUserLoggedOut = () => {
+      setUser(null);
+      localStorage.removeItem('currentUser');
+    };
+
+    let unsubscribe = null;
+    if (window.electronAPI?.onUserProfileUpdated) {
+      unsubscribe = window.electronAPI.onUserProfileUpdated(handleProfileUpdate);
+    }
+    window.addEventListener('userLoggedOut', handleUserLoggedOut);
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+      window.removeEventListener('userLoggedOut', handleUserLoggedOut);
+    };
+  }, []);
 
   // Login user
   const login = useCallback(async (credentials) => {
@@ -132,7 +157,7 @@ const useUser = () => {
     } finally {
       localStorage.removeItem('currentUser');
       setUser(null);
-      window.location.reload();
+      window.dispatchEvent(new CustomEvent('userLoggedOut'));
     }
   }, [user]);
 
@@ -193,6 +218,7 @@ const useUser = () => {
 
       setUser(updatedUser)
       localStorage.setItem('currentUser', JSON.stringify(updatedUser))
+      window.dispatchEvent(new CustomEvent('userProfileUpdated', { detail: { user: updatedUser } }));
       return updatedUser
     } catch (err) {
       setError(err.message)

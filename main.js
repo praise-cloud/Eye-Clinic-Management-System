@@ -4,14 +4,7 @@ const Database = require('./database');
 const IPCHandlers = require('./electron/ipc/handlers');
 const SyncService = require('./src/services/SyncService');
 
-// Optional: electron-reload for development
-try {
-  require('electron-reload')(__dirname, {
-    electron: require(`${__dirname}/node_modules/electron`)
-  });
-} catch (e) {
-  console.warn("Electron reload not enabled in production.");
-}
+
 
 let mainWindow = null;
 let authWindow = null;

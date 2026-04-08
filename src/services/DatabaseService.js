@@ -48,7 +48,7 @@ class DatabaseService {
             const db = await this.getDatabase();
             const id = require('uuid').v4();
             await db.run(
-                `INSERT INTO sync_queue (id, table_name, operation, record_id, payload, status)
+                `INSERT INTO sync_queue (id, table_name, operation, record_id, data, status)
                  VALUES (?, ?, ?, ?, ?, 'pending')`,
                 [id, tableName, operation, recordId || null, JSON.stringify(payload || {})]
             );
@@ -266,7 +266,7 @@ class DatabaseService {
     // Patient Management
     async getAllPatients(filters = {}) {
         const db = await this.getDatabase();
-        let query = 'SELECT * FROM patients';
+        let query = 'SELECT *, first_name || " " || last_name as name FROM patients';
         let params = [];
 
         if (filters.search) {
@@ -298,18 +298,21 @@ class DatabaseService {
             address,
             reason_for_visit,
             client_type,
-            marital_status
+            marital_status,
+            intake_date
         } = patientData;
         const id = require('uuid').v4();
 
-        // Duplicate checks (patient_id, email, contact)
+        const tableInfo = await db.all("PRAGMA table_info(patients)");
+        const existingCols = new Set(tableInfo.map(c => c.name));
+
         if (patient_id) {
             const existingById = await db.get('SELECT id FROM patients WHERE patient_id = ?', [patient_id]);
             if (existingById?.id) {
                 return { success: false, error: 'A client with this Patient ID already exists.' };
             }
         }
-        if (email) {
+        if (email && existingCols.has('email')) {
             const existingByEmail = await db.get('SELECT id FROM patients WHERE email = ?', [email]);
             if (existingByEmail?.id) {
                 return { success: false, error: 'A client with this email already exists.' };
@@ -321,30 +324,23 @@ class DatabaseService {
                 return { success: false, error: 'A client with this phone number already exists.' };
             }
         }
-
-        const query = `
-            INSERT INTO patients (
-              id, patient_id, first_name, last_name, dob, gender, contact,
-              email, address, reason_for_visit, client_type, marital_status,
-              created_at, updated_at
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-        `;
-
-        await db.run(query, [
-            id,
-            patient_id,
-            first_name,
-            last_name,
-            dob,
-            gender,
-            contact,
-            email || null,
-            address || null,
-            reason_for_visit || null,
-            client_type || null,
-            marital_status || null
-        ]);
+        
+        const columns = ['id', 'patient_id', 'first_name', 'last_name', 'dob', 'gender', 'contact'];
+        const placeholders = ['?', '?', '?', '?', '?', '?', '?'];
+        const values = [id, patient_id, first_name, last_name, dob, gender, contact];
+        
+        if (existingCols.has('email')) { columns.push('email'); placeholders.push('?'); values.push(email || null); }
+        if (existingCols.has('address')) { columns.push('address'); placeholders.push('?'); values.push(address || null); }
+        if (existingCols.has('reason_for_visit')) { columns.push('reason_for_visit'); placeholders.push('?'); values.push(reason_for_visit || null); }
+        if (existingCols.has('client_type')) { columns.push('client_type'); placeholders.push('?'); values.push(client_type || null); }
+        if (existingCols.has('marital_status')) { columns.push('marital_status'); placeholders.push('?'); values.push(marital_status || null); }
+        if (existingCols.has('intake_date')) { columns.push('intake_date'); placeholders.push('?'); values.push(intake_date || null); }
+        
+        columns.push('created_at', 'updated_at');
+        placeholders.push('CURRENT_TIMESTAMP', 'CURRENT_TIMESTAMP');
+        
+        const query = `INSERT INTO patients (${columns.join(', ')}) VALUES (${placeholders.join(', ')})`;
+        await db.run(query, values);
         const record = {
             id,
             patient_id,
@@ -357,7 +353,8 @@ class DatabaseService {
             address: address || null,
             reason_for_visit: reason_for_visit || null,
             client_type: client_type || null,
-            marital_status: marital_status || null
+            marital_status: marital_status || null,
+            intake_date: intake_date || null
         };
         await this.enqueueSyncChange('patients', 'upsert', id, record);
         return record;
@@ -376,8 +373,12 @@ class DatabaseService {
             address,
             reason_for_visit,
             client_type,
-            marital_status
+            marital_status,
+            intake_date
         } = patientData;
+
+        const tableInfo = await db.all("PRAGMA table_info(patients)");
+        const existingCols = new Set(tableInfo.map(c => c.name));
 
         if (patient_id) {
             const existingById = await db.get('SELECT id FROM patients WHERE patient_id = ? AND id != ?', [patient_id, id]);
@@ -385,7 +386,7 @@ class DatabaseService {
                 return { success: false, error: 'A client with this Patient ID already exists.' };
             }
         }
-        if (email) {
+        if (email && existingCols.has('email')) {
             const existingByEmail = await db.get('SELECT id FROM patients WHERE email = ? AND id != ?', [email, id]);
             if (existingByEmail?.id) {
                 return { success: false, error: 'A client with this email already exists.' };
@@ -397,29 +398,20 @@ class DatabaseService {
                 return { success: false, error: 'A client with this phone number already exists.' };
             }
         }
-
-        const query = `
-            UPDATE patients
-            SET patient_id = ?, first_name = ?, last_name = ?, dob = ?, gender = ?, contact = ?,
-                email = ?, address = ?, reason_for_visit = ?, client_type = ?, marital_status = ?,
-                updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
-        `;
-
-        await db.run(query, [
-            patient_id,
-            first_name,
-            last_name,
-            dob,
-            gender,
-            contact,
-            email || null,
-            address || null,
-            reason_for_visit || null,
-            client_type || null,
-            marital_status || null,
-            id
-        ]);
+        
+        const setClauses = ['patient_id = ?', 'first_name = ?', 'last_name = ?', 'dob = ?', 'gender = ?', 'contact = ?', 'updated_at = CURRENT_TIMESTAMP'];
+        const values = [patient_id, first_name, last_name, dob, gender, contact];
+        
+        if (existingCols.has('email')) { setClauses.push('email = ?'); values.push(email || null); }
+        if (existingCols.has('address')) { setClauses.push('address = ?'); values.push(address || null); }
+        if (existingCols.has('reason_for_visit')) { setClauses.push('reason_for_visit = ?'); values.push(reason_for_visit || null); }
+        if (existingCols.has('client_type')) { setClauses.push('client_type = ?'); values.push(client_type || null); }
+        if (existingCols.has('marital_status')) { setClauses.push('marital_status = ?'); values.push(marital_status || null); }
+        if (existingCols.has('intake_date')) { setClauses.push('intake_date = ?'); values.push(intake_date || null); }
+        
+        values.push(id);
+        const query = `UPDATE patients SET ${setClauses.join(', ')} WHERE id = ?`;
+        await db.run(query, values);
         const record = {
             id,
             patient_id,
@@ -432,7 +424,8 @@ class DatabaseService {
             address: address || null,
             reason_for_visit: reason_for_visit || null,
             client_type: client_type || null,
-            marital_status: marital_status || null
+            marital_status: marital_status || null,
+            intake_date: intake_date || null
         };
         await this.enqueueSyncChange('patients', 'upsert', id, record);
         return record;
@@ -1008,9 +1001,9 @@ class DatabaseService {
             const id = require('uuid').v4();
 
             await db.run(
-                `INSERT INTO pharmacy_dispensations (id, drug_id, patient_id, quantity, total_amount, user_id, notes, created_at, updated_at)
+                `INSERT INTO pharmacy_dispensations (id, drug_id, patient_id, quantity, unit_price, total_amount, user_id, notes, created_at, updated_at)
                  VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
-                [id, drugId, patientId, numericQuantity, totalAmount, userId, notes || null]
+                [id, drugId, patientId, numericQuantity, unitPrice, totalAmount, userId, notes || null]
             );
 
             const newQuantity = currentQty - numericQuantity;
@@ -1020,22 +1013,6 @@ class DatabaseService {
                  WHERE id = ?`,
                 [newQuantity, userId || null, drugId]
             );
-
-            if (totalAmount > 0) {
-                const description = notes || `Pharmacy dispensation: ${numericQuantity} units of ${drug.drug_name}`;
-                await this.recordRevenue({
-                    source: 'pharmacy',
-                    source_id: id,
-                    amount: totalAmount,
-                    userId,
-                    description,
-                    meta: {
-                        drugId,
-                        patientId,
-                        quantity: numericQuantity
-                    }
-                });
-            }
 
             // Check for any pending prescriptions for this patient and drug
             let linkedPrescriptionId = null;
@@ -1056,6 +1033,24 @@ class DatabaseService {
 
             const updatedDrug = await db.get('SELECT * FROM pharmacy_drugs WHERE id = ?', [drugId]);
 
+            let revenueRecord = null;
+            if (totalAmount > 0) {
+                const revResult = await this.recordRevenue({
+                    source: 'pharmacy',
+                    source_id: id,
+                    amount: totalAmount,
+                    userId,
+                    patientId,
+                    description: notes || `Pharmacy dispensation: ${numericQuantity} units of ${drug.drug_name}`,
+                    meta: {
+                        drugId,
+                        patientId,
+                        quantity: numericQuantity
+                    }
+                });
+                revenueRecord = revResult;
+            }
+
             return {
                 id,
                 dispensation: { id, drug_id: drugId, patient_id: patientId, quantity: numericQuantity, total_amount: totalAmount, user_id: userId, notes: notes || null, created_at: new Date().toISOString() },
@@ -1063,7 +1058,8 @@ class DatabaseService {
                 success: true,
                 drug: updatedDrug,
                 total_amount: totalAmount,
-                quantity: numericQuantity
+                quantity: numericQuantity,
+                revenue: revenueRecord
             };
         } catch (error) {
             try {
@@ -1393,16 +1389,60 @@ class DatabaseService {
         return { id, userId, actionType, entityType, entityId, description };
     }
 
-    async recordRevenue({ source, source_id, amount, userId = null, description = null, meta = null }) {
+    async recordRevenue({ source, source_id, amount, userId = null, patientId = null, description = null, meta = null }) {
         const db = await this.getDatabase();
         const id = require('uuid').v4();
         const query = `
-            INSERT INTO revenue (id, source, source_id, amount, currency, user_id, description, meta, timestamp)
-            VALUES (?, ?, ?, ?, 'NGN', ?, ?, ?, CURRENT_TIMESTAMP)
+            INSERT INTO revenue (id, source, source_id, amount, currency, user_id, patient_id, description, meta, timestamp)
+            VALUES (?, ?, ?, ?, 'NGN', ?, ?, ?, ?, CURRENT_TIMESTAMP)
         `;
         const metaJson = meta ? JSON.stringify(meta) : null;
-        await db.run(query, [id, source, source_id || null, amount, userId || null, description || null, metaJson]);
-        return { id, source, source_id, amount };
+        await db.run(query, [id, source, source_id || null, amount, userId || null, patientId || null, description || null, metaJson]);
+        return { id, source, source_id, amount, patient_id: patientId };
+    }
+
+    async getSalesRecords(filters = {}) {
+        const db = await this.getDatabase();
+        let query = `
+            SELECT r.*, 
+                   u.first_name as user_first_name, u.last_name as user_last_name,
+                   p.first_name as patient_first_name, p.last_name as patient_last_name,
+                   p.email as patient_email
+            FROM revenue r 
+            LEFT JOIN users u ON r.user_id = u.id 
+            LEFT JOIN patients p ON r.patient_id = p.id
+            WHERE 1=1
+        `;
+        const params = [];
+
+        if (filters.source) {
+            query += ' AND r.source = ?';
+            params.push(filters.source);
+        }
+
+        if (filters.dateFrom) {
+            query += ' AND date(r.timestamp) >= date(?)';
+            params.push(filters.dateFrom);
+        }
+
+        if (filters.dateTo) {
+            query += ' AND date(r.timestamp) <= date(?)';
+            params.push(filters.dateTo);
+        }
+
+        query += ' ORDER BY r.timestamp DESC';
+
+        if (filters.limit) {
+            query += ' LIMIT ?';
+            params.push(filters.limit);
+        }
+
+        const records = await db.all(query, params);
+        return records.map(r => ({
+            ...r,
+            user_name: r.user_first_name && r.user_last_name ? `${r.user_first_name} ${r.user_last_name}` : 'Unknown',
+            patient_name: r.patient_first_name && r.patient_last_name ? `${r.patient_first_name} ${r.patient_last_name}` : null
+        }));
     }
 
     async getActivityLogs(filters = {}) {
@@ -1439,6 +1479,11 @@ class DatabaseService {
             "SELECT COUNT(*) as count FROM patients WHERE date(created_at) = date('now','localtime', '-1 day')"
         );
 
+        // Today's patients updated count
+        const todayPatientsUpdatedRow = await db.get(
+            "SELECT COUNT(*) as count FROM patients WHERE date(updated_at) = date('now','localtime') AND updated_at IS NOT NULL"
+        );
+
         const pendingTestsRow = await db.get(
             "SELECT COUNT(*) as count FROM tests WHERE raw_data IS NULL OR TRIM(raw_data) = '' OR TRIM(raw_data) = '{}'"
         );
@@ -1471,6 +1516,31 @@ class DatabaseService {
             }
         }
 
+        // Today's revenue from revenue table
+        const todayRevenueRow = await db.get(
+            "SELECT COALESCE(SUM(amount), 0) as total FROM revenue WHERE date(timestamp) = date('now','localtime')"
+        );
+        let todayRevenue = Number(todayRevenueRow?.total || 0);
+
+        // Today's revenue from pharmacy dispensations
+        const todayDispensations = await db.all(
+            "SELECT quantity, unit_price FROM pharmacy_dispensations WHERE date(created_at) = date('now','localtime')"
+        );
+        let todayDispensationRevenue = 0;
+        for (const d of todayDispensations) {
+            todayDispensationRevenue += (Number(d.quantity) || 0) * (Number(d.unit_price) || 0);
+        }
+        todayRevenue += todayDispensationRevenue;
+
+        // Today's transaction count (from revenue table + pharmacy dispensations)
+        const todayRevenueTxCount = await db.get(
+            "SELECT COUNT(*) as count FROM revenue WHERE date(timestamp) = date('now','localtime')"
+        );
+        const todayDispensationTxCount = await db.get(
+            "SELECT COUNT(*) as count FROM pharmacy_dispensations WHERE date(created_at) = date('now','localtime')"
+        );
+        const todayTransactionCount = (todayRevenueTxCount?.count || 0) + (todayDispensationTxCount?.count || 0);
+
         const monthTests = await db.all(
             "SELECT test_date, raw_data FROM tests WHERE strftime('%Y-%m', test_date) = strftime('%Y-%m','now','localtime')"
         );
@@ -1485,6 +1555,7 @@ class DatabaseService {
             }
         }
 
+        // Monthly revenue from revenue table
         const revenueRow = await db.get(
             "SELECT COALESCE(SUM(amount), 0) as total FROM revenue WHERE strftime('%Y-%m', timestamp) = strftime('%Y-%m','now','localtime')"
         );
@@ -1493,6 +1564,28 @@ class DatabaseService {
             : Number(revenueRow?.total || 0);
         if (!isNaN(revenueTotal)) {
             monthlyRevenue += revenueTotal;
+        }
+
+        // Monthly pharmacy dispensations revenue
+        const monthDispensations = await db.all(
+            "SELECT quantity, unit_price FROM pharmacy_dispensations WHERE strftime('%Y-%m', created_at) = strftime('%Y-%m','now','localtime')"
+        );
+        for (const d of monthDispensations) {
+            monthlyRevenue += (Number(d.quantity) || 0) * (Number(d.unit_price) || 0);
+        }
+
+        // Total revenue (all time)
+        const totalRevenueRow = await db.get(
+            "SELECT COALESCE(SUM(amount), 0) as total FROM revenue"
+        );
+        let totalRevenue = Number(totalRevenueRow?.total || 0);
+
+        // All-time pharmacy dispensations revenue
+        const allTimeDispensations = await db.all(
+            "SELECT quantity, unit_price FROM pharmacy_dispensations"
+        );
+        for (const d of allTimeDispensations) {
+            totalRevenue += (Number(d.quantity) || 0) * (Number(d.unit_price) || 0);
         }
 
         const upcomingTests = await db.all(
@@ -1514,11 +1607,15 @@ class DatabaseService {
             totalInventory: inventoryRow?.count || 0,
             todayAppointments: todayAppointmentsRow?.count || 0,
             todayPatientIntake: todayPatientIntakeRow?.count || 0,
+            todayPatientsUpdated: todayPatientsUpdatedRow?.count || 0,
             yesterdayPatientIntake: yesterdayPatientIntakeRow?.count || 0,
             pendingTests: pendingTestsRow?.count || 0,
             totalFulfilledPrescriptions: fulfilledPrescriptionsRow?.count || 0,
             pendingAppointments,
-            monthlyRevenue
+            todayRevenue,
+            todayTransactionCount,
+            monthlyRevenue,
+            totalRevenue
         };
     }
 

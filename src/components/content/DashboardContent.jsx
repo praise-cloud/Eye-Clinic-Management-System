@@ -30,14 +30,19 @@ const DashboardContent = ({ activeSection }) => {
   const clientList = React.useMemo(() => {
     return patients.map(p => ({
       id: p.id,
+      patient_id: p.patient_id || 'N/A',
       name: p.name || `${p.first_name || ''} ${p.last_name || ''}`.trim(),
       date: p.created_at ? new Date(p.created_at).toLocaleDateString() : 'N/A',
       case: p.reason_for_visit || 'No reason provided',
       phone: p.phone || p.contact || 'N/A',
       email: p.email || 'N/A',
+      gender: p.gender || 'N/A',
+      dob: p.dob || 'N/A',
+      address: p.address || 'N/A',
       raw: p
     })).filter(p =>
       p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      p.patient_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
       p.case.toLowerCase().includes(searchTerm.toLowerCase())
     ).sort((a, b) => new Date(b.raw.created_at) - new Date(a.raw.created_at));
   }, [patients, searchTerm]);
@@ -171,27 +176,34 @@ const DashboardContent = ({ activeSection }) => {
             <table className="min-w-full text-left">
               <thead className="bg-slate-50/50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800">
                 <tr>
-                  <th className="px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Client Name</th>
-                  <th className="px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Registration Date</th>
-                  <th className="px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Reason for Visit</th>
-                  <th className="px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Contact Information</th>
-                  <th className="px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] text-right">Actions</th>
+                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Client ID</th>
+                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Client Name</th>
+                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Registration Date</th>
+                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Reason for Visit</th>
+                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Contact Information</th>
+                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {paginatedClients.map((client, idx) => (
                   <tr key={idx} className="group hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
-                    <td className="px-8 py-5">
+                    <td className="px-6 py-5">
+                      <span className="text-xs font-mono font-bold text-slate-500 dark:text-slate-400">{client.patient_id}</span>
+                    </td>
+                    <td className="px-6 py-5">
                       <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 font-bold text-xs">
-                          {client.name.split(' ').map(n => n[0]).join('')}
+                        <div className="w-9 h-9 rounded-xl bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400 font-bold text-xs">
+                          {client.name.split(' ').map(n => n[0]).join('').toUpperCase()}
                         </div>
-                        <span className="text-sm font-bold text-slate-900 dark:text-white">{client.name}</span>
+                        <div>
+                          <span className="text-sm font-bold text-slate-900 dark:text-white block">{client.name}</span>
+                          <span className="text-xs text-slate-400 capitalize">{client.gender}</span>
+                        </div>
                       </div>
                     </td>
-                    <td className="px-8 py-5 text-sm font-medium text-slate-600 dark:text-slate-400">{client.date}</td>
-                    <td className="px-8 py-5 text-sm font-medium text-slate-600 dark:text-slate-400 truncate max-w-xs">{client.case}</td>
-                    <td className="px-8 py-5">
+                    <td className="px-6 py-5 text-sm font-medium text-slate-600 dark:text-slate-400">{client.date}</td>
+                    <td className="px-6 py-5 text-sm font-medium text-slate-600 dark:text-slate-400 truncate max-w-xs">{client.case}</td>
+                    <td className="px-6 py-5">
                       <div className="flex flex-col">
                         <span className="text-sm font-bold text-slate-700 dark:text-slate-300">{client.phone}</span>
                         <span className="text-xs text-slate-400">{client.email}</span>

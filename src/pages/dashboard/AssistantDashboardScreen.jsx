@@ -11,9 +11,9 @@ const AssistantDashboardScreen = () => {
     const navigate = useNavigate();
     const [statsData, setStatsData] = useState([
         { label: 'Total Clients', number: '0', icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z', color: 'indigo' },
-        { label: "Today's Intake", number: '0', icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z', color: 'emerald' },
-        { label: 'Pending Results', number: '0', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4', color: 'amber' },
-        { label: 'Clinical Revenue', number: '₦0', icon: 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z', color: 'rose' },
+        { label: "Today's New Clients", number: '0', icon: 'M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z', color: 'emerald' },
+        { label: "Today's Updated", number: '0', icon: 'M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z', color: 'amber' },
+        { label: "Today's Revenue", number: '₦0', subtext: '0 transactions', icon: 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z', color: 'rose' },
     ]);
 
     const [patients, setPatients] = useState([]);
@@ -37,6 +37,7 @@ const AssistantDashboardScreen = () => {
                     id: patient.id,
                     name: `${patient.first_name} ${patient.last_name}`,
                     date: patient.dob,
+                    intake_date: patient.intake_date || '',
                     case: patient.reason_for_visit || 'Routine Checkup',
                     phone: patient.contact || patient.phone_number || 'N/A',
                     email: patient.email || 'N/A',
@@ -68,9 +69,9 @@ const AssistantDashboardScreen = () => {
                 const currency = new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN', minimumFractionDigits: 0 });
                 setStatsData([
                     { label: 'Total Clients', number: String(stats.totalPatients || 0), icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z', color: 'indigo' },
-                    { label: "Today's Intake", number: String(stats.todayPatientIntake || 0), icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z', color: 'emerald' },
-                    { label: "Today's Results", number: String(stats.todayAppointments || 0), icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4', color: 'amber' },
-                    { label: 'Clinical Revenue', number: currency.format(Number(stats.monthlyRevenue || 0)), icon: 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z', color: 'rose' },
+                    { label: "Today's New Clients", number: String(stats.todayPatientIntake || 0), icon: 'M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z', color: 'emerald' },
+                    { label: "Today's Updated", number: String(stats.todayPatientsUpdated || 0), icon: 'M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z', color: 'amber' },
+                    { label: "Today's Revenue", number: currency.format(Number(stats.todayRevenue || 0)), subtext: `${stats.todayTransactionCount || 0} transactions`, icon: 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z', color: 'rose' },
                 ]);
             }
         } catch (error) {
@@ -118,6 +119,7 @@ const AssistantDashboardScreen = () => {
     const filteredPatients = patients.filter(patient =>
         searchTerm === '' ||
         patient.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        patient.patient_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
         patient.case.toLowerCase().includes(searchTerm.toLowerCase()) ||
         patient.email.toLowerCase().includes(searchTerm.toLowerCase())
     );
@@ -145,6 +147,9 @@ const AssistantDashboardScreen = () => {
                         <div>
                             <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1.5">{stat.label}</h3>
                             <span className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">{stat.number}</span>
+                            {stat.subtext && (
+                                <p className="text-xs text-slate-400 font-medium mt-1">{stat.subtext}</p>
+                            )}
                         </div>
                     </div>
                 ))}
@@ -288,40 +293,38 @@ const AssistantDashboardScreen = () => {
                     <table className="min-w-full text-left">
                         <thead>
                             <tr className="bg-slate-50/50 dark:bg-slate-800/30 border-b border-slate-100 dark:border-slate-800 font-black text-[10px] text-slate-400 uppercase tracking-widest">
-                                <th className="px-8 py-5">Client Dossier</th>
-                                <th className="px-8 py-5">Intake Date</th>
-                                <th className="px-8 py-5">Diagnostic Focus</th>
-                                <th className="px-8 py-5">Telemetry</th>
-                                <th className="px-8 py-5 text-right">Management</th>
+                                <th className="px-6 py-4">Client ID</th>
+                                <th className="px-6 py-4">Client Name</th>
+                                <th className="px-6 py-4">Intake Date</th>
+                                <th className="px-6 py-4">Contact</th>
+                                <th className="px-6 py-4 text-right">Management</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                             {paginatedPatients.length > 0 ? paginatedPatients.map((patient, idx) => (
                                 <tr key={idx} className="group hover:bg-slate-50/50 dark:hover:bg-indigo-900/10 transition-colors">
-                                    <td className="px-8 py-6">
-                                        <div className="flex items-center gap-4">
-                                            <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 font-black text-xs group-hover:bg-indigo-100 group-hover:text-indigo-600 transition-colors">
-                                                {patient.name.split(' ').map(n => n[0]).join('')}
+                                    <td className="px-6 py-5">
+                                        <span className="text-xs font-mono font-bold text-slate-500 dark:text-slate-400">{patient.patient_id}</span>
+                                    </td>
+                                    <td className="px-6 py-5">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-9 h-9 rounded-xl bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400 font-bold text-xs group-hover:bg-indigo-200 transition-colors">
+                                                {patient.name.split(' ').map(n => n[0]).join('').toUpperCase()}
                                             </div>
                                             <div>
-                                                <p className="text-sm font-bold text-slate-900 dark:text-white leading-tight">{patient.name}</p>
-                                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">{patient.patient_id}</p>
+                                                <p className="text-sm font-bold text-slate-900 dark:text-white block">{patient.name}</p>
+                                                <p className="text-xs text-slate-400 capitalize">{patient.gender}</p>
                                             </div>
                                         </div>
                                     </td>
-                                    <td className="px-8 py-6 text-sm font-medium text-slate-600 dark:text-slate-400">{patient.date}</td>
-                                    <td className="px-8 py-6">
-                                        <span className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-lg text-xs font-bold truncate max-w-[200px] inline-block">
-                                            {patient.case}
-                                        </span>
-                                    </td>
-                                    <td className="px-8 py-6">
+                                    <td className="px-6 py-5 text-sm font-medium text-slate-600 dark:text-slate-400">{patient.intake_date || patient.date || 'N/A'}</td>
+                                    <td className="px-6 py-5">
                                         <div className="flex flex-col">
                                             <span className="text-sm font-bold text-slate-700 dark:text-slate-300">{patient.phone}</span>
-                                            <span className="text-[10px] text-slate-400 font-medium">{patient.email}</span>
+                                            <span className="text-xs text-slate-400 font-medium">{patient.email}</span>
                                         </div>
                                     </td>
-                                    <td className="px-8 py-6 text-right">
+                                    <td className="px-6 py-5 text-right">
                                         <div className="flex justify-end gap-2">
                                             <button
                                                 onClick={() => setQuickViewPatient(patient)}

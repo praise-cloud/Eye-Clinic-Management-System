@@ -169,6 +169,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     logActivity: (userId, actionType, entityType, entityId, description, ipAddress, userAgent) => ipcRenderer.invoke('admin:logActivity', { userId, actionType, entityType, entityId, description, ipAddress, userAgent }),
     createUserAdmin: (userData, createdBy) => ipcRenderer.invoke('admin:createUser', { userData, createdBy }),
     getDashboardStats: () => ipcRenderer.invoke('dashboard:getStats'),
+    getSalesRecords: (filters) => ipcRenderer.invoke('dashboard:getSalesRecords', filters),
 
     // Report APIs
     getReports: (filters) => ipcRenderer.invoke('reports:getAll', filters),
@@ -282,6 +283,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
         const subscription = (event, data) => callback(data);
         ipcRenderer.on('sync:statusUpdate', subscription);
         return () => ipcRenderer.removeListener('sync:statusUpdate', subscription);
+    },
+    onUserProfileUpdated: (callback) => {
+        const subscription = (event, user) => callback(user);
+        ipcRenderer.on('user:profileUpdated', subscription);
+        return () => ipcRenderer.removeListener('user:profileUpdated', subscription);
     },
 });
 

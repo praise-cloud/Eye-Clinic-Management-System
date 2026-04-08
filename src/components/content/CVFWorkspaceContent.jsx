@@ -674,7 +674,7 @@ const CVFWorkspaceContent = () => {
                   <option value="">Select client</option>
                   {patientOptions.map((p) => (
                     <option key={p.id} value={p.id}>
-                      {p.label}{p.code ? ` (ID: ${p.code})` : ''}
+                      {p.label}
                     </option>
                   ))}
                 </select>

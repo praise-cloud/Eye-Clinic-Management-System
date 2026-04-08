@@ -5,6 +5,7 @@ const AddPatientModal = ({ onClose, currentUser, onPatientAdded, editPatientData
     firstName: editPatientData?.first_name || '',
     lastName: editPatientData?.last_name || '',
     dateOfBirth: editPatientData?.dob || '',
+    intakeDate: editPatientData?.intake_date || '',
     gender: editPatientData?.gender || '',
     email: editPatientData?.email || '',
     phoneNumber: editPatientData?.contact || '',
@@ -40,6 +41,7 @@ const AddPatientModal = ({ onClose, currentUser, onPatientAdded, editPatientData
         first_name: formData.firstName,
         last_name: formData.lastName,
         dob: formData.dateOfBirth,
+        intake_date: formData.intakeDate || null,
         gender: formData.gender || 'other',
         contact: formData.phoneNumber || null,
         email: formData.email || null,
@@ -157,6 +159,16 @@ const AddPatientModal = ({ onClose, currentUser, onPatientAdded, editPatientData
                     <option value="female">Female</option>
                     <option value="other">Other</option>
                   </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Intake Date</label>
+                  <input
+                    type="date"
+                    name="intakeDate"
+                    value={formData.intakeDate}
+                    onChange={handleInputChange}
+                    className="input-premium"
+                  />
                 </div>
               </div>
             </div>
