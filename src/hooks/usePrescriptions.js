@@ -1,5 +1,23 @@
 import { useState, useCallback, useEffect } from 'react';
 
+const getServerUrl = () => localStorage.getItem('serverUrl');
+const isServerMode = () => !!getServerUrl();
+
+const serverApiCall = async (endpoint, method = 'GET', body = null) => {
+    const serverUrl = getServerUrl();
+    if (!serverUrl) return { success: false, error: 'Not connected to server' };
+    
+    try {
+        const options = { method, headers: { 'Content-Type': 'application/json' } };
+        if (body) options.body = JSON.stringify(body);
+        
+        const response = await fetch(`${serverUrl}${endpoint}`, options);
+        return await response.json();
+    } catch (err) {
+        return { success: false, error: err.message };
+    }
+};
+
 export default function usePrescriptions() {
     const [prescriptions, setPrescriptions] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -10,7 +28,12 @@ export default function usePrescriptions() {
         setLoading(true);
         setError(null);
         try {
-            const result = await window.electronAPI.getPrescriptionsByPatient(patientId);
+            let result;
+            if (isServerMode()) {
+                result = await serverApiCall(`/api/prescriptions?patientId=${patientId}`, 'GET');
+            } else {
+                result = await window.electronAPI.getPrescriptionsByPatient(patientId);
+            }
             if (result.success) {
                 setPrescriptions(result.prescriptions);
             } else {
@@ -28,7 +51,12 @@ export default function usePrescriptions() {
         setLoading(true);
         setError(null);
         try {
-            const result = await window.electronAPI.getPendingPrescriptions();
+            let result;
+            if (isServerMode()) {
+                result = await serverApiCall('/api/prescriptions?status=pending', 'GET');
+            } else {
+                result = await window.electronAPI.getPendingPrescriptions();
+            }
             if (result.success) {
                 setPrescriptions(result.prescriptions);
             } else {
@@ -46,7 +74,12 @@ export default function usePrescriptions() {
         setLoading(true);
         setError(null);
         try {
-            const result = await window.electronAPI.getPrescriptionById(id);
+            let result;
+            if (isServerMode()) {
+                result = await serverApiCall(`/api/prescriptions/${id}`, 'GET');
+            } else {
+                result = await window.electronAPI.getPrescriptionById(id);
+            }
             if (result.success) {
                 return result.prescription;
             } else {
@@ -65,7 +98,12 @@ export default function usePrescriptions() {
     const createPrescription = useCallback(async (data) => {
         setError(null);
         try {
-            const result = await window.electronAPI.createPrescription(data);
+            let result;
+            if (isServerMode()) {
+                result = await serverApiCall('/api/prescriptions', 'POST', data);
+            } else {
+                result = await window.electronAPI.createPrescription(data);
+            }
             if (result.success) {
                 return result.prescription;
             } else {
@@ -83,7 +121,12 @@ export default function usePrescriptions() {
         setError(null);
         setLoading(true);
         try {
-            const result = await window.electronAPI.createMultiplePrescriptions({ patientId, doctorId, items });
+            let result;
+            if (isServerMode()) {
+                result = await serverApiCall('/api/prescriptions/multiple', 'POST', { patientId, doctorId, items });
+            } else {
+                result = await window.electronAPI.createMultiplePrescriptions({ patientId, doctorId, items });
+            }
             if (result.success) {
                 return result.prescriptions;
             } else {
@@ -102,7 +145,12 @@ export default function usePrescriptions() {
     const updateStatus = useCallback(async (id, status, userId) => {
         setError(null);
         try {
-            const result = await window.electronAPI.updatePrescriptionStatus({ id, status, userId });
+            let result;
+            if (isServerMode()) {
+                result = await serverApiCall(`/api/prescriptions/${id}/status`, 'PUT', { status, userId });
+            } else {
+                result = await window.electronAPI.updatePrescriptionStatus({ id, status, userId });
+            }
             if (result.success) {
                 setPrescriptions(prev => prev.map(p => p.id === id ? { ...p, status } : p));
                 return true;

@@ -268,6 +268,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getConflicts: () => ipcRenderer.invoke('network:getConflicts'),
     resolveConflict: (id, resolution) => ipcRenderer.invoke('network:resolveConflict', { id, resolution }),
 
+    // Server Management APIs
+    serverStart: (config) => ipcRenderer.invoke('server:start', config),
+    serverStop: () => ipcRenderer.invoke('server:stop'),
+    serverStatus: () => ipcRenderer.invoke('server:status'),
+    serverSaveConfig: (config) => ipcRenderer.invoke('server:saveConfig', config),
+    serverGetConfig: () => ipcRenderer.invoke('server:getConfig'),
+
+    // Backup/Restore APIs
+    backupCreate: () => ipcRenderer.invoke('backup:create'),
+    backupList: () => ipcRenderer.invoke('backup:list'),
+    backupRestore: (backupPath) => ipcRenderer.invoke('backup:restore', { backupPath }),
+
     // Enhanced Network APIs
     getOnlineUsersDetailed: () => ipcRenderer.invoke('network:getOnlineUsers'),
     getNetworkSyncStatus: () => ipcRenderer.invoke('network:getSyncStatusDetailed'),

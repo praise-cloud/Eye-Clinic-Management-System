@@ -14,10 +14,12 @@ if (!electron || !electron.app || !electron.BrowserWindow) {
 }
 const { app, BrowserWindow } = electron;
 const path = require('path');
+const fs = require('fs');
 
 // Services
 const Database = require('../database.js');
 const NetworkConfigService = require('../src/services/NetworkConfigService');
+const ServerManager = require('./server/ServerManager');
 const IPCHandlers = require('./ipc/handlers');
 let mainWindow = null;
 let dbInstance = null;
@@ -85,12 +87,32 @@ app.whenReady().then(async () => {
     console.log('Initializing database...');
     dbInstance = new Database();
     await dbInstance.initialize();
-    console.log('Database ready');
+    console.log('Database ready at:', dbInstance.dbPath);
 
-    // 3. IPC Handlers
+    // 3. Check if this machine should act as server
+    const serverConfigPath = path.join(path.dirname(dbInstance.dbPath), 'config', 'server-config.json');
+    let serverConfig = { serverMode: false, port: 3001 };
+    
+    if (fs.existsSync(serverConfigPath)) {
+      try {
+        serverConfig = JSON.parse(fs.readFileSync(serverConfigPath, 'utf8'));
+      } catch (e) {
+        console.warn('[Main] Could not read server config:', e.message);
+      }
+    }
+
+    // 4. Start server if server mode is enabled
+    if (serverConfig.serverMode) {
+      console.log('[Main] Server mode enabled, starting server...');
+      ServerManager.initialize(dbInstance.db);
+      await ServerManager.start({ port: serverConfig.port || 3001 });
+      console.log('[Main] Server started successfully');
+    }
+
+    // 5. IPC Handlers
     new IPCHandlers();
 
-    // 4. Open window
+    // 6. Open window
     createWindow();
 
     console.log('APP FULLY STARTED');

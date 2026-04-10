@@ -43,10 +43,17 @@ class Database {
                 console.log('[Database] No config file found, using local database');
             }
 
-            if (!fs.existsSync(userDataPath)) {
-                fs.mkdirSync(userDataPath, { recursive: true });
+            // Use Documents/KORENE_EyeClinic folder as default location
+            const documentsPath = path.join(process.env.USERPROFILE || process.env.HOME || '', 'Documents', 'KORENE_EyeClinic');
+            
+            if (!fs.existsSync(documentsPath)) {
+                console.log('[Database] Creating Documents folder:', documentsPath);
+                fs.mkdirSync(documentsPath, { recursive: true });
             }
-            return path.join(userDataPath, 'eye_clinic.db');
+            
+            const dbPath = path.join(documentsPath, 'database.db');
+            console.log('[Database] Using database at:', dbPath);
+            return dbPath;
         } catch (error) {
             console.warn('[Database] Fallback to local path, error:', error.message);
             return path.join(__dirname, 'eye_clinic.db');

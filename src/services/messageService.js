@@ -1,6 +1,24 @@
 // src/services/messageService.js
 // Abstracts all internal messaging logic via window.electronAPI
 
+const getServerUrl = () => localStorage.getItem('serverUrl');
+const isServerMode = () => !!getServerUrl();
+
+const serverApiCall = async (endpoint, method = 'GET', body = null) => {
+    const serverUrl = getServerUrl();
+    if (!serverUrl) return { success: false, error: 'Not connected to server' };
+    
+    try {
+        const options = { method, headers: { 'Content-Type': 'application/json' } };
+        if (body) options.body = JSON.stringify(body);
+        
+        const response = await fetch(`${serverUrl}${endpoint}`, options);
+        return await response.json();
+    } catch (err) {
+        return { success: false, error: err.message };
+    }
+};
+
 const getApi = () => {
     if (!window.electronAPI) {
         console.error('Electron API not found in window');
@@ -10,6 +28,10 @@ const getApi = () => {
 };
 
 export const getMessages = async (filters = {}) => {
+    if (isServerMode()) {
+        const res = await serverApiCall('/api/chat', 'GET', filters);
+        return res?.success ? res.messages : [];
+    }
     const api = getApi();
     if (!api) return [];
     try {
@@ -22,6 +44,11 @@ export const getMessages = async (filters = {}) => {
 };
 
 export const sendMessage = async (messageData) => {
+    if (isServerMode()) {
+        const res = await serverApiCall('/api/chat', 'POST', messageData);
+        if (!res?.success) throw new Error(res?.error || 'Failed to send message');
+        return res.message;
+    }
     const api = getApi();
     if (!api) throw new Error('Electron API not available');
     try {

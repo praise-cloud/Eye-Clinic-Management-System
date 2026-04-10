@@ -3085,6 +3085,191 @@ class IPCHandlers {
     ipcMain.handle('app:checkUpdate', async () => {
       return { success: true, updateAvailable: false, message: 'Auto-update not configured' };
     });
+
+    // Server Management Handlers
+    ipcMain.handle('server:start', async (event, config = {}) => {
+      try {
+        const ServerManager = require('../server/ServerManager');
+        const db = require('../../database.js');
+        const dbInstance = new db();
+        await dbInstance.initialize();
+        ServerManager.initialize(dbInstance.db);
+        const result = await ServerManager.start(config);
+        return result;
+      } catch (error) {
+        console.error('Server start error:', error);
+        return { success: false, error: error.message };
+      }
+    });
+
+    ipcMain.handle('server:stop', async () => {
+      try {
+        const ServerManager = require('../server/ServerManager');
+        const result = await ServerManager.stop();
+        return result;
+      } catch (error) {
+        console.error('Server stop error:', error);
+        return { success: false, error: error.message };
+      }
+    });
+
+    ipcMain.handle('server:status', async () => {
+      try {
+        const ServerManager = require('../server/ServerManager');
+        const status = ServerManager.getStatus();
+        return { success: true, status };
+      } catch (error) {
+        console.error('Server status error:', error);
+        return { success: false, error: error.message };
+      }
+    });
+
+    ipcMain.handle('server:saveConfig', async (event, config = {}) => {
+      try {
+        const fs = require('fs');
+        const path = require('path');
+        const { app } = require('electron');
+        const userDataPath = app.getPath('userData');
+        const configDir = path.join(userDataPath, 'server-config');
+        
+        if (!fs.existsSync(configDir)) {
+          fs.mkdirSync(configDir, { recursive: true });
+        }
+        
+        const configPath = path.join(configDir, 'server-settings.json');
+        fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+        
+        return { success: true, config };
+      } catch (error) {
+        console.error('Server config save error:', error);
+        return { success: false, error: error.message };
+      }
+    });
+
+    ipcMain.handle('server:getConfig', async () => {
+      try {
+        const fs = require('fs');
+        const path = require('path');
+        const { app } = require('electron');
+        const userDataPath = app.getPath('userData');
+        const configPath = path.join(userDataPath, 'server-config', 'server-settings.json');
+        
+        let config = { serverMode: false, serverIp: '', port: 3001 };
+        
+        if (fs.existsSync(configPath)) {
+          config = { ...config, ...JSON.parse(fs.readFileSync(configPath, 'utf8')) };
+        }
+        
+        return { success: true, config };
+      } catch (error) {
+        console.error('Server config get error:', error);
+        return { success: false, error: error.message };
+      }
+    });
+
+    // Backup/Restore Handlers
+    ipcMain.handle('backup:create', async () => {
+      try {
+        const fs = require('fs');
+        const path = require('path');
+        const Database = require('../../database.js');
+        const dbInstance = new Database();
+        await dbInstance.initialize();
+        
+        const dbPath = dbInstance.dbPath;
+        const backupDir = path.join(path.dirname(dbPath), 'backups');
+        
+        if (!fs.existsSync(backupDir)) {
+          fs.mkdirSync(backupDir, { recursive: true });
+        }
+        
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        const backupPath = path.join(backupDir, `backup_${timestamp}.db`);
+        
+        fs.copyFileSync(dbPath, backupPath);
+        
+        const backups = fs.readdirSync(backupDir)
+          .filter(f => f.startsWith('backup_') && f.endsWith('.db'))
+          .sort()
+          .reverse();
+        
+        const maxBackups = 10;
+        while (backups.length > maxBackups) {
+          const oldBackup = backups.pop();
+          fs.unlinkSync(path.join(backupDir, oldBackup));
+        }
+        
+        return { success: true, backupPath, message: 'Backup created successfully' };
+      } catch (error) {
+        console.error('Backup error:', error);
+        return { success: false, error: error.message };
+      }
+    });
+
+    ipcMain.handle('backup:list', async () => {
+      try {
+        const fs = require('fs');
+        const path = require('path');
+        const Database = require('../../database.js');
+        const dbInstance = new Database();
+        await dbInstance.initialize();
+        
+        const dbPath = dbInstance.dbPath;
+        const backupDir = path.join(path.dirname(dbPath), 'backups');
+        
+        if (!fs.existsSync(backupDir)) {
+          return { success: true, backups: [] };
+        }
+        
+        const backups = fs.readdirSync(backupDir)
+          .filter(f => f.startsWith('backup_') && f.endsWith('.db'))
+          .map(f => {
+            const filePath = path.join(backupDir, f);
+            const stats = fs.statSync(filePath);
+            return {
+              name: f,
+              path: filePath,
+              size: stats.size,
+              created: stats.mtime.toISOString()
+            };
+          })
+          .sort((a, b) => new Date(b.created) - new Date(a.created));
+        
+        return { success: true, backups };
+      } catch (error) {
+        console.error('List backups error:', error);
+        return { success: false, error: error.message };
+      }
+    });
+
+    ipcMain.handle('backup:restore', async (event, { backupPath }) => {
+      try {
+        const fs = require('fs');
+        const path = require('path');
+        const Database = require('../../database.js');
+        
+        if (!backupPath || !fs.existsSync(backupPath)) {
+          return { success: false, error: 'Backup file not found' };
+        }
+        
+        const dbInstance = new Database();
+        await dbInstance.initialize();
+        const dbPath = dbInstance.dbPath;
+        
+        // Close current database
+        if (dbInstance.db) {
+          dbInstance.db.close();
+        }
+        
+        // Copy backup to database location
+        fs.copyFileSync(backupPath, dbPath);
+        
+        return { success: true, message: 'Database restored. Please restart the application.' };
+      } catch (error) {
+        console.error('Restore error:', error);
+        return { success: false, error: error.message };
+      }
+    });
   }
 
   registerDashboardHandlers() {

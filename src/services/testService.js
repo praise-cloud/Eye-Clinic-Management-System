@@ -1,4 +1,22 @@
 
+const getServerUrl = () => localStorage.getItem('serverUrl');
+const isServerMode = () => !!getServerUrl();
+
+const serverApiCall = async (endpoint, method = 'GET', body = null) => {
+    const serverUrl = getServerUrl();
+    if (!serverUrl) return { success: false, error: 'Not connected to server' };
+    
+    try {
+        const options = { method, headers: { 'Content-Type': 'application/json' } };
+        if (body) options.body = JSON.stringify(body);
+        
+        const response = await fetch(`${serverUrl}${endpoint}`, options);
+        return await response.json();
+    } catch (err) {
+        return { success: false, error: err.message };
+    }
+};
+
 const getApi = () => {
   if (!window.electronAPI) {
     console.error('Electron API not found in window');
@@ -8,6 +26,36 @@ const getApi = () => {
 };
 
 export const getAllTests = async (filters = {}) => {
+  if (isServerMode()) {
+    const res = await serverApiCall('/api/tests', 'GET', filters);
+    if (res?.success) {
+      return res.tests.map(test => {
+        const rawData = (() => {
+          try { return JSON.parse(test.raw_data || '{}'); } catch { return {}; }
+        })();
+        return ({
+        rawData,
+        id: test.id,
+        patientName: test.first_name && test.last_name
+          ? `${test.first_name} ${test.last_name}`
+          : 'Unknown Patient',
+        patientId: test.patient_id,
+        testType: test.machine_type || 'Unknown',
+        machineType: test.machine_type || 'Unknown',
+        eye: test.eye || 'both',
+        result: rawData.result || 'Pending',
+        date: test.test_date
+          ? new Date(test.test_date).toLocaleDateString('en-GB')
+          : 'N/A',
+        testDate: test.test_date || null,
+        notes: rawData.notes || '',
+        fileName: rawData.fileName || null,
+        imageData: rawData.imageData || null
+      });
+      });
+    }
+    return [];
+  }
   const api = getApi();
   if (!api) return [];
   try {
@@ -46,6 +94,10 @@ export const getAllTests = async (filters = {}) => {
 };
 
 export const getTestById = async (id) => {
+  if (isServerMode()) {
+    const res = await serverApiCall(`/api/tests/${id}`, 'GET');
+    return res?.success ? res.test : null;
+  }
   const api = getApi();
   if (!api) return null;
   try {
@@ -58,6 +110,11 @@ export const getTestById = async (id) => {
 };
 
 export const createTest = async (testData) => {
+  if (isServerMode()) {
+    const res = await serverApiCall('/api/tests', 'POST', testData);
+    if (!res?.success) throw new Error(res?.error || 'Test creation failed');
+    return res.test;
+  }
   const api = getApi();
   if (!api) throw new Error('Electron API not available');
   try {
@@ -73,6 +130,11 @@ export const createTest = async (testData) => {
 };
 
 export const updateTest = async (id, testData) => {
+  if (isServerMode()) {
+    const res = await serverApiCall(`/api/tests/${id}`, 'PUT', testData);
+    if (!res?.success) throw new Error(res?.error || 'Test update failed');
+    return res.test;
+  }
   const api = getApi();
   if (!api) throw new Error('Electron API not available');
   try {
@@ -88,6 +150,10 @@ export const updateTest = async (id, testData) => {
 };
 
 export const deleteTest = async (id) => {
+  if (isServerMode()) {
+    const res = await serverApiCall(`/api/tests/${id}`, 'DELETE');
+    return res?.success || false;
+  }
   const api = getApi();
   if (!api) return false;
   try {
@@ -100,6 +166,11 @@ export const deleteTest = async (id) => {
 };
 
 export const generateReport = async (patientId, testIds) => {
+  if (isServerMode()) {
+    const res = await serverApiCall('/api/tests/generateReport', 'POST', { patientId, testIds });
+    if (!res?.success) throw new Error(res?.error || 'Report generation failed');
+    return res;
+  }
   const api = getApi();
   if (!api) throw new Error('Electron API not available');
   try {

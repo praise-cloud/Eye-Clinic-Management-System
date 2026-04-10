@@ -50,6 +50,14 @@ const SettingsContent = () => {
   const [testingConnection, setTestingConnection] = useState(false)
   const [connectionTestResult, setConnectionTestResult] = useState(null)
   const [onlineUsers, setOnlineUsers] = useState([])
+  const [serverMode, setServerMode] = useState(false)
+  const [serverIp, setServerIp] = useState('')
+  const [serverPort, setServerPort] = useState(3001)
+  const [serverRunning, setServerRunning] = useState(false)
+  const [connecting, setConnecting] = useState(false)
+  const [serverConnected, setServerConnected] = useState(false)
+  const [backups, setBackups] = useState([])
+  const [loadingBackups, setLoadingBackups] = useState(false)
 
   useEffect(() => {
     if (user) {
@@ -110,8 +118,41 @@ const SettingsContent = () => {
     }
     loadNetworkConfig()
     const interval = setInterval(loadNetworkConfig, 10000)
+
+    const loadServerConfig = async () => {
+      try {
+        if (window.electronAPI?.serverGetConfig) {
+          const result = await window.electronAPI.serverGetConfig()
+          if (result?.success && result.config) {
+            setServerMode(result.config.serverMode || false)
+            setServerIp(result.config.serverIp || '')
+            setServerPort(result.config.port || 3001)
+          }
+        }
+        if (window.electronAPI?.serverStatus) {
+          const statusResult = await window.electronAPI.serverStatus()
+          setServerRunning(statusResult?.status?.running || false)
+        }
+      } catch { }
+    }
+    loadServerConfig()
+
+    const loadBackups = async () => {
+      setLoadingBackups(true)
+      try {
+        if (window.electronAPI?.backupList) {
+          const result = await window.electronAPI.backupList()
+          if (result?.success) {
+            setBackups(result.backups || [])
+          }
+        }
+      } catch { }
+      setLoadingBackups(false)
+    }
+    if (isAdmin) loadBackups()
+
     return () => clearInterval(interval)
-  }, [user])
+  }, [user, isAdmin])
 
   const handleInputChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }))
@@ -180,6 +221,85 @@ const SettingsContent = () => {
       console.error('Failed to save network config:', err)
       alert('Failed to save network configuration')
     }
+  }
+
+  const handleSaveServerConfig = async () => {
+    try {
+      if (window.electronAPI?.serverSaveConfig) {
+        const result = await window.electronAPI.serverSaveConfig({
+          serverMode,
+          serverIp,
+          port: serverPort
+        })
+        if (result.success) {
+          if (serverMode && !serverRunning) {
+            const startResult = await window.electronAPI?.serverStart?.({ port: serverPort })
+            if (startResult?.success) {
+              setServerRunning(true)
+              setSuccessMessage('Server started successfully')
+            } else {
+              alert(startResult?.error || 'Failed to start server')
+            }
+          } else if (!serverMode && serverRunning) {
+            await window.electronAPI?.serverStop?.()
+            setServerRunning(false)
+          }
+          setShowSuccess(true)
+          setTimeout(() => setShowSuccess(false), 5000)
+        }
+      }
+    } catch (err) {
+      console.error('Failed to save server config:', err)
+    }
+  }
+
+  const handleCreateBackup = async () => {
+    try {
+      if (window.electronAPI?.backupCreate) {
+        const result = await window.electronAPI.backupCreate()
+        if (result.success) {
+          setSuccessMessage('Backup created successfully')
+          setShowSuccess(true)
+          setTimeout(() => setShowSuccess(false), 5000)
+          loadBackups()
+        } else {
+          alert(result.error || 'Failed to create backup')
+        }
+      }
+    } catch (err) {
+      console.error('Backup error:', err)
+    }
+  }
+
+  const handleRestoreBackup = async (backupPath) => {
+    if (!confirm('Are you sure you want to restore this backup? Current data will be lost.')) return
+    try {
+      if (window.electronAPI?.backupRestore) {
+        const result = await window.electronAPI.backupRestore(backupPath)
+        if (result.success) {
+          setSuccessMessage('Database restored. Please restart the application.')
+          setShowSuccess(true)
+          setTimeout(() => setShowSuccess(false), 5000)
+        } else {
+          alert(result.error || 'Failed to restore backup')
+        }
+      }
+    } catch (err) {
+      console.error('Restore error:', err)
+    }
+  }
+
+  const loadBackups = async () => {
+    setLoadingBackups(true)
+    try {
+      if (window.electronAPI?.backupList) {
+        const result = await window.electronAPI.backupList()
+        if (result?.success) {
+          setBackups(result.backups || [])
+        }
+      }
+    } catch { }
+    setLoadingBackups(false)
   }
 
   const handleSqlConfigChange = (field, value) => {
@@ -921,6 +1041,105 @@ const SettingsContent = () => {
                   )}
                 </div>
               </div>
+            </div>
+          )}
+
+          {isAdmin && (
+            <div className="card-premium p-8">
+              <div className="flex items-center justify-between mb-6 pb-6 border-b border-slate-100 dark:border-slate-800">
+                <div className="flex items-center gap-4">
+                  <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${serverMode ? 'bg-indigo-100 dark:bg-indigo-900/30' : 'bg-slate-100 dark:bg-slate-800/50'}`}>
+                    <svg className={`w-6 h-6 ${serverMode ? 'text-indigo-600' : 'text-slate-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-black text-slate-900 dark:text-white tracking-tight">Server Mode</h2>
+                    <p className="text-sm text-slate-500 font-medium">Enable this computer as the server</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className={`text-xs font-bold px-3 py-1.5 rounded-full ${serverRunning ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'}`}>
+                    {serverRunning ? 'Running' : 'Stopped'}
+                  </span>
+                  <button
+                    onClick={() => setServerMode(!serverMode)}
+                    className={`w-14 h-7 rounded-full transition-all duration-300 relative ${serverMode ? 'bg-indigo-500 shadow-lg shadow-indigo-500/30' : 'bg-slate-300'}`}
+                  >
+                    <div className={`absolute top-1 w-5 h-5 bg-white rounded-full shadow-md transition-all duration-300 ${serverMode ? 'left-8' : 'left-1'}`} />
+                  </button>
+                </div>
+              </div>
+
+              {serverMode && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Server IP Address</label>
+                      <input
+                        type="text"
+                        value={serverIp}
+                        onChange={(e) => setServerIp(e.target.value)}
+                        className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-mono"
+                        placeholder="192.168.1.100"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Port</label>
+                      <input
+                        type="number"
+                        value={serverPort}
+                        onChange={(e) => setServerPort(parseInt(e.target.value) || 3001)}
+                        className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-mono"
+                        placeholder="3001"
+                      />
+                    </div>
+                  </div>
+                  <button onClick={handleSaveServerConfig} className="w-full py-3 px-4 bg-indigo-600 text-white rounded-xl text-xs font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20">
+                    {serverRunning ? 'Update Configuration' : 'Start Server'}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {isAdmin && (
+            <div className="card-premium p-8">
+              <div className="flex items-center justify-between mb-6 pb-6 border-b border-slate-100 dark:border-slate-800">
+                <div>
+                  <h2 className="text-lg font-black text-slate-900 dark:text-white tracking-tight">Backup & Restore</h2>
+                  <p className="text-sm text-slate-500 font-medium">Manage database backups</p>
+                </div>
+                <button onClick={handleCreateBackup} className="px-4 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold hover:bg-emerald-700 transition-all flex items-center gap-2">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" /></svg>
+                  Create Backup
+                </button>
+              </div>
+
+              {loadingBackups ? (
+                <div className="py-8 text-center">
+                  <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto" />
+                  <p className="text-sm text-slate-500 mt-2">Loading backups...</p>
+                </div>
+              ) : backups.length === 0 ? (
+                <div className="py-8 text-center">
+                  <p className="text-sm text-slate-500">No backups found</p>
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-64 overflow-y-auto">
+                  {backups.map((backup, idx) => (
+                    <div key={idx} className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800/50">
+                      <div>
+                        <p className="text-sm font-bold text-slate-900 dark:text-white">{backup.name}</p>
+                        <p className="text-xs text-slate-500 font-medium">{(backup.size / 1024 / 1024).toFixed(2)} MB • {new Date(backup.created).toLocaleString()}</p>
+                      </div>
+                      <button onClick={() => handleRestoreBackup(backup.path)} className="px-3 py-1.5 bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 rounded-lg text-xs font-bold hover:bg-rose-200 dark:hover:bg-rose-900/50">
+                        Restore
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
