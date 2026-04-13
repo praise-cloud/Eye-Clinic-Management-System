@@ -1,6 +1,33 @@
 const { ipcMain, BrowserWindow } = require('electron');
 const DatabaseService = require('../../../src/services/DatabaseService');
 const { buildErrorResponse, getTimeAgo } = require('./utils');
+const http = require('http');
+
+async function serverApiCall(serverUrl, endpoint, method, body, token) {
+    return new Promise((resolve) => {
+        const url = new URL(`${serverUrl}${endpoint}`);
+        const options = {
+            hostname: url.hostname, port: url.port || 80,
+            path: url.pathname + url.search, method,
+            headers: {
+                'Content-Type': 'application/json',
+                'Content-Length': Buffer.byteLength(body || ''),
+                'Authorization': `Bearer ${token}`
+            }
+        };
+        const req = http.request(options, (res) => {
+            let data = '';
+            res.on('data', c => data += c);
+            res.on('end', () => {
+                try { resolve(JSON.parse(data)); }
+                catch { resolve({ success: false, error: 'Invalid server response' }); }
+            });
+        });
+        req.on('error', err => resolve({ success: false, error: err.message }));
+        req.write(body || '');
+        req.end();
+    });
+}
 
 let _currentUser = null;
 function setCurrentUser(u) { _currentUser = u; }
@@ -16,6 +43,27 @@ module.exports = function registerAdminHandlers(ctx) {
 
   ipcMain.handle('admin:getAllUsers', async () => {
     try {
+      const serverUrl = ctx.appConfig?.serverUrl;
+      const token = ctx._authUtils?.getAccessToken?.();
+
+      if (serverUrl && token) {
+        const result = await serverApiCall(serverUrl, '/api/users', 'GET', '', token);
+        if (result.success && result.data) {
+          return { success: true, users: result.data.map(u => ({
+            id: u.id,
+            first_name: u.first_name,
+            last_name: u.last_name,
+            email: u.email,
+            role: u.role,
+            phone_number: u.phone_number,
+            gender: u.gender,
+            status: u.status,
+            created_at: u.created_at
+          })) };
+        }
+        return result;
+      }
+
       const users = await DatabaseService.getAllUsers();
       return { success: true, users };
     } catch (error) {
@@ -25,6 +73,22 @@ module.exports = function registerAdminHandlers(ctx) {
 
   ipcMain.handle('admin:createUser', async (event, { userData, createdBy }) => {
     try {
+      const serverUrl = ctx.appConfig?.serverUrl;
+      const token = ctx._authUtils?.getAccessToken?.();
+
+      if (serverUrl && token) {
+        const result = await serverApiCall(serverUrl, '/api/users', 'POST', JSON.stringify({
+          email: userData.email,
+          password: userData.password,
+          first_name: userData.firstName,
+          last_name: userData.lastName,
+          role: userData.role,
+          phone_number: userData.phoneNumber || '',
+          gender: userData.gender || ''
+        }), token);
+        return result;
+      }
+
       const dbUserData = {
         first_name: userData.firstName,
         last_name: userData.lastName,
@@ -72,6 +136,22 @@ module.exports = function registerAdminHandlers(ctx) {
     try {
       if (!userId) return { success: false, error: 'User ID required' };
 
+      const serverUrl = ctx.appConfig?.serverUrl;
+      const token = ctx._authUtils?.getAccessToken?.();
+
+      if (serverUrl && token) {
+        const result = await serverApiCall(serverUrl, `/api/users/${userId}`, 'PUT', JSON.stringify({
+          first_name: userData.first_name || userData.firstName,
+          last_name: userData.last_name || userData.lastName,
+          email: userData.email,
+          role: userData.role,
+          phone_number: userData.phone_number || userData.phoneNumber,
+          gender: userData.gender,
+          password: userData.password || undefined
+        }), token);
+        return result;
+      }
+
       const dbUserData = {
         first_name: userData.first_name || userData.firstName,
         last_name: userData.last_name || userData.lastName,
@@ -115,6 +195,14 @@ module.exports = function registerAdminHandlers(ctx) {
   ipcMain.handle('admin:deleteUser', async (event, { userId, deletedBy }) => {
     try {
       if (!userId) return { success: false, error: 'User ID required' };
+
+      const serverUrl = ctx.appConfig?.serverUrl;
+      const token = ctx._authUtils?.getAccessToken?.();
+
+      if (serverUrl && token) {
+        const result = await serverApiCall(serverUrl, `/api/users/${userId}`, 'DELETE', '', token);
+        return result;
+      }
 
       const result = await DatabaseService.deleteUser(userId);
 

@@ -3,13 +3,13 @@ const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
 
 const DEFAULT_CONFIG = {
-  server: 'localhost',
-  port: 1433,
+  server: process.env.DB_HOST || 'localhost',
+  port: parseInt(process.env.DB_PORT || '1433'),
   database: 'master',
   user: process.env.DB_USER || '',
   password: process.env.DB_PASSWORD || '',
   options: {
-    encrypt: true,
+    encrypt: false,
     trustServerCertificate: true,
     enableArithAbort: true
   }
@@ -180,10 +180,12 @@ const schemas = {
 
   settings: `CREATE TABLE settings (
     id NVARCHAR(36) PRIMARY KEY,
-    setting_key NVARCHAR(100) UNIQUE NOT NULL,
+    setting_key NVARCHAR(100) NOT NULL,
     setting_value NVARCHAR(MAX),
+    user_id NVARCHAR(36),
     created_at DATETIME DEFAULT GETDATE(),
-    updated_at DATETIME DEFAULT GETDATE()
+    updated_at DATETIME DEFAULT GETDATE(),
+    UNIQUE(setting_key, user_id)
   )`,
 
   user_presence: `CREATE TABLE user_presence (
@@ -264,7 +266,7 @@ async function run() {
     console.error('\nMake sure:');
     console.error('  1. SQL Server is running');
     console.error('  2. Credentials are correct (use --user and --password flags or DB_USER/DB_PASSWORD env vars)');
-    console.error('  3. TCP/IP protocol is enabled on port 1433');
+    console.error('  3. The server host/instance is correct (use --host flag or DB_HOST env var)');
     process.exit(1);
   }
 
@@ -309,25 +311,26 @@ async function run() {
   const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
 
   try {
-    const existing = await pool.query(`SELECT id FROM users WHERE email = @email`, [{ name: 'email', type: mssql.VarChar, value: adminEmail }]);
+    const req = pool.request();
+    req.input('email', mssql.VarChar, adminEmail);
+    const existing = await req.query(`SELECT id FROM users WHERE email = @email`);
     if (existing.recordset.length > 0) {
       console.log(`  Admin user '${adminEmail}' already exists, skipping.`);
     } else {
       const hash = await bcrypt.hash(adminPassword, 10);
-      await pool.query(
+      const req2 = pool.request();
+      req2.input('id', mssql.VarChar, uuidv4());
+      req2.input('fn', mssql.VarChar, 'Admin');
+      req2.input('ln', mssql.VarChar, 'User');
+      req2.input('email', mssql.VarChar, adminEmail);
+      req2.input('hash', mssql.VarChar, hash);
+      req2.input('gender', mssql.VarChar, '');
+      req2.input('role', mssql.VarChar, 'admin');
+      req2.input('phone', mssql.VarChar, '');
+      req2.input('status', mssql.VarChar, 'active');
+      await req2.query(
         `INSERT INTO users (id, first_name, last_name, email, password_hash, gender, role, phone_number, status, created_at, updated_at)
-         VALUES (@id, @fn, @ln, @email, @hash, @gender, @role, @phone, @status, GETDATE(), GETDATE())`,
-        [
-          { name: 'id', type: mssql.VarChar, value: uuidv4() },
-          { name: 'fn', type: mssql.VarChar, value: 'Admin' },
-          { name: 'ln', type: mssql.VarChar, value: 'User' },
-          { name: 'email', type: mssql.VarChar, value: adminEmail },
-          { name: 'hash', type: mssql.VarChar, value: hash },
-          { name: 'gender', type: mssql.VarChar, value: '' },
-          { name: 'role', type: mssql.VarChar, value: 'admin' },
-          { name: 'phone', type: mssql.VarChar, value: '' },
-          { name: 'status', type: mssql.VarChar, value: 'active' }
-        ]
+         VALUES (@id, @fn, @ln, @email, @hash, @gender, @role, @phone, @status, GETDATE(), GETDATE())`
       );
       console.log(`  [OK] Admin user created: ${adminEmail} / ${adminPassword}`);
     }

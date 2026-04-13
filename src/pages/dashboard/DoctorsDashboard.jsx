@@ -77,7 +77,8 @@ const DoctorsDashboard = ({ activeSection }) => {
   const [activePanel, setActivePanel] = useState('dashboard');
   const [dashboardStats, setDashboardStats] = useState({
     totalFulfilledPrescriptions: 0,
-    pendingEvaluations: 0 // Mocked or fetched from elsewhere
+    pendingEvaluations: 0, // Mocked or fetched from elsewhere
+    daiagnosticYield: 0 // Placeholder for future implementation
   });
 
   // Helper function to calculate age from DOB
@@ -650,7 +651,7 @@ const DoctorsDashboard = ({ activeSection }) => {
           { label: 'Today\'s Caseload', value: filteredClients.length, color: 'indigo', icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z' },
           { label: 'Pending Evaluations', value: dashboardStats.pendingEvaluations, color: 'amber', icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z' },
           { label: 'Fulfilled Drugs', value: dashboardStats.totalFulfilledPrescriptions, color: 'emerald', icon: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' },
-          { label: 'Diagnostic Yield', value: '94%', color: 'rose', icon: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z' },
+          { label: 'Diagnostic Yield', value: dashboardStats.daiagnosticYield, color: 'rose', icon: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a２ ２ ０ ０１－２ －２z' },
         ].map((stat, i) => (
           <div key={i} className="card-premium p-6 flex items-center gap-5">
             <div className={`w-14 h-14 rounded-2xl bg-${stat.color}-50 dark:bg-${stat.color}-900/20 flex items-center justify-center text-${stat.color}-600 dark:text-${stat.color}-400`}>

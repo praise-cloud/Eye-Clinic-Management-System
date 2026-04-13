@@ -66,13 +66,23 @@ export default function useTests() {
   }, []);
 
   useEffect(() => {
-    if (!window.electronAPI || !window.electronAPI.onIpcEvent) return;
-    const unsubscribe = window.electronAPI.onIpcEvent('data:update', (payload) => {
-      if (payload && payload.table === 'tests') {
-        fetchTests();
-      }
-    });
-    return unsubscribe;
+    if (window.electronAPI?.onIpcEvent) {
+      const unsubscribe = window.electronAPI.onIpcEvent('data:update', (payload) => {
+        if (payload && payload.table === 'tests') {
+          fetchTests();
+        }
+      });
+      return unsubscribe;
+    }
+  }, [fetchTests]);
+
+  useEffect(() => {
+    const handler = (e) => {
+      const data = e.detail;
+      if (data && data.table === 'tests') fetchTests();
+    };
+    window.addEventListener('server:dataUpdate', handler);
+    return () => window.removeEventListener('server:dataUpdate', handler);
   }, [fetchTests]);
 
   return {

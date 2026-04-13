@@ -81,13 +81,23 @@ export default function usePatients() {
   }, []);
 
   useEffect(() => {
-    if (!window.electronAPI || !window.electronAPI.onIpcEvent) return;
-    const unsubscribe = window.electronAPI.onIpcEvent('data:update', (payload) => {
-      if (payload && payload.table === 'patients') {
-        fetchPatients();
-      }
-    });
-    return unsubscribe;
+    if (window.electronAPI?.onIpcEvent) {
+      const unsubscribe = window.electronAPI.onIpcEvent('data:update', (payload) => {
+        if (payload && payload.table === 'patients') {
+          fetchPatients();
+        }
+      });
+      return unsubscribe;
+    }
+  }, [fetchPatients]);
+
+  useEffect(() => {
+    const handler = (e) => {
+      const data = e.detail;
+      if (data && data.table === 'patients') fetchPatients();
+    };
+    window.addEventListener('server:dataUpdate', handler);
+    return () => window.removeEventListener('server:dataUpdate', handler);
   }, [fetchPatients]);
 
   return {

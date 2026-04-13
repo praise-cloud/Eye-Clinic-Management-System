@@ -5,8 +5,6 @@ const path = require('path');
 const bcrypt = require('bcryptjs');
 const { app } = require('electron');
 const { exec } = require('child_process');
-const SchemaSyncService = require('./SchemaSyncService');
-
 const ALLOWED_TABLE_NAMES = new Set([
     'users', 'staff', 'admins', 'employees',
     'patients', 'clients', 'client', 'customer',
@@ -1874,30 +1872,6 @@ class DatabaseService {
                     else resolve(db);
                 });
             });
-
-            const appDb = await this.getDatabase();
-
-            // Perform automatic schema synchronization
-            console.log('[DatabaseService] Starting schema synchronization with imported database...');
-            const syncService = SchemaSyncService;
-            let syncResult = null;
-            try {
-                syncResult = await syncService.synchronizeSchema(appDb, externalPath);
-                console.log('[DatabaseService] Schema sync completed:', {
-                  created: syncResult.results.created.length,
-                  modified: syncResult.results.modified.length,
-                  errors: syncResult.results.errors.length
-                });
-
-                // Log any errors but don't fail
-                if (syncResult.results.errors.length > 0) {
-                  console.warn('[DatabaseService] Schema sync had errors:', syncResult.results.errors);
-                }
-            } catch (syncErr) {
-                console.error('[DatabaseService] Schema synchronization warning (non-fatal):', syncErr.message);
-                // Continue with import even if sync partially fails
-                syncResult = { results: { created: [], modified: [], errors: [syncErr.message] }, analysis: {} };
-            }
 
             const getAll = (sql, params = []) => new Promise((resolve, reject) => {
                 extDb.all(sql, params, (err, rows) => {

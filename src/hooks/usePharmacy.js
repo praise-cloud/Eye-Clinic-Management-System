@@ -83,13 +83,23 @@ export default function usePharmacy() {
   }, []);
 
   useEffect(() => {
-    if (!window.electronAPI || !window.electronAPI.onIpcEvent) return;
-    const unsubscribe = window.electronAPI.onIpcEvent('data:update', (payload) => {
-      if (payload && payload.table === 'pharmacy') {
-        fetchDrugs();
-      }
-    });
-    return unsubscribe;
+    if (window.electronAPI?.onIpcEvent) {
+      const unsubscribe = window.electronAPI.onIpcEvent('data:update', (payload) => {
+        if (payload && payload.table === 'pharmacy_drugs') {
+          fetchDrugs();
+        }
+      });
+      return unsubscribe;
+    }
+  }, [fetchDrugs]);
+
+  useEffect(() => {
+    const handler = (e) => {
+      const data = e.detail;
+      if (data && (data.table === 'pharmacy_drugs' || data.table === 'pharmacy')) fetchDrugs();
+    };
+    window.addEventListener('server:dataUpdate', handler);
+    return () => window.removeEventListener('server:dataUpdate', handler);
   }, [fetchDrugs]);
 
   return {

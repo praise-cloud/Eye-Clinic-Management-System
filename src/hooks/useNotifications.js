@@ -134,6 +134,18 @@ export default function useNotifications(userId) {
         return () => off && off();
     }, [userId, fetchNotifications]);
 
+    useEffect(() => {
+        const handler = (e) => {
+            fetchNotifications();
+        };
+        window.addEventListener('server:chatMessage', handler);
+        window.addEventListener('server:dataUpdate', handler);
+        return () => {
+            window.removeEventListener('server:chatMessage', handler);
+            window.removeEventListener('server:dataUpdate', handler);
+        };
+    }, [fetchNotifications]);
+
     return {
         notifications,
         unreadCount,

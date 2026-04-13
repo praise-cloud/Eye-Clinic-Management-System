@@ -6,11 +6,12 @@ const isServerMode = () => !!getServerUrl();
 const serverApiCall = async (endpoint, method = 'GET', body = null) => {
     const serverUrl = getServerUrl();
     if (!serverUrl) return { success: false, error: 'Not connected to server' };
-    
     try {
-        const options = { method, headers: { 'Content-Type': 'application/json' } };
+        const accessToken = sessionStorage.getItem('accessToken');
+        const headers = { 'Content-Type': 'application/json' };
+        if (accessToken) headers['Authorization'] = `Bearer ${accessToken}`;
+        const options = { method, headers };
         if (body) options.body = JSON.stringify(body);
-        
         const response = await fetch(`${serverUrl}${endpoint}`, options);
         return await response.json();
     } catch (err) {
@@ -166,15 +167,24 @@ export default function usePrescriptions() {
     }, []);
 
     useEffect(() => {
-        if (!window.electronAPI || !window.electronAPI.onIpcEvent) return;
-        const unsubscribe = window.electronAPI.onIpcEvent('data:update', (payload) => {
-            if (payload && payload.table === 'prescriptions') {
-                // Redundant fetch or local update could be done here
-                // For now, let's keep it simple
-            }
-        });
-        return unsubscribe;
-    }, []);
+        if (window.electronAPI?.onIpcEvent) {
+            const unsubscribe = window.electronAPI.onIpcEvent('data:update', (payload) => {
+                if (payload && payload.table === 'prescriptions') {
+                    fetchPendingPrescriptions();
+                }
+            });
+            return unsubscribe;
+        }
+    }, [fetchPendingPrescriptions]);
+
+    useEffect(() => {
+        const handler = (e) => {
+            const data = e.detail;
+            if (data && data.table === 'prescriptions') fetchPendingPrescriptions();
+        };
+        window.addEventListener('server:dataUpdate', handler);
+        return () => window.removeEventListener('server:dataUpdate', handler);
+    }, [fetchPendingPrescriptions]);
 
     return {
         prescriptions,

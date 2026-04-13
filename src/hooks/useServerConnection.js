@@ -13,34 +13,121 @@ export default function useServerConnection() {
     const wsRef = useRef(null);
     const reconnectTimer = useRef(null);
     const pingTimer = useRef(null);
+    const sessionLoadedRef = useRef(false);
 
     const clearTokens = () => {
         setAccessToken(null);
         setRefreshToken(null);
         setCurrentUser(null);
-        localStorage.removeItem('accessToken');
-        localStorage.removeItem('refreshToken');
-        localStorage.removeItem('serverUser');
+        sessionStorage.removeItem('accessToken');
+        sessionStorage.removeItem('refreshToken');
+        sessionStorage.removeItem('serverUser');
     };
 
-    const loadSavedSession = useCallback(() => {
+    const connectWebSocket = useCallback((user) => {
+        if (!serverUrl) return;
+        if (wsRef.current) wsRef.current.close();
+
+        const wsUrl = serverUrl.replace('http', 'ws');
+        const websocket = new WebSocket(wsUrl);
+        wsRef.current = websocket;
+
+        websocket.onopen = () => {
+            websocket.send(JSON.stringify({
+                type: 'auth',
+                userId: user?.id || null,
+                userName: user?.name || null,
+                userRole: user?.role || null,
+                deviceName: localStorage.getItem('deviceName') || 'Unknown'
+            }));
+            setConnected(true);
+            pingTimer.current = setInterval(() => {
+                if (websocket.readyState === WebSocket.OPEN) websocket.send(JSON.stringify({ type: 'ping' }));
+            }, 30000);
+        };
+
+        websocket.onmessage = (event) => {
+            try {
+                const msg = JSON.parse(event.data);
+                switch (msg.type) {
+                    case 'data:update':
+                        window.dispatchEvent(new CustomEvent('server:dataUpdate', { detail: msg.data }));
+                        break;
+                    case 'chat:message':
+                        window.dispatchEvent(new CustomEvent('server:chatMessage', { detail: msg.data }));
+                        break;
+                    case 'presence':
+                        setOnlineUsers(prev => {
+                            const exists = prev.find(u => u.userId === msg.data.userId);
+                            if (msg.data.status === 'offline') return prev.filter(u => u.userId !== msg.data.userId);
+                            if (exists) return prev.map(u => u.userId === msg.data.userId ? { ...u, ...msg.data } : u);
+                            return [...prev, msg.data];
+                        });
+                        window.dispatchEvent(new CustomEvent('server:presence', { detail: msg.data }));
+                        break;
+                    case 'connected':
+                    case 'pong':
+                        break;
+                }
+            } catch {}
+        };
+
+        websocket.onclose = () => {
+            setConnected(false);
+            clearInterval(pingTimer.current);
+            reconnectTimer.current = setTimeout(() => {
+                if (serverUrl && accessToken) connectWebSocket(currentUser || { id: null, name: null, role: null });
+            }, 5000);
+        };
+
+        websocket.onerror = () => websocket.close();
+    }, [serverUrl, accessToken, currentUser]);
+
+    const loadSavedSession = useCallback(async () => {
+        if (sessionLoadedRef.current) return;
+        sessionLoadedRef.current = true;
+
         try {
             const savedUrl = localStorage.getItem('serverUrl');
-            const savedAccess = localStorage.getItem('accessToken');
-            const savedRefresh = localStorage.getItem('refreshToken');
-            const savedUser = localStorage.getItem('serverUser');
+            const savedAccess = sessionStorage.getItem('accessToken');
+            const savedRefresh = sessionStorage.getItem('refreshToken');
+            const savedUser = sessionStorage.getItem('serverUser');
+
             if (savedUrl) setServerUrl(savedUrl);
             if (savedAccess) setAccessToken(savedAccess);
             if (savedRefresh) setRefreshToken(savedRefresh);
             if (savedUser) setCurrentUser(JSON.parse(savedUser));
-        } catch {}
-    }, []);
+
+            if (savedAccess && savedUrl) {
+                const res = await fetch(`${savedUrl}/api/auth/me`, {
+                    headers: { 'Authorization': `Bearer ${savedAccess}` }
+                });
+                const data = await res.json();
+                if (data.success) {
+                    setCurrentUser(data.user);
+                    sessionStorage.setItem('serverUser', JSON.stringify(data.user));
+                    setServerUrl(savedUrl);
+                    setAccessToken(savedAccess);
+                    setRefreshToken(savedRefresh);
+                    connectWebSocket(data.user);
+                } else {
+                    sessionStorage.removeItem('accessToken');
+                    sessionStorage.removeItem('refreshToken');
+                    sessionStorage.removeItem('serverUser');
+                    sessionLoadedRef.current = false;
+                }
+            }
+        } catch {
+            sessionLoadedRef.current = false;
+        }
+    }, [connectWebSocket]);
 
     const api = useCallback(async (endpoint, method = 'GET', body = null) => {
         if (!serverUrl) return { success: false, error: 'No server URL configured' };
 
         const headers = { 'Content-Type': 'application/json' };
-        if (accessToken) headers['Authorization'] = `Bearer ${accessToken}`;
+        const token = sessionStorage.getItem('accessToken') || accessToken;
+        if (token) headers['Authorization'] = `Bearer ${token}`;
 
         let response = await fetch(`${serverUrl}${endpoint}`, {
             method,
@@ -71,12 +158,13 @@ export default function useServerConnection() {
             if (data.success) {
                 setAccessToken(data.accessToken);
                 setRefreshToken(data.refreshToken);
-                localStorage.setItem('accessToken', data.accessToken);
-                localStorage.setItem('refreshToken', data.refreshToken);
+                sessionStorage.setItem('accessToken', data.accessToken);
+                sessionStorage.setItem('refreshToken', data.refreshToken);
                 return true;
             }
         } catch {}
         clearTokens();
+        sessionLoadedRef.current = false;
         return false;
     }, [serverUrl, refreshToken]);
 
@@ -119,9 +207,9 @@ export default function useServerConnection() {
                 setCurrentUser(data.user);
 
                 localStorage.setItem('serverUrl', serverUrl);
-                localStorage.setItem('accessToken', data.accessToken);
-                localStorage.setItem('refreshToken', data.refreshToken);
-                localStorage.setItem('serverUser', JSON.stringify(data.user));
+                sessionStorage.setItem('accessToken', data.accessToken);
+                sessionStorage.setItem('refreshToken', data.refreshToken);
+                sessionStorage.setItem('serverUser', JSON.stringify(data.user));
 
                 connectWebSocket(data.user);
             }
@@ -138,64 +226,9 @@ export default function useServerConnection() {
         } catch {}
         if (wsRef.current) wsRef.current.close();
         clearTokens();
+        sessionLoadedRef.current = false;
         setConnected(false);
     }, [accessToken, api]);
-
-    const connectWebSocket = useCallback((user) => {
-        if (!serverUrl) return;
-        if (wsRef.current) wsRef.current.close();
-
-        const wsUrl = serverUrl.replace('http', 'ws');
-        const websocket = new WebSocket(wsUrl);
-        wsRef.current = websocket;
-
-        websocket.onopen = () => {
-            websocket.send(JSON.stringify({
-                type: 'auth',
-                userId: user.id,
-                userName: user.name,
-                userRole: user.role,
-                deviceName: localStorage.getItem('deviceName') || 'Unknown'
-            }));
-            pingTimer.current = setInterval(() => {
-                if (websocket.readyState === WebSocket.OPEN) websocket.send(JSON.stringify({ type: 'ping' }));
-            }, 30000);
-        };
-
-        websocket.onmessage = (event) => {
-            try {
-                const msg = JSON.parse(event.data);
-                switch (msg.type) {
-                    case 'data:update':
-                        window.dispatchEvent(new CustomEvent('server:dataUpdate', { detail: msg.data }));
-                        break;
-                    case 'chat:message':
-                        window.dispatchEvent(new CustomEvent('server:chatMessage', { detail: msg.data }));
-                        break;
-                    case 'presence':
-                        setOnlineUsers(prev => {
-                            const exists = prev.find(u => u.userId === msg.data.userId);
-                            if (msg.data.status === 'offline') return prev.filter(u => u.userId !== msg.data.userId);
-                            if (exists) return prev.map(u => u.userId === msg.data.userId ? { ...u, ...msg.data } : u);
-                            return [...prev, msg.data];
-                        });
-                        break;
-                    case 'connected':
-                    case 'pong':
-                        break;
-                }
-            } catch {}
-        };
-
-        websocket.onclose = () => {
-            clearInterval(pingTimer.current);
-            reconnectTimer.current = setTimeout(() => {
-                if (serverUrl && accessToken) connectWebSocket(currentUser || { id: null, name: null, role: null });
-            }, 5000);
-        };
-
-        websocket.onerror = () => websocket.close();
-    }, [serverUrl, accessToken, currentUser]);
 
     const fetchOnlineUsers = useCallback(async () => {
         const data = await api('/api/presence/online');
@@ -207,12 +240,6 @@ export default function useServerConnection() {
     useEffect(() => {
         loadSavedSession();
     }, [loadSavedSession]);
-
-    useEffect(() => {
-        if (accessToken && serverUrl && !wsRef.current) {
-            connectWebSocket(currentUser || { id: null, name: null, role: null });
-        }
-    }, [accessToken, serverUrl]);
 
     useEffect(() => {
         return () => {

@@ -162,10 +162,15 @@ class ServerManager {
     }
 
     getStatus() {
+        const os = require('os');
+        const ifs = os.networkInterfaces();
+        const ips = Object.values(ifs).flat().filter(i => i.family === 'IPv4' && !i.internal).map(i => i.address);
         return {
             running: this.isRunning,
             port: this.port,
-            clients: this.connectedClients.size
+            clients: this.connectedClients.size,
+            serverIp: ips[0] || '127.0.0.1',
+            serverIps: ips
         };
     }
 
@@ -222,7 +227,12 @@ class ServerManager {
         const V = mssql.VarChar;
 
         // Health
-        this.app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
+        this.app.get('/api/health', (req, res) => {
+            const os = require('os');
+            const ifs = os.networkInterfaces();
+            const ips = Object.values(ifs).flat().filter(i => i.family === 'IPv4' && !i.internal).map(i => i.address);
+            res.json({ status: 'ok', serverIp: ips[0] || '127.0.0.1', serverIps: ips });
+        });
 
         // Auth
         this.app.post('/api/auth/login', async (req, res) => {
@@ -306,41 +316,47 @@ class ServerManager {
 
         this.app.post('/api/patients', (req, res, next) => { am(req, res, async () => {
             try {
-                const { patient_id, first_name, last_name, dob, gender, contact, email, address, reason_for_visit, client_type, marital_status } = req.body;
+                const { patient_id, first_name, last_name, dob, gender, contact, email, address, reason_for_visit, client_type, marital_status, intake_date } = req.body;
                 const id = uuidv4();
                 await sq(
-                    `INSERT INTO patients (id, patient_id, first_name, last_name, dob, gender, contact, email, address, reason_for_visit, client_type, marital_status, created_at, updated_at)
-                     VALUES (@id, @pid, @fn, @ln, @dob, @g, @c, @e, @addr, @rv, @ct, @ms, GETDATE(), GETDATE())`,
+                    `INSERT INTO patients (id, patient_id, first_name, last_name, dob, gender, contact, email, address, reason_for_visit, client_type, marital_status, intake_date, created_at, updated_at)
+                     VALUES (@id, @pid, @fn, @ln, @dob, @g, @c, @e, @addr, @rv, @ct, @ms, @idt, GETDATE(), GETDATE())`,
                     [
                         { name: 'id', type: V, value: id }, { name: 'pid', type: V, value: patient_id || id },
                         { name: 'fn', type: V, value: first_name }, { name: 'ln', type: V, value: last_name },
                         { name: 'dob', type: V, value: dob || null }, { name: 'g', type: V, value: gender || '' },
                         { name: 'c', type: V, value: contact || '' }, { name: 'e', type: V, value: email || '' },
                         { name: 'addr', type: V, value: address || '' }, { name: 'rv', type: V, value: reason_for_visit || '' },
-                        { name: 'ct', type: V, value: client_type || '' }, { name: 'ms', type: V, value: marital_status || '' }
+                        { name: 'ct', type: V, value: client_type || '' }, { name: 'ms', type: V, value: marital_status || '' },
+                        { name: 'idt', type: V, value: intake_date || null }
                     ]
                 );
-                this.broadcast('data:update', { table: 'patients', action: 'create' });
-                res.json({ success: true, id });
+                const patientResult = await sq('SELECT * FROM patients WHERE id = @id', [{ name: 'id', type: V, value: id }]);
+                const patient = patientResult.recordset[0];
+                this.broadcast('data:update', { table: 'patients', action: 'create', record: patient });
+                res.json({ success: true, id, patient });
             } catch (err) { res.status(500).json({ success: false, error: err.message }); }
         }); });
 
         this.app.put('/api/patients/:id', (req, res, next) => { am(req, res, async () => {
             try {
-                const { first_name, last_name, dob, gender, contact, email, address, reason_for_visit, client_type, marital_status } = req.body;
+                const { first_name, last_name, dob, gender, contact, email, address, reason_for_visit, client_type, marital_status, intake_date } = req.body;
                 await sq(
-                    `UPDATE patients SET first_name=@fn, last_name=@ln, dob=@dob, gender=@g, contact=@c, email=@e, address=@addr, reason_for_visit=@rv, client_type=@ct, marital_status=@ms, updated_at=GETDATE() WHERE id=@id`,
+                    `UPDATE patients SET first_name=@fn, last_name=@ln, dob=@dob, gender=@g, contact=@c, email=@e, address=@addr, reason_for_visit=@rv, client_type=@ct, marital_status=@ms, intake_date=@idt, updated_at=GETDATE() WHERE id=@id`,
                     [
                         { name: 'fn', type: V, value: first_name }, { name: 'ln', type: V, value: last_name },
                         { name: 'dob', type: V, value: dob || null }, { name: 'g', type: V, value: gender || '' },
                         { name: 'c', type: V, value: contact || '' }, { name: 'e', type: V, value: email || '' },
                         { name: 'addr', type: V, value: address || '' }, { name: 'rv', type: V, value: reason_for_visit || '' },
                         { name: 'ct', type: V, value: client_type || '' }, { name: 'ms', type: V, value: marital_status || '' },
+                        { name: 'idt', type: V, value: intake_date || null },
                         { name: 'id', type: V, value: req.params.id }
                     ]
                 );
-                this.broadcast('data:update', { table: 'patients', action: 'update' });
-                res.json({ success: true });
+                const patientResult = await sq('SELECT * FROM patients WHERE id = @id', [{ name: 'id', type: V, value: req.params.id }]);
+                const patient = patientResult.recordset[0];
+                this.broadcast('data:update', { table: 'patients', action: 'update', record: patient });
+                res.json({ success: true, patient });
             } catch (err) { res.status(500).json({ success: false, error: err.message }); }
         }); });
 
@@ -365,6 +381,14 @@ class ServerManager {
             } catch (err) { res.status(500).json({ success: false, error: err.message }); }
         }); });
 
+        this.app.get('/api/tests/:id', (req, res, next) => { am(req, res, async () => {
+            try {
+                const result = await sq('SELECT * FROM tests WHERE id = @id', [{ name: 'id', type: V, value: req.params.id }]);
+                if (!result.recordset[0]) return res.status(404).json({ success: false, error: 'Not found' });
+                res.json({ success: true, data: result.recordset[0] });
+            } catch (err) { res.status(500).json({ success: false, error: err.message }); }
+        }); });
+
         this.app.post('/api/tests', (req, res, next) => { am(req, res, async () => { doc(req, res, async () => {
             try {
                 const { patient_id, eye, machine_type, raw_data } = req.body;
@@ -378,6 +402,26 @@ class ServerManager {
             } catch (err) { res.status(500).json({ success: false, error: err.message }); }
         }); }); });
 
+        this.app.put('/api/tests/:id', (req, res, next) => { am(req, res, async () => { doc(req, res, async () => {
+            try {
+                const { eye, machine_type, raw_data } = req.body;
+                await sq(`UPDATE tests SET eye=@eye, machine_type=@mt, raw_data=@rd, updated_at=GETDATE() WHERE id=@id`,
+                    [{ name: 'eye', type: V, value: eye || 'both' }, { name: 'mt', type: V, value: machine_type || '' },
+                     { name: 'rd', type: V, value: typeof raw_data === 'string' ? raw_data : JSON.stringify(raw_data || {}) },
+                     { name: 'id', type: V, value: req.params.id }]);
+                this.broadcast('data:update', { table: 'tests', action: 'update' });
+                res.json({ success: true });
+            } catch (err) { res.status(500).json({ success: false, error: err.message }); }
+        }); }); });
+
+        this.app.delete('/api/tests/:id', (req, res, next) => { am(req, res, async () => { doc(req, res, async () => {
+            try {
+                await sq('DELETE FROM tests WHERE id = @id', [{ name: 'id', type: V, value: req.params.id }]);
+                this.broadcast('data:update', { table: 'tests', action: 'delete' });
+                res.json({ success: true });
+            } catch (err) { res.status(500).json({ success: false, error: err.message }); }
+        }); }); });
+
         // Inventory
         this.app.get('/api/inventory', (req, res, next) => { am(req, res, async () => {
             try {
@@ -386,11 +430,107 @@ class ServerManager {
             } catch (err) { res.status(500).json({ success: false, error: err.message }); }
         }); });
 
+        this.app.post('/api/inventory', (req, res, next) => { am(req, res, async () => { ao(req, res, async () => {
+            try {
+                const { item_code, item_name, category, quantity, unit, min_stock_level, expiry_date } = req.body;
+                const id = uuidv4();
+                await sq(`INSERT INTO inventory (id, item_code, item_name, category, quantity, unit, min_stock_level, expiry_date, created_at, updated_at) VALUES (@id, @code, @name, @cat, @qty, @unit, @min, @exp, GETDATE(), GETDATE())`,
+                    [{ name: 'id', type: V, value: id }, { name: 'code', type: V, value: item_code || id }, { name: 'name', type: V, value: item_name || '' },
+                     { name: 'cat', type: V, value: category || '' }, { name: 'qty', type: mssql.Int, value: quantity || 0 },
+                     { name: 'unit', type: V, value: unit || '' }, { name: 'min', type: mssql.Int, value: min_stock_level || 0 },
+                     { name: 'exp', type: V, value: expiry_date || null }]);
+                this.broadcast('data:update', { table: 'inventory', action: 'create' });
+                res.json({ success: true, id });
+            } catch (err) { res.status(500).json({ success: false, error: err.message }); }
+        }); }); });
+
+        this.app.put('/api/inventory/:id', (req, res, next) => { am(req, res, async () => { ao(req, res, async () => {
+            try {
+                const { item_name, category, quantity, unit, min_stock_level, expiry_date } = req.body;
+                await sq(`UPDATE inventory SET item_name=@name, category=@cat, quantity=@qty, unit=@unit, min_stock_level=@min, expiry_date=@exp, updated_at=GETDATE() WHERE id=@id`,
+                    [{ name: 'name', type: V, value: item_name || '' }, { name: 'cat', type: V, value: category || '' },
+                     { name: 'qty', type: mssql.Int, value: quantity || 0 }, { name: 'unit', type: V, value: unit || '' },
+                     { name: 'min', type: mssql.Int, value: min_stock_level || 0 }, { name: 'exp', type: V, value: expiry_date || null },
+                     { name: 'id', type: V, value: req.params.id }]);
+                this.broadcast('data:update', { table: 'inventory', action: 'update' });
+                res.json({ success: true });
+            } catch (err) { res.status(500).json({ success: false, error: err.message }); }
+        }); }); });
+
+        this.app.delete('/api/inventory/:id', (req, res, next) => { am(req, res, async () => { ao(req, res, async () => {
+            try {
+                await sq('DELETE FROM inventory WHERE id = @id', [{ name: 'id', type: V, value: req.params.id }]);
+                this.broadcast('data:update', { table: 'inventory', action: 'delete' });
+                res.json({ success: true });
+            } catch (err) { res.status(500).json({ success: false, error: err.message }); }
+        }); }); });
+
         // Pharmacy
         this.app.get('/api/pharmacy/drugs', (req, res, next) => { am(req, res, async () => {
             try {
                 const result = await sq('SELECT * FROM pharmacy_drugs ORDER BY drug_name ASC');
                 res.json({ success: true, data: result.recordset });
+            } catch (err) { res.status(500).json({ success: false, error: err.message }); }
+        }); });
+
+        this.app.post('/api/pharmacy/drugs', (req, res, next) => { am(req, res, async () => { doc(req, res, async () => {
+            try {
+                const { drug_code, drug_name, drug_form, strength, pack_size, unit_price, current_stock } = req.body;
+                const id = uuidv4();
+                await sq(`INSERT INTO pharmacy_drugs (id, drug_code, drug_name, drug_form, strength, pack_size, unit_price, current_stock, created_at, updated_at) VALUES (@id, @code, @name, @form, @str, @pack, @price, @stock, GETDATE(), GETDATE())`,
+                    [{ name: 'id', type: V, value: id }, { name: 'code', type: V, value: drug_code || id }, { name: 'name', type: V, value: drug_name || '' },
+                     { name: 'form', type: V, value: drug_form || '' }, { name: 'str', type: V, value: strength || '' },
+                     { name: 'pack', type: V, value: pack_size || '' }, { name: 'price', type: V, value: unit_price || 0 },
+                     { name: 'stock', type: mssql.Int, value: current_stock || 0 }]);
+                this.broadcast('data:update', { table: 'pharmacy', action: 'create' });
+                res.json({ success: true, id });
+            } catch (err) { res.status(500).json({ success: false, error: err.message }); }
+        }); }); });
+
+        this.app.delete('/api/pharmacy/drugs/:id', (req, res, next) => { am(req, res, async () => { ao(req, res, async () => {
+            try {
+                await sq('DELETE FROM pharmacy_drugs WHERE id = @id', [{ name: 'id', type: V, value: req.params.id }]);
+                this.broadcast('data:update', { table: 'pharmacy', action: 'delete' });
+                res.json({ success: true });
+            } catch (err) { res.status(500).json({ success: false, error: err.message }); }
+        }); }); });
+
+        this.app.get('/api/pharmacy/drugs/:id', (req, res, next) => { am(req, res, async () => {
+            try {
+                const result = await sq('SELECT * FROM pharmacy_drugs WHERE id = @id', [{ name: 'id', type: V, value: req.params.id }]);
+                if (!result.recordset[0]) return res.status(404).json({ success: false, error: 'Not found' });
+                res.json({ success: true, data: result.recordset[0] });
+            } catch (err) { res.status(500).json({ success: false, error: err.message }); }
+        }); });
+
+        this.app.post('/api/pharmacy/dispense', (req, res, next) => { am(req, res, async () => {
+            try {
+                const { drugId, patientId, quantity, notes } = req.body;
+                const dispId = uuidv4();
+                const dispQty = quantity || 1;
+                await sq(`INSERT INTO pharmacy_dispensations (id, drug_id, patient_id, quantity, unit_price, dispensed_by, notes, created_at)
+                          SELECT @id, @drug, @pat, @qty, d.unit_price, @user, @notes, GETDATE() FROM pharmacy_drugs d WHERE d.id = @drug`,
+                    [{ name: 'id', type: V, value: dispId }, { name: 'drug', type: V, value: drugId },
+                     { name: 'pat', type: V, value: patientId }, { name: 'qty', type: mssql.Int, value: dispQty },
+                     { name: 'user', type: V, value: req.user.userId }, { name: 'notes', type: V, value: notes || '' }]);
+                await sq('UPDATE pharmacy_drugs SET current_stock = current_stock - @qty WHERE id = @drug',
+                    [{ name: 'qty', type: mssql.Int, value: dispQty }, { name: 'drug', type: V, value: drugId }]);
+                const drugResult = await sq('SELECT name, unit_price FROM pharmacy_drugs WHERE id = @id',
+                    [{ name: 'id', type: V, value: drugId }]);
+                if (drugResult.recordset[0]) {
+                    const revenueId = uuidv4();
+                    const { unit_price: unitPrice, name: drugName } = drugResult.recordset[0];
+                    await sq(`INSERT INTO revenue (id, source, source_id, amount, currency, user_id, patient_id, description, timestamp)
+                             VALUES (@id, @src, @srcId, @amt, 'NGN', @userId, @patId, @desc, GETDATE())`,
+                        [{ name: 'id', type: V, value: revenueId }, { name: 'src', type: V, value: 'pharmacy' },
+                         { name: 'srcId', type: V, value: dispId }, { name: 'amt', type: mssql.Decimal(12,2), value: parseFloat((unitPrice * dispQty).toFixed(2)) },
+                         { name: 'userId', type: V, value: req.user.userId }, { name: 'patId', type: V, value: patientId },
+                         { name: 'desc', type: V, value: `${drugName} dispensed x${dispQty}` }]);
+                }
+                this.broadcast('data:update', { table: 'pharmacy', action: 'dispense' });
+                this.broadcast('data:update', { table: 'dashboard', action: 'refresh' });
+                this.broadcast('data:update', { table: 'revenue', action: 'create' });
+                res.json({ success: true, id: dispId });
             } catch (err) { res.status(500).json({ success: false, error: err.message }); }
         }); });
 
@@ -415,6 +555,18 @@ class ServerManager {
                 res.json({ success: true, id });
             } catch (err) { res.status(500).json({ success: false, error: err.message }); }
         }); }); });
+
+        this.app.put('/api/prescriptions/:id/status', (req, res, next) => { am(req, res, async () => {
+            try {
+                const { status } = req.body;
+                await sq('UPDATE prescriptions SET status=@s, updated_at=GETDATE() WHERE id=@id', [
+                    { name: 's', type: V, value: status },
+                    { name: 'id', type: V, value: req.params.id }
+                ]);
+                this.broadcast('data:update', { table: 'prescriptions', action: 'update' });
+                res.json({ success: true });
+            } catch (err) { res.status(500).json({ success: false, error: err.message }); }
+        }); });
 
         // Chat
         this.app.get('/api/chat/:otherUserId', (req, res, next) => { am(req, res, async () => {
@@ -452,6 +604,40 @@ class ServerManager {
             try {
                 const result = await sq(`SELECT up.*, u.first_name, u.last_name, u.email, u.role FROM user_presence up JOIN users u ON up.user_id=u.id WHERE up.is_online=1`);
                 res.json({ success: true, users: result.recordset });
+            } catch (err) { res.status(500).json({ success: false, error: err.message }); }
+        });         });
+
+        // Settings
+        this.app.get('/api/settings', (req, res, next) => { am(req, res, async () => {
+            try {
+                const { key, userId } = req.query;
+                const uid = userId || req.user.userId;
+                if (key) {
+                    const result = await sq(
+                        'SELECT * FROM settings WHERE setting_key=@key AND (user_id=@uid OR user_id IS NULL) ORDER BY user_id DESC',
+                        [{ name: 'key', type: V, value: key }, { name: 'uid', type: V, value: uid }]
+                    );
+                    const row = result.recordset[0];
+                    return res.json({ success: true, data: row ? { key: row.setting_key, value: row.setting_value, user_id: row.user_id } : null });
+                }
+                const result = await sq('SELECT * FROM settings WHERE user_id=@uid OR user_id IS NULL', [{ name: 'uid', type: V, value: uid }]);
+                res.json({ success: true, settings: result.recordset.map(row => ({ key: row.setting_key, value: row.setting_value, user_id: row.user_id })) });
+            } catch (err) { res.status(500).json({ success: false, error: err.message }); }
+        }); });
+
+        this.app.put('/api/settings', (req, res, next) => { am(req, res, async () => {
+            try {
+                const { key, value, userId } = req.body;
+                const uid = userId || req.user.userId;
+                await sq(
+                    `IF EXISTS (SELECT 1 FROM settings WHERE setting_key=@key AND user_id=@uid)
+                       UPDATE settings SET setting_value=@val, updated_at=GETDATE() WHERE setting_key=@key AND user_id=@uid
+                     ELSE
+                       INSERT INTO settings (id,setting_key,setting_value,user_id,created_at,updated_at) VALUES (@id,@key,@val,@uid,GETDATE(),GETDATE())`,
+                    [{ name: 'id', type: V, value: uuidv4() }, { name: 'key', type: V, value: key }, { name: 'val', type: V, value: value }, { name: 'uid', type: V, value: uid }]
+                );
+                this.broadcast('data:update', { table: 'settings', action: 'update', userId: uid });
+                res.json({ success: true });
             } catch (err) { res.status(500).json({ success: false, error: err.message }); }
         }); });
 
@@ -509,6 +695,59 @@ class ServerManager {
             } catch (err) { res.status(500).json({ success: false, error: err.message }); }
         }); });
 
+        this.app.post('/api/reports', (req, res, next) => { am(req, res, async () => {
+            try {
+                const { patient_id, report_type, title, report_file } = req.body;
+                const id = uuidv4();
+                await sq(`INSERT INTO reports (id, patient_id, report_type, title, report_file, created_at, updated_at) VALUES (@id, @pid, @type, @title, @file, GETDATE(), GETDATE())`,
+                    [{ name: 'id', type: V, value: id }, { name: 'pid', type: V, value: patient_id },
+                     { name: 'type', type: V, value: report_type || 'general' }, { name: 'title', type: V, value: title || '' },
+                     { name: 'file', type: V, value: report_file || '' }]);
+                this.broadcast('data:update', { table: 'reports', action: 'create' });
+                res.json({ success: true, id });
+            } catch (err) { res.status(500).json({ success: false, error: err.message }); }
+        }); });
+
+        this.app.delete('/api/reports/:id', (req, res, next) => { am(req, res, async () => {
+            try {
+                await sq('DELETE FROM reports WHERE id = @id', [{ name: 'id', type: V, value: req.params.id }]);
+                this.broadcast('data:update', { table: 'reports', action: 'delete' });
+                res.json({ success: true });
+            } catch (err) { res.status(500).json({ success: false, error: err.message }); }
+        }); });
+
+        // Notifications
+        this.app.get('/api/notifications', (req, res, next) => { am(req, res, async () => {
+            try {
+                const result = await sq('SELECT * FROM notifications WHERE user_id = @uid ORDER BY created_at DESC', [{ name: 'uid', type: V, value: req.user.userId }]);
+                res.json({ success: true, data: result.recordset });
+            } catch (err) { res.status(500).json({ success: false, error: err.message }); }
+        }); });
+
+        this.app.put('/api/notifications/:id/read', (req, res, next) => { am(req, res, async () => {
+            try {
+                await sq('UPDATE notifications SET is_read = 1, read_at = GETDATE() WHERE id = @id', [{ name: 'id', type: V, value: req.params.id }]);
+                res.json({ success: true });
+            } catch (err) { res.status(500).json({ success: false, error: err.message }); }
+        }); });
+
+        // Presence
+        this.app.post('/api/presence/set-online', (req, res, next) => { am(req, res, async () => {
+            try {
+                await sq('UPDATE user_presence SET is_online = 1, last_seen = GETDATE() WHERE user_id = @uid', [{ name: 'uid', type: V, value: req.user.userId }]);
+                this.broadcast('presence', { userId: req.user.userId, status: 'online' });
+                res.json({ success: true });
+            } catch (err) { res.status(500).json({ success: false, error: err.message }); }
+        }); });
+
+        this.app.post('/api/presence/set-offline', (req, res, next) => { am(req, res, async () => {
+            try {
+                await sq('UPDATE user_presence SET is_online = 0, last_seen = GETDATE() WHERE user_id = @uid', [{ name: 'uid', type: V, value: req.user.userId }]);
+                this.broadcast('presence', { userId: req.user.userId, status: 'offline' });
+                res.json({ success: true });
+            } catch (err) { res.status(500).json({ success: false, error: err.message }); }
+        }); });
+
         // Users (admin)
         this.app.get('/api/users', (req, res, next) => { am(req, res, async () => {
             try {
@@ -528,6 +767,36 @@ class ServerManager {
                      { name: 'role', type: V, value: role }, { name: 'phone', type: V, value: phone_number || '' }, { name: 'g', type: V, value: gender || '' }]);
                 this.broadcast('data:update', { table: 'users', action: 'create' });
                 res.json({ success: true, id });
+            } catch (err) { res.status(500).json({ success: false, error: err.message }); }
+        }); }); });
+
+        this.app.put('/api/users/:id', (req, res, next) => { am(req, res, async () => { ao(req, res, async () => {
+            try {
+                const { first_name, last_name, email, role, phone_number, gender, password } = req.body;
+                let query = `UPDATE users SET first_name=@fn, last_name=@ln, email=@email, role=@role, phone_number=@phone, gender=@g, updated_at=GETDATE()`;
+                const params = [
+                    { name: 'fn', type: V, value: first_name || '' }, { name: 'ln', type: V, value: last_name || '' },
+                    { name: 'email', type: V, value: email || '' }, { name: 'role', type: V, value: role || '' },
+                    { name: 'phone', type: V, value: phone_number || '' }, { name: 'g', type: V, value: gender || '' },
+                    { name: 'id', type: V, value: req.params.id }
+                ];
+                if (password) {
+                    const hash = await bcrypt.hash(password, 10);
+                    query = `UPDATE users SET first_name=@fn, last_name=@ln, email=@email, role=@role, phone_number=@phone, gender=@g, password_hash=@hash, updated_at=GETDATE()`;
+                    params.unshift({ name: 'hash', type: V, value: hash });
+                }
+                query += ' WHERE id = @id';
+                await sq(query, params);
+                this.broadcast('data:update', { table: 'users', action: 'update' });
+                res.json({ success: true });
+            } catch (err) { res.status(500).json({ success: false, error: err.message }); }
+        }); }); });
+
+        this.app.delete('/api/users/:id', (req, res, next) => { am(req, res, async () => { ao(req, res, async () => {
+            try {
+                await sq('DELETE FROM users WHERE id = @id', [{ name: 'id', type: V, value: req.params.id }]);
+                this.broadcast('data:update', { table: 'users', action: 'delete' });
+                res.json({ success: true });
             } catch (err) { res.status(500).json({ success: false, error: err.message }); }
         }); }); });
 

@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import * as messageService from '../services/messageService';
 
 export default function useMessages() {
@@ -34,6 +34,17 @@ export default function useMessages() {
             setLoading(false);
         }
     }, []);
+
+    useEffect(() => {
+        const handler = (e) => {
+            const data = e.detail;
+            if (data && (data.table === 'chat' || data.table === 'messages')) {
+                fetchMessages();
+            }
+        };
+        window.addEventListener('server:dataUpdate', handler);
+        return () => window.removeEventListener('server:dataUpdate', handler);
+    }, [fetchMessages]);
 
     return {
         messages,

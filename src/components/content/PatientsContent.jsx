@@ -43,7 +43,7 @@ const PatientsContent = forwardRef(({ searchTerm }, ref) => {
   const handleExportCSV = () => {
     if (filteredPatients.length === 0) return;
 
-    const headers = ['Name', 'Age', 'Phone', 'Address', 'Email', 'Last Visit', 'Reason'];
+    const headers = ['Name', 'Age', 'Phone', 'Address', 'Email', 'Last Visit', 'Date Added', 'Reason'];
     const csvRows = filteredPatients.map(p => [
       p.name || `${p.first_name} ${p.last_name}`,
       p.age || (p.dob ? new Date().getFullYear() - new Date(p.dob).getFullYear() : 'N/A'),
@@ -51,6 +51,7 @@ const PatientsContent = forwardRef(({ searchTerm }, ref) => {
       `"${p.address || ''}"`,
       p.email || 'N/A',
       p.lastVisit || 'N/A',
+      p.created_at ? new Date(p.created_at).toLocaleDateString('en-GB') : (p.intake_date ? new Date(p.intake_date).toLocaleDateString('en-GB') : 'N/A'),
       `"${p.reason_for_visit || ''}"`
     ].join(','));
 
@@ -94,6 +95,7 @@ const PatientsContent = forwardRef(({ searchTerm }, ref) => {
                 <th className="px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Age</th>
                 <th className="px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Contact</th>
                 <th className="px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Recent Visit</th>
+                <th className="px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Date Added</th>
                 <th className="px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] text-right">Management</th>
               </tr>
             </thead>
@@ -121,6 +123,13 @@ const PatientsContent = forwardRef(({ searchTerm }, ref) => {
                       </div>
                     </td>
                     <td className="px-8 py-5 text-sm font-medium text-slate-600 dark:text-slate-400">{patient.lastVisit || 'N/A'}</td>
+                    <td className="px-8 py-5 text-sm font-medium text-slate-600 dark:text-slate-400">
+                      {patient.created_at
+                        ? new Date(patient.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+                        : patient.intake_date
+                        ? new Date(patient.intake_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+                        : 'N/A'}
+                    </td>
                     <td className="px-8 py-5 text-right">
                       <div className="flex justify-end gap-2">
                         <button

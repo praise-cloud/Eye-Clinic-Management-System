@@ -173,8 +173,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
     // Report APIs
     getReports: (filters) => ipcRenderer.invoke('reports:getAll', filters),
+    getReportById: (id) => ipcRenderer.invoke('reports:getById', id),
     generateReport: (patientId, testIds) => ipcRenderer.invoke('reports:generate', { patientId, testIds }),
     exportReport: (reportId, format) => ipcRenderer.invoke('reports:export', { reportId, format }),
+    deleteReport: (id) => ipcRenderer.invoke('reports:delete', id),
 
     // Chat APIs
     getMessages: (data) => ipcRenderer.invoke('chat:getMessages', data),

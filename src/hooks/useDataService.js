@@ -41,9 +41,12 @@ class DataServiceClient {
         }
 
         try {
+            const accessToken = sessionStorage.getItem('accessToken');
+            const headers = { 'Content-Type': 'application/json' };
+            if (accessToken) headers['Authorization'] = `Bearer ${accessToken}`;
             const options = {
                 method,
-                headers: { 'Content-Type': 'application/json' }
+                headers
             };
 
             if (body) {

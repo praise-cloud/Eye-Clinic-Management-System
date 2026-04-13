@@ -28,6 +28,13 @@ const DashboardContent = ({ activeSection }) => {
 
   // Derived data for "Patients of the day" (showing all patients for now, sorted by newest)
   const clientList = React.useMemo(() => {
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const yesterdayStart = new Date(todayStart);
+    yesterdayStart.setDate(yesterdayStart.getDate() - 1);
+    const weekStart = new Date(todayStart);
+    weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+
     return patients.map(p => ({
       id: p.id,
       patient_id: p.patient_id || 'N/A',
@@ -40,12 +47,32 @@ const DashboardContent = ({ activeSection }) => {
       dob: p.dob || 'N/A',
       address: p.address || 'N/A',
       raw: p
-    })).filter(p =>
-      p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.patient_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.case.toLowerCase().includes(searchTerm.toLowerCase())
-    ).sort((a, b) => new Date(b.raw.created_at) - new Date(a.raw.created_at));
-  }, [patients, searchTerm]);
+    })).filter(p => {
+      if (searchTerm) {
+        const s = searchTerm.toLowerCase();
+        if (!p.name.toLowerCase().includes(s) && !p.patient_id.toLowerCase().includes(s) && !p.case.toLowerCase().includes(s)) return false;
+      }
+      if (!selectedDate) return true;
+      const pDate = p.raw.created_at ? new Date(p.raw.created_at) : null;
+      if (!pDate) return true;
+      if (selectedDate === 'today') return pDate >= todayStart;
+      if (selectedDate === 'yesterday') return pDate >= yesterdayStart && pDate < todayStart;
+      if (selectedDate === 'this_week') return pDate >= weekStart;
+      if (selectedDate === 'custom' && customDate) {
+        const cStart = new Date(customDate);
+        const cEnd = new Date(customDate);
+        cEnd.setDate(cEnd.getDate() + 1);
+        return pDate >= cStart && pDate < cEnd;
+      }
+      return true;
+    }).sort((a, b) => new Date(b.raw.created_at) - new Date(a.raw.created_at));
+  }, [patients, searchTerm, selectedDate, customDate]);
+
+  const todayNewClients = React.useMemo(() => {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    return patients.filter(p => p.created_at && new Date(p.created_at) >= todayStart).length;
+  }, [patients]);
 
   const totalPages = Math.ceil(clientList.length / rowsPerPage);
   const paginatedClients = clientList.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage);
@@ -129,6 +156,15 @@ const DashboardContent = ({ activeSection }) => {
             <h3 className="text-3xl font-black text-slate-900 dark:text-white">Live</h3>
           </div>
         </div>
+        <div className="card-premium p-6 flex items-center gap-5">
+          <div className="w-14 h-14 rounded-2xl bg-cyan-50 flex items-center justify-center text-cyan-600 shadow-sm">
+            <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" /></svg>
+          </div>
+          <div>
+            <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">New Clients Today</p>
+            <h3 className="text-3xl font-black text-slate-900 dark:text-white">{todayNewClients}</h3>
+          </div>
+        </div>
       </div>
 
       <div className="card-premium overflow-hidden">
@@ -162,6 +198,14 @@ const DashboardContent = ({ activeSection }) => {
                 <option value="this_week">This Week</option>
                 <option value="custom">Custom Date</option>
               </select>
+              {selectedDate === 'custom' && (
+                <input
+                  type="date"
+                  className="input-premium py-2.5 text-sm px-4"
+                  value={customDate}
+                  onChange={e => setCustomDate(e.target.value)}
+                />
+              )}
             </div>
           </div>
         </div>

@@ -7,11 +7,12 @@ const isServerMode = () => !!getServerUrl();
 const serverApiCall = async (endpoint, method = 'GET', body = null) => {
     const serverUrl = getServerUrl();
     if (!serverUrl) return { success: false, error: 'Not connected to server' };
-    
     try {
-        const options = { method, headers: { 'Content-Type': 'application/json' } };
+        const accessToken = sessionStorage.getItem('accessToken');
+        const headers = { 'Content-Type': 'application/json' };
+        if (accessToken) headers['Authorization'] = `Bearer ${accessToken}`;
+        const options = { method, headers };
         if (body) options.body = JSON.stringify(body);
-        
         const response = await fetch(`${serverUrl}${endpoint}`, options);
         return await response.json();
     } catch (err) {
@@ -38,8 +39,10 @@ export const generatePatientId = () => {
 
 export const getAllPatients = async (filters = {}) => {
   if (isServerMode()) {
-    const res = await serverApiCall('/api/patients', 'GET', filters);
-    return res?.success ? res.patients : [];
+    const params = new URLSearchParams(filters).toString();
+    const endpoint = params ? `/api/patients?${params}` : '/api/patients';
+    const res = await serverApiCall(endpoint, 'GET');
+    return res?.success ? res.data : [];
   }
   const api = getApi();
   if (!api) return [];
@@ -55,7 +58,7 @@ export const getAllPatients = async (filters = {}) => {
 export const getPatientById = async (id) => {
   if (isServerMode()) {
     const res = await serverApiCall(`/api/patients/${id}`, 'GET');
-    return res?.success ? res.patient : null;
+    return res?.success ? res.data : null;
   }
   const api = getApi();
   if (!api) return null;
@@ -87,7 +90,7 @@ export const createPatient = async (patientData) => {
 export const updatePatient = async (id, patientData) => {
   if (isServerMode()) {
     const res = await serverApiCall(`/api/patients/${id}`, 'PUT', patientData);
-    return res?.success ? res.patient : null;
+    return res?.success ? { ...patientData, id } : null;
   }
   const api = getApi();
   if (!api) return null;
@@ -118,8 +121,8 @@ export const deletePatient = async (id) => {
 
 export const searchPatients = async (searchTerm) => {
   if (isServerMode()) {
-    const res = await serverApiCall('/api/patients/search', 'POST', { search: searchTerm });
-    return res?.success ? res.patients : [];
+    const res = await serverApiCall(`/api/patients?search=${encodeURIComponent(searchTerm)}`, 'GET');
+    return res?.success ? res.data : [];
   }
   const api = getApi();
   if (!api) return [];

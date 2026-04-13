@@ -565,6 +565,13 @@ const SettingsContent = () => {
                         <span className="text-xs text-indigo-500">on port {serverStatus.port}</span>
                       )}
                     </div>
+                    {serverStatus?.running && serverStatus?.serverIp && (
+                      <div className="bg-indigo-100 dark:bg-indigo-800/30 rounded-xl p-3 mb-3">
+                        <p className="text-xs font-bold text-indigo-600 dark:text-indigo-300 mb-1">Server IP Address</p>
+                        <p className="text-lg font-mono font-black text-indigo-800 dark:text-indigo-200">{serverStatus.serverIp}:3001</p>
+                        <p className="text-xs text-indigo-500 mt-1">Other computers connect to this address</p>
+                      </div>
+                    )}
                     <p className="text-xs text-indigo-600 dark:text-indigo-400">
                       Running this PC as the clinic server. Other computers will connect to this machine.
                     </p>
