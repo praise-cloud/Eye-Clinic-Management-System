@@ -2316,6 +2316,44 @@ npm run start:server  # Start backend server (port 3001)
 4. Token auto-refreshes on 401 response
 5. Refresh token stored in session; new token pair issued on `/api/auth/refresh`
 
+### Changes (April 13, 2026) - handlers.js Modular Split
+
+The monolithic `electron/ipc/handlers.js` (~2234 lines) has been split into 19 modular files, one per feature domain. The main `handlers.js` is now a thin wrapper (~65 lines) that imports and calls each modular register function.
+
+#### Modular Files Created (electron/ipc/handlers/)
+| File | Purpose |
+|------|---------|
+| `utils.js` | Shared helpers: `mapDatabaseError`, `buildErrorResponse`, `getTimeAgo` |
+| `auth.js` | Auth: login, logout, isFirstRun, completeSetup, createUser, getAllUsers, isAuthenticated |
+| `patients.js` | Patient CRUD: getAll, getById, create, update, delete, search |
+| `tests.js` | Test CRUD: getAll, getById, create, update, delete, attachCvfToDocuments |
+| `reports.js` | Report: getAll, getById, generate, export, delete |
+| `inventory.js` | Inventory: getAll, getById, create, update, delete, updateQuantity, getByCode, getStatistics, getLowStock, getExpiring, search |
+| `pharmacy.js` | Pharmacy: getDrugs, getDrugById, createDrug, updateDrug, deleteDrug, dispense |
+| `prescriptions.js` | Prescriptions: create, createMultiple, getById, getByPatient, getPending, updateStatus |
+| `notifications.js` | Notifications: getAll, markRead, markAllRead |
+| `admin.js` | Admin: getAllUsers, createUser, updateUserStatus, updateUser, deleteUser, getActivityLogs, getActivityStats, logActivity, getUserStats, getActivityLogsFiltered, getDoctorCaseStudies, getTableData |
+| `file.js` | File/DB: select, importDb, restoreBackup, runPythonScript, validateSQLiteFile, analyzeBakFile, importExternalWithSync, importExternalBatchWithSync, henson:analyzeExport, henson:importExport, henson:importFolder, db:delete, db:update |
+| `chat.js` | Chat: getMessages, sendMessage, markMessageRead, markAllAsRead, getUnreadCount, deleteMessage |
+| `presence.js` | Presence: setOnline, setOffline, getOnlineUsers, getUsersWithPresence |
+| `settings.js` | Settings: get, getAll, set |
+| `system.js` | System: healthCheck, checkOnline, setCvfWatchPath, getCvfWatchPath, getNetworkDbPath, setNetworkDbPath, getServerConfig, saveServerConfig |
+| `cvf.js` | CVF: listIncomingFiles, attachPdfToPatient |
+| `window.js` | Window: openMain, closeAuth, file:save, app:checkUpdate |
+| `dashboard.js` | Dashboard: getStats, getSalesRecords |
+| `server.js` | Server: start, stop, status, connect, disconnect, getStatus, serverConfig:get/set, serverConfig:getSqlServer/setSqlServer |
+
+#### Pattern
+Each module exports a `registerXxxHandlers(ctx)` function that:
+- Sets module-level `_currentUser` from `ctx.currentUser`
+- Wires up `ctx._setCurrentUser` to propagate user changes to other modules
+- Registers IPC handlers via `ipcMain.handle()`
+
+#### Verification
+- All 19 files pass `node -c` syntax check
+- Frontend `npm run build` succeeds
+- Main `handlers.js` is now ~65 lines (down from ~2234 lines)
+
 ### Remaining Work
 - Full end-to-end testing with SQL Server
 - Client PC login via server mode
