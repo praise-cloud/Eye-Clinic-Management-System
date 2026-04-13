@@ -11,9 +11,6 @@ const SettingsContent = () => {
   const [showSuccess, setShowSuccess] = useState(false)
   const [successMessage, setSuccessMessage] = useState('')
   const [profileImage, setProfileImage] = useState(null)
-  const [showCurrentPassword, setShowCurrentPassword] = useState(false)
-  const [showNewPassword, setShowNewPassword] = useState(false)
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -23,41 +20,22 @@ const SettingsContent = () => {
     newPassword: '',
     confirmPassword: ''
   })
-  const [settings, setSettings] = useState({
-    notifications: true,
-    autoBackup: true,
-    emailAlerts: true,
-    dbPath: ''
-  })
-  const [sqlConfig, setSqlConfig] = useState({
-    enabled: false,
-    host: '',
-    port: 1433,
-    database: '',
-    user: '',
-    password: '',
-    encrypt: true,
-    trustServerCertificate: true,
-    connectTimeout: 15000,
-    requestTimeout: 30000
-  })
-  const [sqlTestStatus, setSqlTestStatus] = useState(null)
-  const isAdmin = (user?.role || '').toLowerCase() === 'admin'
-  const [lanSyncPath, setLanSyncPath] = useState('')
-  const [lanSyncStatus, setLanSyncStatus] = useState('')
-  const [lanConflicts, setLanConflicts] = useState([])
-  const [networkMode, setNetworkMode] = useState(false)
-  const [testingConnection, setTestingConnection] = useState(false)
-  const [connectionTestResult, setConnectionTestResult] = useState(null)
-  const [onlineUsers, setOnlineUsers] = useState([])
-  const [serverMode, setServerMode] = useState(false)
-  const [serverIp, setServerIp] = useState('')
-  const [serverPort, setServerPort] = useState(3001)
-  const [serverRunning, setServerRunning] = useState(false)
-  const [connecting, setConnecting] = useState(false)
-  const [serverConnected, setServerConnected] = useState(false)
+  const [cvfWatchPath, setCvfWatchPath] = useState('')
+  const [cvfWatchStatus, setCvfWatchStatus] = useState('')
   const [backups, setBackups] = useState([])
   const [loadingBackups, setLoadingBackups] = useState(false)
+  const [serverMode, setServerMode] = useState(false)
+  const [serverUrl, setServerUrl] = useState('')
+  const [sqlHost, setSqlHost] = useState('')
+  const [sqlPort, setSqlPort] = useState(1433)
+  const [sqlDatabase, setSqlDatabase] = useState('eye_clinic_db')
+  const [sqlUser, setSqlUser] = useState('')
+  const [sqlPassword, setSqlPassword] = useState('')
+  const [serverStatus, setServerStatus] = useState(null)
+  const [serverStarting, setServerStarting] = useState(false)
+  const [testingConnection, setTestingConnection] = useState(false)
+  const [connectionResult, setConnectionResult] = useState(null)
+  const isAdmin = (user?.role || '').toLowerCase() === 'admin'
 
   useEffect(() => {
     if (user) {
@@ -71,185 +49,149 @@ const SettingsContent = () => {
         confirmPassword: ''
       })
     }
-    const loadDbPath = async () => {
+    const loadCvfWatchPath = async () => {
       try {
-        const result = await (window.electronAPI?.getNetworkDbPath?.() ?? null)
-        if (result?.success && result.path) {
-          setSettings(prev => ({ ...prev, dbPath: result.path }))
-        }
+        const res = await window.electronAPI?.getCvfWatchPath?.()
+        if (res?.success && res.path) setCvfWatchPath(res.path)
       } catch { }
     }
-    loadDbPath()
-    const loadSqlConfig = async () => {
+    loadCvfWatchPath()
+    const loadServerConfig = async () => {
       try {
-        if (!window.electronAPI?.getSqlServerConfig) return
-        const res = await window.electronAPI.getSqlServerConfig()
-        if (res?.success && res.config) {
-          setSqlConfig(prev => ({ ...prev, ...res.config }))
-        }
-      } catch { }
-    }
-    loadSqlConfig()
-    const loadLanSyncPath = async () => {
-      try {
-        const res = await window.electronAPI?.getLanSyncPath?.()
-        if (res?.success && res.path) setLanSyncPath(res.path)
-      } catch { }
-    }
-    loadLanSyncPath()
-    const loadNetworkConfig = async () => {
-      try {
-        if (window.electronAPI?.getNetworkConfig) {
-          const result = await window.electronAPI.getNetworkConfig()
-          if (result.success) {
-            setNetworkMode(result.config?.isNetworkMode || false)
-            if (result.config?.serverPath) {
-              setSettings(prev => ({ ...prev, dbPath: result.config.serverPath }))
+        if (window.electronAPI?.getServerConfig) {
+          const res = await window.electronAPI.getServerConfig()
+          if (res?.success && res.config) {
+            setServerMode(res.config.isServerMode || false)
+            setServerUrl(res.config.serverUrl || '')
+            if (res.config.sql_server) {
+              setSqlHost(res.config.sql_server.host || 'localhost')
+              setSqlPort(res.config.sql_server.port || 1433)
+              setSqlDatabase(res.config.sql_server.database || 'eye_clinic_db')
+              setSqlUser(res.config.sql_server.user || '')
+              setSqlPassword(res.config.sql_server.password || '')
             }
           }
         }
-        if (window.electronAPI?.getOnlineUsers) {
-          const usersResult = await window.electronAPI.getOnlineUsers()
-          if (usersResult?.users) {
-            setOnlineUsers(usersResult.users)
-          }
-        }
-      } catch { }
-    }
-    loadNetworkConfig()
-    const interval = setInterval(loadNetworkConfig, 10000)
-
-    const loadServerConfig = async () => {
-      try {
-        if (window.electronAPI?.serverGetConfig) {
-          const result = await window.electronAPI.serverGetConfig()
-          if (result?.success && result.config) {
-            setServerMode(result.config.serverMode || false)
-            setServerIp(result.config.serverIp || '')
-            setServerPort(result.config.port || 3001)
-          }
-        }
         if (window.electronAPI?.serverStatus) {
-          const statusResult = await window.electronAPI.serverStatus()
-          setServerRunning(statusResult?.status?.running || false)
+          const status = await window.electronAPI.serverStatus()
+          setServerStatus(status?.status || null)
         }
-      } catch { }
+      } catch {}
     }
-    loadServerConfig()
-
+    if (isAdmin) loadServerConfig()
     const loadBackups = async () => {
       setLoadingBackups(true)
       try {
         if (window.electronAPI?.backupList) {
           const result = await window.electronAPI.backupList()
-          if (result?.success) {
-            setBackups(result.backups || [])
-          }
+          if (result?.success) setBackups(result.backups || [])
         }
       } catch { }
       setLoadingBackups(false)
     }
     if (isAdmin) loadBackups()
-
-    return () => clearInterval(interval)
   }, [user, isAdmin])
 
   const handleInputChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }))
   }
 
-  const handleSettingToggle = (field) => {
-    setSettings(prev => ({ ...prev, [field]: !prev[field] }))
-  }
-
-  const handleDbPathChange = (value) => {
-    setSettings(prev => ({ ...prev, dbPath: value }))
-  }
-
-  const handleTestConnection = async () => {
-    if (!settings.dbPath) {
-      setConnectionTestResult({ success: false, error: 'Please enter a network path' })
-      return
-    }
+  const handleTestServerConnection = async () => {
     setTestingConnection(true)
-    setConnectionTestResult(null)
+    setConnectionResult(null)
     try {
-      if (window.electronAPI?.testNetworkConnection) {
-        const result = await window.electronAPI.testNetworkConnection(settings.dbPath)
-        setConnectionTestResult(result)
+      if (!serverUrl) { setConnectionResult({ success: false, error: 'Enter a server URL' }); return }
+      const res = await fetch(`${serverUrl}/api/health`)
+      if (res.ok) setConnectionResult({ success: true, message: 'Connected to server!' })
+      else setConnectionResult({ success: false, error: `Server returned ${res.status}` })
+    } catch (err) { setConnectionResult({ success: false, error: err.message }) }
+    setTestingConnection(false)
+  }
+
+  const handleStartServer = async () => {
+    setServerStarting(true)
+    try {
+      const res = await window.electronAPI?.serverStart?.({ port: 3001 })
+      if (res?.success) {
+        setServerStatus(res.status)
+        setSuccessMessage('Server started successfully on port 3001.')
+        setShowSuccess(true)
+        setTimeout(() => setShowSuccess(false), 5000)
+        loadServerConfig()
       } else {
-        setConnectionTestResult({ success: true, message: 'Connection test not available' })
+        alert('Failed to start server: ' + (res?.error || 'Unknown error'))
       }
     } catch (err) {
-      setConnectionTestResult({ success: false, error: err.message })
-    } finally {
-      setTestingConnection(false)
+      alert('Failed to start server: ' + err.message)
     }
+    setServerStarting(false)
   }
 
-  const handleBrowseFolder = async () => {
+  const handleStopServer = async () => {
     try {
-      if (window.electronAPI?.selectNetworkFolder) {
-        const result = await window.electronAPI.selectNetworkFolder()
-        if (result.success && result.path) {
-          setSettings(prev => ({ ...prev, dbPath: result.path }))
-          setConnectionTestResult(null)
-        }
+      const res = await window.electronAPI?.serverStop?.()
+      if (res?.success) {
+        setServerStatus({ running: false, port: 3001 })
+        setSuccessMessage('Server stopped.')
+        setShowSuccess(true)
+        setTimeout(() => setShowSuccess(false), 3000)
+        loadServerConfig()
+      } else {
+        alert('Failed to stop server: ' + (res?.error || 'Unknown error'))
       }
     } catch (err) {
-      console.error('Failed to browse folder:', err)
-    }
-  }
-
-  const handleSaveNetworkConfig = async () => {
-    try {
-      if (window.electronAPI?.saveNetworkConfig) {
-        const result = await window.electronAPI.saveNetworkConfig({
-          isNetworkMode: networkMode,
-          serverPath: settings.dbPath,
-          autoSync: true
-        })
-        if (result.success) {
-          setSuccessMessage('Network configuration saved. Restart required for changes to take effect.')
-          setShowSuccess(true)
-          setTimeout(() => setShowSuccess(false), 5000)
-        } else {
-          alert(result.error || 'Failed to save network configuration')
-        }
-      }
-    } catch (err) {
-      console.error('Failed to save network config:', err)
-      alert('Failed to save network configuration')
+      alert('Failed to stop server: ' + err.message)
     }
   }
 
   const handleSaveServerConfig = async () => {
     try {
-      if (window.electronAPI?.serverSaveConfig) {
-        const result = await window.electronAPI.serverSaveConfig({
-          serverMode,
-          serverIp,
-          port: serverPort
-        })
-        if (result.success) {
-          if (serverMode && !serverRunning) {
-            const startResult = await window.electronAPI?.serverStart?.({ port: serverPort })
-            if (startResult?.success) {
-              setServerRunning(true)
-              setSuccessMessage('Server started successfully')
-            } else {
-              alert(startResult?.error || 'Failed to start server')
-            }
-          } else if (!serverMode && serverRunning) {
-            await window.electronAPI?.serverStop?.()
-            setServerRunning(false)
-          }
-          setShowSuccess(true)
-          setTimeout(() => setShowSuccess(false), 5000)
+      if (!window.electronAPI?.setServerConfig) return
+      const config = {
+        isServerMode: serverMode,
+        serverUrl: serverUrl,
+        serverPort: 3001,
+        sql_server: {
+          host: sqlHost,
+          port: sqlPort,
+          database: sqlDatabase,
+          user: sqlUser,
+          password: sqlPassword,
+          encrypt: true,
+          trustServerCertificate: true
         }
       }
+      const res = await window.electronAPI.setServerConfig(config)
+      if (res?.success) {
+        setSuccessMessage('Server configuration saved. Restart required for changes to take effect.')
+        setShowSuccess(true)
+        setTimeout(() => setShowSuccess(false), 5000)
+      } else {
+        alert('Failed to save: ' + (res?.error || 'Unknown error'))
+      }
     } catch (err) {
-      console.error('Failed to save server config:', err)
+      alert('Failed to save server configuration')
+    }
+  }
+
+  const handleBrowseCvfFolder = async () => {
+    try {
+      if (window.electronAPI?.selectFile) {
+        const result = await window.electronAPI.selectFile({
+          title: 'Select CVF Watch Folder',
+          properties: ['openDirectory']
+        })
+        const chosen = result?.filePath || null
+        if (!chosen) return
+        const res = await window.electronAPI?.setCvfWatchPath?.(chosen)
+        if (res?.success) {
+          setCvfWatchPath(chosen)
+          setCvfWatchStatus('CVF watch folder updated.')
+          setTimeout(() => setCvfWatchStatus(''), 3000)
+        }
+      }
+    } catch {
+      setCvfWatchStatus('Failed to update CVF watch folder.')
     }
   }
 
@@ -261,7 +203,8 @@ const SettingsContent = () => {
           setSuccessMessage('Backup created successfully')
           setShowSuccess(true)
           setTimeout(() => setShowSuccess(false), 5000)
-          loadBackups()
+          const result = await window.electronAPI.backupList()
+          if (result?.success) setBackups(result.backups || [])
         } else {
           alert(result.error || 'Failed to create backup')
         }
@@ -286,149 +229,6 @@ const SettingsContent = () => {
       }
     } catch (err) {
       console.error('Restore error:', err)
-    }
-  }
-
-  const loadBackups = async () => {
-    setLoadingBackups(true)
-    try {
-      if (window.electronAPI?.backupList) {
-        const result = await window.electronAPI.backupList()
-        if (result?.success) {
-          setBackups(result.backups || [])
-        }
-      }
-    } catch { }
-    setLoadingBackups(false)
-  }
-
-  const handleSqlConfigChange = (field, value) => {
-    setSqlConfig(prev => ({ ...prev, [field]: value }))
-  }
-
-  const handleSaveSqlConfig = async () => {
-    try {
-      if (!window.electronAPI?.setSqlServerConfig) return
-      const res = await window.electronAPI.setSqlServerConfig(sqlConfig)
-      if (res?.success) {
-        setSuccessMessage('SQL Server configuration saved.')
-        setShowSuccess(true)
-        setTimeout(() => setShowSuccess(false), 3000)
-      } else if (res?.error) {
-        alert(res.error)
-      }
-    } catch (error) {
-      console.error('Error saving SQL Server config:', error)
-      alert('Failed to save SQL Server configuration')
-    }
-  }
-
-  const handleTestSqlConfig = async () => {
-    try {
-      setSqlTestStatus('testing')
-      if (!window.electronAPI?.testSqlServerConnection) return
-      const res = await window.electronAPI.testSqlServerConnection(sqlConfig)
-      if (res?.success) {
-        setSqlTestStatus('success')
-      } else {
-        setSqlTestStatus('failed')
-      }
-    } catch (error) {
-      setSqlTestStatus('failed')
-    }
-  }
-
-  const handleRunSqlSync = async () => {
-    try {
-      if (!window.electronAPI?.runSqlServerSync) return
-      const res = await window.electronAPI.runSqlServerSync()
-      if (res?.success) {
-        setSuccessMessage(`Sync complete. ${res.summary?.processed || 0} changes applied.`)
-        setShowSuccess(true)
-        setTimeout(() => setShowSuccess(false), 4000)
-      } else if (res?.error) {
-        alert(res.error)
-      }
-    } catch (error) {
-      console.error('SQL Server sync error:', error)
-      alert('Failed to run sync')
-    }
-  }
-
-  const chooseLanSyncFolder = async () => {
-    try {
-      if (!window.electronAPI?.selectFile) return
-      const result = await window.electronAPI.selectFile({
-        title: 'Select LAN Sync Folder',
-        properties: ['openDirectory']
-      })
-      const chosen = result?.filePath || null
-      if (!chosen) return
-      const res = await window.electronAPI.setLanSyncPath?.(chosen)
-      if (res?.success) {
-        setLanSyncPath(chosen)
-        setLanSyncStatus('LAN sync folder updated.')
-      }
-    } catch (error) {
-      setLanSyncStatus('Failed to update LAN sync folder.')
-    }
-  }
-
-  const runLanExport = async () => {
-    try {
-      setLanSyncStatus('Exporting changes...')
-      const res = await window.electronAPI.lanSyncExport?.()
-      if (res?.success) {
-        setLanSyncStatus(`Exported ${res.exported || 0} change(s).`)
-      } else {
-        setLanSyncStatus(res?.error || 'Export failed.')
-      }
-    } catch {
-      setLanSyncStatus('Export failed.')
-    }
-  }
-
-  const runLanImport = async () => {
-    try {
-      setLanSyncStatus('Importing changes...')
-      const res = await window.electronAPI.lanSyncImport?.()
-      if (res?.success) {
-        setLanSyncStatus(`Imported ${res.applied || 0} change(s).`)
-      } else {
-        setLanSyncStatus(res?.error || 'Import failed.')
-      }
-      await loadLanConflicts()
-    } catch {
-      setLanSyncStatus('Import failed.')
-    }
-  }
-
-  const loadLanConflicts = async () => {
-    try {
-      const res = await window.electronAPI.lanSyncGetConflicts?.()
-      if (res?.success && Array.isArray(res.conflicts)) {
-        setLanConflicts(res.conflicts)
-      }
-    } catch { }
-  }
-
-  const resolveLanConflict = async (id, resolution) => {
-    try {
-      await window.electronAPI.lanSyncResolveConflict?.({ id, resolution })
-      await loadLanConflicts()
-    } catch { }
-  }
-
-  const handleSaveDbPath = async () => {
-    try {
-      if (!window.electronAPI?.setNetworkDbPath) return
-      await window.electronAPI.setNetworkDbPath(settings.dbPath || '')
-      setSuccessMessage('Network database path saved. Restart application to apply.')
-      setShowSuccess(true)
-      setTimeout(() => setShowSuccess(false), 3000)
-    } catch (error) {
-      console.error('Error saving DB path:', error)
-      alert('Failed to save network database path')
     }
   }
 
@@ -462,7 +262,7 @@ const SettingsContent = () => {
         phone_number: formData.phone,
         gender: formData.gender
       }
-      let result;
+      let result
       if (updateProfile) {
         result = await updateProfile(updates)
       } else if (window.electronAPI?.updateUser) {
@@ -514,7 +314,7 @@ const SettingsContent = () => {
     }
     setLoading(true)
     try {
-      let result;
+      let result
       if (window.electronAPI?.updateUser) {
         result = await window.electronAPI.updateUser(user.id, { password: formData.newPassword }, user.id)
       }
@@ -537,7 +337,6 @@ const SettingsContent = () => {
 
   return (
     <div className="space-y-8 animate-premium-fade pb-10">
-      {/* Success Notification */}
       {showSuccess && (
         <div className="fixed top-8 right-8 z-[100] glass-effect border-l-4 border-emerald-500 p-5 rounded-2xl shadow-2xl flex items-center gap-4 animate-premium-fade ring-1 ring-slate-900/5">
           <div className="w-10 h-10 bg-emerald-50 content-center text-center rounded-xl text-emerald-600">
@@ -554,9 +353,7 @@ const SettingsContent = () => {
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Left Column: Profile & Security */}
         <div className="lg:col-span-2 space-y-8">
-          {/* Identity Section */}
           <div className="card-premium p-8">
             <div className="flex justify-between items-center mb-8 pb-6 border-b border-slate-100 dark:border-slate-800">
               <div>
@@ -652,7 +449,6 @@ const SettingsContent = () => {
             )}
           </div>
 
-          {/* Security Section */}
           <div className="card-premium p-8">
             <div className="flex justify-between items-center mb-8 pb-6 border-b border-slate-100 dark:border-slate-800">
               <div>
@@ -702,419 +498,16 @@ const SettingsContent = () => {
           </div>
         </div>
 
-        {/* Right Column: System & Preferences */}
         <div className="space-y-8">
-          <div className="card-premium p-8">
-            <div className="flex items-center justify-between mb-6 pb-6 border-b border-slate-100 dark:border-slate-800">
-              <div className="flex items-center gap-4">
-                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${networkMode ? 'bg-emerald-100 dark:bg-emerald-900/30' : 'bg-slate-100 dark:bg-slate-800/50'}`}>
-                  <svg className={`w-6 h-6 ${networkMode ? 'text-emerald-600' : 'text-slate-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0" />
-                  </svg>
-                </div>
-                <div>
-                  <h2 className="text-lg font-black text-slate-900 dark:text-white tracking-tight">Network Configuration</h2>
-                  <p className="text-sm text-slate-500 font-medium">Connect to shared clinic database</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                <span className={`text-xs font-bold px-3 py-1.5 rounded-full ${networkMode ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'}`}>
-                  {networkMode ? 'Active' : 'Inactive'}
-                </span>
-                <button
-                  onClick={() => setNetworkMode(!networkMode)}
-                  className={`w-14 h-7 rounded-full transition-all duration-300 relative ${networkMode ? 'bg-emerald-500 shadow-lg shadow-emerald-500/30' : 'bg-slate-300'}`}
-                >
-                  <div className={`absolute top-1 w-5 h-5 bg-white rounded-full shadow-md transition-all duration-300 ${networkMode ? 'left-8' : 'left-1'}`} />
-                </button>
-              </div>
-            </div>
-
-            <div className={`p-4 rounded-2xl border-2 transition-all duration-300 ${networkMode ? 'bg-emerald-50/50 dark:bg-emerald-900/10 border-emerald-200 dark:border-emerald-800/30' : 'bg-slate-50/50 dark:bg-slate-800/30 border-slate-200 dark:border-slate-700/50'}`}>
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Shared Folder Path</label>
-                    {networkMode && (
-                      <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                        <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 8 8"><circle cx="4" cy="4" r="4" /></svg>
-                        Connected
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex gap-2">
-                    <div className="relative flex-1">
-                      <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-                      </svg>
-                      <input
-                        type="text"
-                        value={settings.dbPath}
-                        onChange={(e) => handleDbPathChange(e.target.value)}
-                        className="w-full pl-11 pr-4 py-3.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-mono focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
-                        placeholder="\\ComputerName\EyeClinic"
-                      />
-                    </div>
-                    <button onClick={handleBrowseFolder} className="px-5 py-3.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all">
-                      Browse
-                    </button>
-                  </div>
-                </div>
-
-                {connectionTestResult && (
-                  <div className={`p-3 rounded-xl flex items-center gap-3 ${connectionTestResult.success ? 'bg-emerald-100/50 dark:bg-emerald-900/20' : 'bg-rose-100/50 dark:bg-rose-900/20'}`}>
-                    {connectionTestResult.success ? (
-                      <div className="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center">
-                        <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
-                      </div>
-                    ) : (
-                      <div className="w-8 h-8 rounded-full bg-rose-500 flex items-center justify-center">
-                        <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg>
-                      </div>
-                    )}
-                    <span className={`text-xs font-bold ${connectionTestResult.success ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-700 dark:text-rose-400'}`}>
-                      {connectionTestResult.success ? connectionTestResult.message : connectionTestResult.error}
-                    </span>
-                  </div>
-                )}
-
-                <div className="flex gap-3 pt-2">
-                  <button onClick={handleTestConnection} disabled={testingConnection} className="flex-1 py-3 px-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all flex items-center justify-center gap-2">
-                    {testingConnection ? (
-                      <>
-                        <div className="w-4 h-4 border-2 border-slate-300 border-t-indigo-500 rounded-full animate-spin" />
-                        Testing...
-                      </>
-                    ) : (
-                      <>
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-                        Test Connection
-                      </>
-                    )}
-                  </button>
-                  <button onClick={handleSaveNetworkConfig} className="flex-1 py-3 px-4 bg-indigo-600 text-white rounded-xl text-xs font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20 flex items-center justify-center gap-2">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" /></svg>
-                    Save
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {networkMode && onlineUsers.length > 0 && (
-              <div className="mt-6 pt-6 border-t border-slate-100 dark:border-slate-800">
-                <div className="flex items-center gap-2 mb-4">
-                  <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                  <h3 className="text-sm font-black text-slate-700 dark:text-slate-300 uppercase tracking-widest">Online Computers</h3>
-                  <span className="px-2 py-0.5 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold rounded-full">{onlineUsers.length}</span>
-                </div>
-                <div className="space-y-2">
-                  {onlineUsers.map((user, idx) => (
-                    <div key={idx} className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800/50 hover:border-indigo-200 dark:hover:border-indigo-800/30 transition-all">
-                      <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 rounded-xl bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
-                        </div>
-                        <div>
-                          <p className="text-sm font-bold text-slate-900 dark:text-white">{user.deviceName || 'Unknown Device'}</p>
-                          <p className="text-xs text-slate-500 font-medium">{user.userName || 'Unknown User'}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 rounded-full bg-emerald-500" />
-                        <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-widest">Online</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-
           {isAdmin && (
             <div className="card-premium p-8">
-              <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight mb-2">SQL Server</h2>
-              <p className="text-sm text-slate-500 font-medium mb-8">Direct server connection with offline sync</p>
+              <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight mb-2">Backup & Restore</h2>
+              <p className="text-sm text-slate-500 font-medium mb-8">Manage database backups</p>
 
-              <div className="space-y-5">
-                <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800">
-                  <div>
-                    <p className="text-xs font-black text-slate-900 dark:text-white">Enable SQL Server Sync</p>
-                    <p className="text-[10px] text-slate-500 font-medium">Keep local SQLite in sync with the server</p>
-                  </div>
-                  <button
-                    onClick={() => handleSqlConfigChange('enabled', !sqlConfig.enabled)}
-                    className={`w-12 h-6 rounded-full transition-colors duration-300 relative ${sqlConfig.enabled ? 'bg-emerald-600' : 'bg-slate-300'}`}
-                  >
-                    <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all duration-300 ${sqlConfig.enabled ? 'left-7' : 'left-1'}`} />
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-1 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Host</label>
-                    <input
-                      type="text"
-                      value={sqlConfig.host}
-                      onChange={(e) => handleSqlConfigChange('host', e.target.value)}
-                      className="input-premium text-xs font-mono"
-                      placeholder="192.168.1.10"
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Port</label>
-                      <input
-                        type="number"
-                        value={sqlConfig.port}
-                        onChange={(e) => handleSqlConfigChange('port', Number(e.target.value))}
-                        className="input-premium text-xs font-mono"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Database</label>
-                      <input
-                        type="text"
-                        value={sqlConfig.database}
-                        onChange={(e) => handleSqlConfigChange('database', e.target.value)}
-                        className="input-premium text-xs font-mono"
-                        placeholder="eye_clinic"
-                      />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Username</label>
-                      <input
-                        type="text"
-                        value={sqlConfig.user}
-                        onChange={(e) => handleSqlConfigChange('user', e.target.value)}
-                        className="input-premium text-xs font-mono"
-                        placeholder="db_user"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Password</label>
-                      <input
-                        type="password"
-                        value={sqlConfig.password}
-                        onChange={(e) => handleSqlConfigChange('password', e.target.value)}
-                        className="input-premium text-xs font-mono"
-                        placeholder="••••••••"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Encrypt</label>
-                      <select
-                        value={sqlConfig.encrypt ? 'yes' : 'no'}
-                        onChange={(e) => handleSqlConfigChange('encrypt', e.target.value === 'yes')}
-                        className="input-premium text-xs font-bold appearance-none"
-                      >
-                        <option value="yes">Yes</option>
-                        <option value="no">No</option>
-                      </select>
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Trust Certificate</label>
-                      <select
-                        value={sqlConfig.trustServerCertificate ? 'yes' : 'no'}
-                        onChange={(e) => handleSqlConfigChange('trustServerCertificate', e.target.value === 'yes')}
-                        className="input-premium text-xs font-bold appearance-none"
-                      >
-                        <option value="yes">Yes</option>
-                        <option value="no">No</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Connect Timeout (ms)</label>
-                      <input
-                        type="number"
-                        value={sqlConfig.connectTimeout}
-                        onChange={(e) => handleSqlConfigChange('connectTimeout', Number(e.target.value))}
-                        className="input-premium text-xs font-mono"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Request Timeout (ms)</label>
-                      <input
-                        type="number"
-                        value={sqlConfig.requestTimeout}
-                        onChange={(e) => handleSqlConfigChange('requestTimeout', Number(e.target.value))}
-                        className="input-premium text-xs font-mono"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 gap-3">
-                  <button onClick={handleSaveSqlConfig} className="w-full btn btn-primary py-3.5">
-                    Save SQL Server Settings
-                  </button>
-                  <button onClick={handleTestSqlConfig} className="w-full btn btn-ghost bg-slate-50 py-3.5 text-xs font-bold ring-1 ring-slate-200">
-                    Test Connection
-                  </button>
-                  <button onClick={handleRunSqlSync} className="w-full btn btn-ghost bg-emerald-50 py-3.5 text-xs font-bold ring-1 ring-emerald-200">
-                    Run Sync Now
-                  </button>
-                  {sqlTestStatus && (
-                    <p className={`text-xs font-bold ${sqlTestStatus === 'success' ? 'text-emerald-600' : sqlTestStatus === 'failed' ? 'text-rose-600' : 'text-slate-500'}`}>
-                      {sqlTestStatus === 'testing' ? 'Testing connection...' : sqlTestStatus === 'success' ? 'Connection successful.' : 'Connection failed.'}
-                    </p>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {isAdmin && (
-            <div className="card-premium p-8">
-              <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight mb-2">LAN Sync</h2>
-              <p className="text-sm text-slate-500 font-medium mb-6">Share changes across devices on the same Wi‑Fi.</p>
-
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Sync Folder</label>
-                  <input
-                    type="text"
-                    value={lanSyncPath}
-                    readOnly
-                    className="input-premium text-xs font-mono"
-                    placeholder="Select a shared LAN folder"
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 gap-2">
-                  <button onClick={chooseLanSyncFolder} className="w-full btn btn-secondary py-3 text-xs font-black uppercase tracking-widest">
-                    Choose Sync Folder
-                  </button>
-                  <button onClick={runLanExport} className="w-full btn btn-primary py-3 text-xs font-black uppercase tracking-widest">
-                    Export Changes
-                  </button>
-                  <button onClick={runLanImport} className="w-full btn btn-ghost bg-slate-50 py-3 text-xs font-bold ring-1 ring-slate-200">
-                    Import Changes
-                  </button>
-                </div>
-
-                {lanSyncStatus && (
-                  <p className="text-xs font-semibold text-indigo-600">{lanSyncStatus}</p>
-                )}
-
-                <div className="pt-3 border-t border-slate-100 dark:border-slate-800">
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Conflicts</p>
-                    <button onClick={loadLanConflicts} className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">Refresh</button>
-                  </div>
-                  {lanConflicts.length ? (
-                    <div className="space-y-2 max-h-40 overflow-y-auto">
-                      {lanConflicts.map((c) => (
-                        <div key={c.id} className="p-2 border border-slate-200 dark:border-slate-700 rounded-lg text-xs">
-                          <div className="font-bold text-slate-700 dark:text-slate-200">
-                            {c.table_name} / {c.record_id}
-                          </div>
-                          <div className="text-[11px] text-slate-500">
-                            Local: {c.local_updated_at || 'N/A'} | Remote: {c.remote_updated_at || 'N/A'}
-                          </div>
-                          <div className="flex gap-2 mt-2">
-                            <button
-                              onClick={() => resolveLanConflict(c.id, 'keep_local')}
-                              className="btn btn-ghost px-2 py-1 text-[10px] font-black uppercase tracking-widest"
-                            >
-                              Keep Local
-                            </button>
-                            <button
-                              onClick={() => resolveLanConflict(c.id, 'apply_remote')}
-                              className="btn btn-secondary px-2 py-1 text-[10px] font-black uppercase tracking-widest"
-                            >
-                              Apply Remote
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-xs text-slate-500">No conflicts detected.</p>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {isAdmin && (
-            <div className="card-premium p-8">
-              <div className="flex items-center justify-between mb-6 pb-6 border-b border-slate-100 dark:border-slate-800">
-                <div className="flex items-center gap-4">
-                  <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${serverMode ? 'bg-indigo-100 dark:bg-indigo-900/30' : 'bg-slate-100 dark:bg-slate-800/50'}`}>
-                    <svg className={`w-6 h-6 ${serverMode ? 'text-indigo-600' : 'text-slate-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01" />
-                    </svg>
-                  </div>
-                  <div>
-                    <h2 className="text-lg font-black text-slate-900 dark:text-white tracking-tight">Server Mode</h2>
-                    <p className="text-sm text-slate-500 font-medium">Enable this computer as the server</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className={`text-xs font-bold px-3 py-1.5 rounded-full ${serverRunning ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'}`}>
-                    {serverRunning ? 'Running' : 'Stopped'}
-                  </span>
-                  <button
-                    onClick={() => setServerMode(!serverMode)}
-                    className={`w-14 h-7 rounded-full transition-all duration-300 relative ${serverMode ? 'bg-indigo-500 shadow-lg shadow-indigo-500/30' : 'bg-slate-300'}`}
-                  >
-                    <div className={`absolute top-1 w-5 h-5 bg-white rounded-full shadow-md transition-all duration-300 ${serverMode ? 'left-8' : 'left-1'}`} />
-                  </button>
-                </div>
-              </div>
-
-              {serverMode && (
-                <div className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Server IP Address</label>
-                      <input
-                        type="text"
-                        value={serverIp}
-                        onChange={(e) => setServerIp(e.target.value)}
-                        className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-mono"
-                        placeholder="192.168.1.100"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Port</label>
-                      <input
-                        type="number"
-                        value={serverPort}
-                        onChange={(e) => setServerPort(parseInt(e.target.value) || 3001)}
-                        className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-mono"
-                        placeholder="3001"
-                      />
-                    </div>
-                  </div>
-                  <button onClick={handleSaveServerConfig} className="w-full py-3 px-4 bg-indigo-600 text-white rounded-xl text-xs font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20">
-                    {serverRunning ? 'Update Configuration' : 'Start Server'}
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-
-          {isAdmin && (
-            <div className="card-premium p-8">
-              <div className="flex items-center justify-between mb-6 pb-6 border-b border-slate-100 dark:border-slate-800">
-                <div>
-                  <h2 className="text-lg font-black text-slate-900 dark:text-white tracking-tight">Backup & Restore</h2>
-                  <p className="text-sm text-slate-500 font-medium">Manage database backups</p>
-                </div>
-                <button onClick={handleCreateBackup} className="px-4 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold hover:bg-emerald-700 transition-all flex items-center gap-2">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" /></svg>
-                  Create Backup
-                </button>
-              </div>
+              <button onClick={handleCreateBackup} className="w-full btn btn-primary mb-6">
+                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" /></svg>
+                Create Backup
+              </button>
 
               {loadingBackups ? (
                 <div className="py-8 text-center">
@@ -1131,7 +524,7 @@ const SettingsContent = () => {
                     <div key={idx} className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800/50">
                       <div>
                         <p className="text-sm font-bold text-slate-900 dark:text-white">{backup.name}</p>
-                        <p className="text-xs text-slate-500 font-medium">{(backup.size / 1024 / 1024).toFixed(2)} MB • {new Date(backup.created).toLocaleString()}</p>
+                        <p className="text-xs text-slate-500 font-medium">{(backup.size / 1024 / 1024).toFixed(2)} MB &middot; {new Date(backup.created).toLocaleString()}</p>
                       </div>
                       <button onClick={() => handleRestoreBackup(backup.path)} className="px-3 py-1.5 bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 rounded-lg text-xs font-bold hover:bg-rose-200 dark:hover:bg-rose-900/50">
                         Restore
@@ -1140,6 +533,139 @@ const SettingsContent = () => {
                   ))}
                 </div>
               )}
+            </div>
+          )}
+
+          {isAdmin && (
+            <div className="card-premium p-8">
+              <div className="flex items-center justify-between mb-6 pb-6 border-b border-slate-100 dark:border-slate-800">
+                <div>
+                  <h2 className="text-lg font-black text-slate-900 dark:text-white tracking-tight">Server Connection</h2>
+                  <p className="text-sm text-slate-500 font-medium">Connect to a clinic server or run as server</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className={`text-xs font-bold px-3 py-1.5 rounded-full ${serverMode ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400' : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'}`}>
+                    {serverMode ? 'Server Mode' : 'Client Mode'}
+                  </span>
+                  <button onClick={() => setServerMode(!serverMode)} className={`w-14 h-7 rounded-full transition-all duration-300 relative ${serverMode ? 'bg-indigo-500 shadow-lg shadow-indigo-500/30' : 'bg-slate-300'}`}>
+                    <div className={`absolute top-1 w-5 h-5 bg-white rounded-full shadow-md transition-all duration-300 ${serverMode ? 'left-8' : 'left-1'}`} />
+                  </button>
+                </div>
+              </div>
+
+              {serverMode ? (
+                <div className="space-y-5">
+                  <div className="p-4 bg-indigo-50 dark:bg-indigo-900/10 rounded-2xl border border-indigo-100 dark:border-indigo-900/30">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className={`w-3 h-3 rounded-full ${serverStatus?.running ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'}`} />
+                      <span className="text-sm font-bold text-indigo-700 dark:text-indigo-400">
+                        {serverStatus?.running ? 'Server Running' : 'Server Not Running'}
+                      </span>
+                      {serverStatus?.running && serverStatus?.port && (
+                        <span className="text-xs text-indigo-500">on port {serverStatus.port}</span>
+                      )}
+                    </div>
+                    <p className="text-xs text-indigo-600 dark:text-indigo-400">
+                      Running this PC as the clinic server. Other computers will connect to this machine.
+                    </p>
+                  </div>
+                  <div className="flex gap-3">
+                    {!serverStatus?.running ? (
+                      <button onClick={handleStartServer} disabled={serverStarting} className="flex-1 btn btn-primary py-3">
+                        {serverStarting ? 'Starting...' : 'Start Server'}
+                      </button>
+                    ) : (
+                      <button onClick={handleStopServer} className="flex-1 btn btn-ghost bg-rose-50 text-rose-600 ring-1 ring-rose-200 py-3">
+                        Stop Server
+                      </button>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-1 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">SQL Server Host</label>
+                      <input type="text" value={sqlHost} onChange={(e) => setSqlHost(e.target.value)} className="input-premium text-xs font-mono" placeholder="localhost" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Port</label>
+                        <input type="number" value={sqlPort} onChange={(e) => setSqlPort(parseInt(e.target.value) || 1433)} className="input-premium text-xs font-mono" />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Database</label>
+                        <input type="text" value={sqlDatabase} onChange={(e) => setSqlDatabase(e.target.value)} className="input-premium text-xs font-mono" placeholder="eye_clinic_db" />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">DB Username</label>
+                        <input type="text" value={sqlUser} onChange={(e) => setSqlUser(e.target.value)} className="input-premium text-xs font-mono" placeholder="sa" />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">DB Password</label>
+                        <input type="password" value={sqlPassword} onChange={(e) => setSqlPassword(e.target.value)} className="input-premium text-xs font-mono" placeholder="••••••••" />
+                      </div>
+                    </div>
+                  </div>
+                  <button onClick={handleSaveServerConfig} className="w-full btn btn-primary py-3">
+                    Save & Restart Server
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="p-4 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-slate-800">
+                    <p className="text-sm text-slate-600 dark:text-slate-400">
+                      Connect to a remote clinic server. Enter the server IP address.
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Server URL</label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={serverUrl}
+                        onChange={(e) => setServerUrl(e.target.value)}
+                        className="input-premium text-xs font-mono flex-1"
+                        placeholder="http://192.168.1.100:3001"
+                      />
+                      <button onClick={handleTestServerConnection} disabled={testingConnection} className="btn btn-ghost bg-slate-50 px-4 text-xs font-bold">
+                        {testingConnection ? '...' : 'Test'}
+                      </button>
+                    </div>
+                  </div>
+                  {connectionResult && (
+                    <div className={`p-3 rounded-xl text-xs font-bold flex items-center gap-2 ${connectionResult.success ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/10 dark:text-emerald-400' : 'bg-rose-50 text-rose-700 dark:bg-rose-900/10 dark:text-rose-400'}`}>
+                      {connectionResult.success ? '✓' : '✗'}
+                      {connectionResult.success ? connectionResult.message : connectionResult.error}
+                    </div>
+                  )}
+                  <button onClick={handleSaveServerConfig} className="w-full btn btn-primary py-3">
+                    Save Connection
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {isAdmin && (
+            <div className="card-premium p-8">
+              <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight mb-2">CVF Watch Folder</h2>
+              <p className="text-sm text-slate-500 font-medium mb-6">Automatically import Henson 8000 exports</p>
+
+              <div className="space-y-4">
+                <input
+                  type="text"
+                  value={cvfWatchPath}
+                  readOnly
+                  className="input-premium text-xs font-mono"
+                  placeholder="Select a folder to watch for CVF files"
+                />
+                <button onClick={handleBrowseCvfFolder} className="w-full btn btn-secondary">
+                  Choose Folder
+                </button>
+                {cvfWatchStatus && (
+                  <p className="text-xs font-semibold text-indigo-600">{cvfWatchStatus}</p>
+                )}
+              </div>
             </div>
           )}
 
@@ -1183,7 +709,7 @@ const SettingsContent = () => {
         </div>
       </div>
     </div>
-  );
-};
+  )
+}
 
-export default SettingsContent;
+export default SettingsContent

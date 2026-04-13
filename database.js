@@ -18,39 +18,13 @@ class Database {
         try {
             const { app } = require('electron');
             const userDataPath = app.getPath('userData');
-            const configPath = path.join(userDataPath, 'network-config.json');
-
-            console.log('[Database] Looking for config at:', configPath);
-
-            if (fs.existsSync(configPath)) {
-                try {
-                    const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
-                    console.log('[Database] Config loaded:', JSON.stringify({ ...config, serverPath: config.serverPath ? '(set)' : '(empty)' }));
-                    
-                    const serverPath = config.serverPath || '';
-                    if (config.isNetworkMode && serverPath && typeof serverPath === 'string' && serverPath.trim() !== '') {
-                        const networkPath = path.join(serverPath, 'eye_clinic.db');
-                        console.log('[Database] NETWORK MODE: Using shared database at:', networkPath);
-                        console.log('[Database] Network path exists:', fs.existsSync(serverPath));
-                        return networkPath;
-                    } else {
-                        console.log('[Database] LOCAL MODE: Using local database (network mode disabled or path empty)');
-                    }
-                } catch (e) {
-                    console.warn('[Database] Could not read network config:', e.message);
-                }
-            } else {
-                console.log('[Database] No config file found, using local database');
-            }
-
-            // Use Documents/KORENE_EyeClinic folder as default location
             const documentsPath = path.join(process.env.USERPROFILE || process.env.HOME || '', 'Documents', 'KORENE_EyeClinic');
-            
+
             if (!fs.existsSync(documentsPath)) {
                 console.log('[Database] Creating Documents folder:', documentsPath);
                 fs.mkdirSync(documentsPath, { recursive: true });
             }
-            
+
             const dbPath = path.join(documentsPath, 'database.db');
             console.log('[Database] Using database at:', dbPath);
             return dbPath;
@@ -71,13 +45,9 @@ class Database {
                 console.warn('[Database] Could not create directory:', mkErr.message);
             }
 
-            const isNetworkPath = this.dbPath.startsWith('\\\\') || this.dbPath.includes('\\\\') || this.dbPath.includes(':');
-            const isOnNetworkDrive = isNetworkPath && !this.dbPath.includes('\\AppData');
-            
             console.log('[Database] Initializing database...');
             console.log('[Database] Path:', this.dbPath);
-            console.log('[Database] Is network path:', isNetworkPath);
-            
+
             this.db = new sqlite3.Database(this.dbPath, sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE, (err) => {
                 if (err) {
                     console.error('[Database] Error opening database:', err);
@@ -86,31 +56,12 @@ class Database {
                 }
 
                 console.log('[Database] Connected successfully at:', this.dbPath);
-                
+
                 this.db.serialize(() => {
-                    if (isNetworkPath) {
-                        this.db.run('PRAGMA journal_mode=WAL', (err) => {
-                            if (err) console.warn('[Database] WAL mode failed:', err.message);
-                            else console.log('[Database] WAL mode enabled for network database');
-                        });
-                        this.db.run('PRAGMA locking_mode=NORMAL', (err) => {
-                            if (err) console.warn('[Database] Locking mode failed:', err.message);
-                            else console.log('[Database] NORMAL locking mode set');
-                        });
-                        this.db.run('PRAGMA synchronous=NORMAL', (err) => {
-                            if (err) console.warn('[Database] Sync mode failed:', err.message);
-                            else console.log('[Database] SYNCHRONOUS NORMAL set');
-                        });
-                        this.db.run('PRAGMA busy_timeout=30000', (err) => {
-                            if (err) console.warn('[Database] Busy timeout failed:', err.message);
-                            else console.log('[Database] BUSY TIMEOUT set to 30s');
-                        });
-                    } else {
-                        this.db.run('PRAGMA journal_mode=DELETE', (err) => {
-                            if (err) console.warn('[Database] Journal mode failed:', err.message);
-                            else console.log('[Database] Journal mode set to DELETE for local');
-                        });
-                    }
+                    this.db.run('PRAGMA journal_mode=DELETE', (err) => {
+                        if (err) console.warn('[Database] Journal mode failed:', err.message);
+                        else console.log('[Database] Journal mode set to DELETE');
+                    });
                 });
 
                 this.createTables()
@@ -123,10 +74,8 @@ class Database {
         });
     }
 
-    // Create all required tables
     async createTables() {
         const queries = [
-            // Users table
             `CREATE TABLE IF NOT EXISTS users (
                 id TEXT PRIMARY KEY,
                 first_name TEXT NOT NULL,
@@ -141,7 +90,6 @@ class Database {
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )`,
 
-            // Patients table
             `CREATE TABLE IF NOT EXISTS patients (
                 id TEXT PRIMARY KEY,
                 patient_id TEXT UNIQUE NOT NULL,
@@ -160,7 +108,6 @@ class Database {
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )`,
 
-            // Tests table
             `CREATE TABLE IF NOT EXISTS tests (
                 id TEXT PRIMARY KEY,
                 patient_id TEXT NOT NULL,
@@ -173,7 +120,6 @@ class Database {
                 FOREIGN KEY (patient_id) REFERENCES patients (id)
             )`,
 
-            // Reports table
             `CREATE TABLE IF NOT EXISTS reports (
                 id TEXT PRIMARY KEY,
                 patient_id TEXT NOT NULL,
@@ -186,7 +132,6 @@ class Database {
                 FOREIGN KEY (patient_id) REFERENCES patients (id)
             )`,
 
-            // Chat table
             `CREATE TABLE IF NOT EXISTS chat (
                 id TEXT PRIMARY KEY,
                 sender_id TEXT NOT NULL,
@@ -201,7 +146,6 @@ class Database {
                 FOREIGN KEY (reply_to_id) REFERENCES chat (id)
             )`,
 
-            // Inventory table for medical supplies and equipment
             `CREATE TABLE IF NOT EXISTS inventory (
                 id TEXT PRIMARY KEY,
                 item_code TEXT UNIQUE NOT NULL,
@@ -256,6 +200,7 @@ class Database {
                 drug_id TEXT NOT NULL,
                 patient_id TEXT NOT NULL,
                 quantity INTEGER NOT NULL,
+                unit_price REAL DEFAULT 0,
                 total_amount DECIMAL(10, 2) NOT NULL,
                 user_id TEXT NOT NULL,
                 notes TEXT,
@@ -266,7 +211,6 @@ class Database {
                 FOREIGN KEY (user_id) REFERENCES users (id)
             )`,
 
-            // Revenue table for financial tracking
             `CREATE TABLE IF NOT EXISTS revenue (
                 id TEXT PRIMARY KEY,
                 source TEXT NOT NULL,
@@ -274,13 +218,14 @@ class Database {
                 amount REAL NOT NULL,
                 currency TEXT DEFAULT 'NGN',
                 user_id TEXT,
+                patient_id TEXT,
                 description TEXT,
                 meta TEXT,
                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (user_id) REFERENCES users (id)
+                FOREIGN KEY (user_id) REFERENCES users (id),
+                FOREIGN KEY (patient_id) REFERENCES patients (id)
             )`,
 
-            // Activity logs table for tracking user actions
             `CREATE TABLE IF NOT EXISTS activity_logs (
                 id TEXT PRIMARY KEY,
                 user_id TEXT NOT NULL,
@@ -294,7 +239,6 @@ class Database {
                 FOREIGN KEY (user_id) REFERENCES users (id)
             )`,
 
-            // Settings table for application configuration
             `CREATE TABLE IF NOT EXISTS settings (
                 id TEXT PRIMARY KEY,
                 key TEXT UNIQUE NOT NULL,
@@ -303,16 +247,6 @@ class Database {
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )`,
 
-            // Sync metadata table
-            `CREATE TABLE IF NOT EXISTS sync_metadata (
-                id TEXT PRIMARY KEY,
-                table_name TEXT NOT NULL,
-                record_id TEXT NOT NULL,
-                last_synced_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE(table_name, record_id)
-            )`,
-
-            // User presence table for online status tracking
             `CREATE TABLE IF NOT EXISTS user_presence (
                 user_id TEXT PRIMARY KEY,
                 is_online BOOLEAN DEFAULT FALSE,
@@ -321,7 +255,6 @@ class Database {
                 FOREIGN KEY (user_id) REFERENCES users (id)
             )`,
 
-            // Prescriptions table
             `CREATE TABLE IF NOT EXISTS prescriptions (
                 id TEXT PRIMARY KEY,
                 patient_id TEXT NOT NULL,
@@ -337,7 +270,6 @@ class Database {
                 FOREIGN KEY (drug_id) REFERENCES pharmacy_drugs (id)
             )`,
 
-            // Notifications table
             `CREATE TABLE IF NOT EXISTS notifications (
                 id TEXT PRIMARY KEY,
                 user_id TEXT NOT NULL,
@@ -355,55 +287,30 @@ class Database {
             await this.run(query);
         }
 
-        // Run migrations for existing databases
         await this.runMigrations();
 
         console.log('Database tables created successfully');
     }
 
-    // Run database migrations
     async runMigrations() {
         try {
-            // Check if attachment column exists in chat table
             const chatTableInfo = await this.all("PRAGMA table_info(chat)");
             const hasAttachmentColumn = chatTableInfo.some(column => column.name === 'attachment');
             const hasReplyToIdColumn = chatTableInfo.some(column => column.name === 'reply_to_id');
 
             if (!hasAttachmentColumn) {
-                console.log('Adding attachment column to chat table...');
+                console.log('Migration: Adding attachment column to chat table...');
                 await this.run('ALTER TABLE chat ADD COLUMN attachment TEXT');
-                console.log('Migration completed: Added attachment column to chat table');
             }
 
             if (!hasReplyToIdColumn) {
-                console.log('Adding reply_to_id column to chat table...');
+                console.log('Migration: Adding reply_to_id column to chat table...');
                 await this.run('ALTER TABLE chat ADD COLUMN reply_to_id TEXT');
-                console.log('Migration completed: Added reply_to_id column to chat table');
             }
 
-            // Create sync_queue table if not exists
-            try {
-                await this.run(`
-                    CREATE TABLE IF NOT EXISTS sync_queue (
-                        id TEXT PRIMARY KEY,
-                        table_name TEXT NOT NULL,
-                        operation TEXT NOT NULL,
-                        record_id TEXT NOT NULL,
-                        data TEXT,
-                        status TEXT DEFAULT 'pending',
-                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                        retry_count INTEGER DEFAULT 0
-                    )
-                `);
-                console.log('Migration: Created sync_queue table');
-            } catch (e) {
-                console.warn('sync_queue table creation:', e.message);
-            }
-
-            // Add missing columns to patients table
             const patientsTableInfo = await this.all("PRAGMA table_info(patients)");
             const existingPatientCols = new Set(patientsTableInfo.map(c => c.name));
-            
+
             const patientColsToAdd = [
                 { name: 'email', type: 'TEXT' },
                 { name: 'client_type', type: 'TEXT' },
@@ -412,7 +319,7 @@ class Database {
                 { name: 'reason_for_visit', type: 'TEXT' },
                 { name: 'intake_date', type: 'DATE' }
             ];
-            
+
             for (const col of patientColsToAdd) {
                 if (!existingPatientCols.has(col.name)) {
                     try {
@@ -426,7 +333,6 @@ class Database {
                 }
             }
 
-            // Add all missing columns to inventory table
             const inventoryTableInfo = await this.all("PRAGMA table_info(inventory)");
             const existingInventoryCols = new Set(inventoryTableInfo.map(c => c.name));
             const inventoryColsToAdd = [
@@ -451,7 +357,6 @@ class Database {
                 if (!existingInventoryCols.has(col.name)) {
                     try {
                         await this.run(`ALTER TABLE inventory ADD COLUMN ${col.name} ${col.type}`);
-                        console.log(`Migration: Added column ${col.name} to inventory`);
                     } catch (e) {
                         if (!e.message.includes('duplicate column name')) {
                             console.warn(`Inventory col ${col.name} skipped:`, e.message);
@@ -460,7 +365,6 @@ class Database {
                 }
             }
 
-            // Add all missing columns to pharmacy_drugs table
             const drugsTableInfo = await this.all("PRAGMA table_info(pharmacy_drugs)");
             const existingDrugCols = new Set(drugsTableInfo.map(c => c.name));
             const drugColsToAdd = [
@@ -478,7 +382,6 @@ class Database {
                 if (!existingDrugCols.has(col.name)) {
                     try {
                         await this.run(`ALTER TABLE pharmacy_drugs ADD COLUMN ${col.name} ${col.type}`);
-                        console.log(`Migration: Added column ${col.name} to pharmacy_drugs`);
                     } catch (e) {
                         if (!e.message.includes('duplicate column name')) {
                             console.warn(`Drug col ${col.name} skipped:`, e.message);
@@ -487,7 +390,6 @@ class Database {
                 }
             }
 
-            // Add unit_price column to pharmacy_dispensations table if missing
             const dispTableInfo = await this.all("PRAGMA table_info(pharmacy_dispensations)");
             const hasUnitPrice = dispTableInfo.some(col => col.name === 'unit_price');
             if (!hasUnitPrice) {
@@ -501,7 +403,6 @@ class Database {
                 }
             }
 
-            // Add patient_id column to revenue table if missing
             const revenueTableInfo = await this.all("PRAGMA table_info(revenue)");
             const hasPatientId = revenueTableInfo.some(col => col.name === 'patient_id');
             if (!hasPatientId) {
@@ -515,39 +416,19 @@ class Database {
                 }
             }
 
-            // Add payload column to sync_queue table if missing
-            const syncTableInfo = await this.all("PRAGMA table_info(sync_queue)");
-            const hasPayload = syncTableInfo.some(col => col.name === 'payload');
-            if (!hasPayload) {
-                try {
-                    await this.run('ALTER TABLE sync_queue ADD COLUMN payload TEXT');
-                    console.log('Migration: Added payload column to sync_queue');
-                } catch (e) {
-                    if (!e.message.includes('duplicate column name')) {
-                        console.warn('payload migration skipped:', e.message);
-                    }
-                }
-            }
-
-            // Check if phone_number column exists in users table
             const usersTableInfo = await this.all("PRAGMA table_info(users)");
             const hasPhoneNumberColumn = usersTableInfo.some(column => column.name === 'phone_number');
-
             if (!hasPhoneNumberColumn) {
-                console.log('Adding phone_number column to users table...');
+                console.log('Migration: Adding phone_number column to users table...');
                 await this.run('ALTER TABLE users ADD COLUMN phone_number TEXT');
-                console.log('Migration completed: Added phone_number column to users table');
             }
 
-            // Migrate name to first_name/last_name if needed
             const hasFirstNameColumn = usersTableInfo.some(column => column.name === 'first_name');
             const hasNameColumn = usersTableInfo.some(column => column.name === 'name');
-
             if (hasNameColumn && !hasFirstNameColumn) {
-                console.log('Migrating name to first_name/last_name...');
+                console.log('Migration: Splitting name into first_name/last_name...');
                 await this.run('ALTER TABLE users ADD COLUMN first_name TEXT');
                 await this.run('ALTER TABLE users ADD COLUMN last_name TEXT');
-                // Split existing names
                 const users = await this.all('SELECT id, name FROM users');
                 for (const user of users) {
                     const parts = user.name.split(' ');
@@ -555,46 +436,35 @@ class Database {
                     const lastName = parts.slice(1).join(' ') || '';
                     await this.run('UPDATE users SET first_name = ?, last_name = ? WHERE id = ?', [firstName, lastName, user.id]);
                 }
-                console.log('Migration completed: Split name into first_name/last_name');
             }
         } catch (error) {
             console.error('Migration error:', error);
         }
 
         try {
-            // Add gender column if missing (with default for existing rows)
-            await this.run(`
-            ALTER TABLE users ADD COLUMN gender TEXT NOT NULL DEFAULT 'other'
-        `);
+            await this.run(`ALTER TABLE users ADD COLUMN gender TEXT NOT NULL DEFAULT 'other'`);
             console.log('Migration: added gender column with default');
         } catch (e) {
-            // Ignore if column already exists
             if (!e.message.includes('duplicate column name')) {
                 console.warn('Gender migration skipped:', e.message);
             }
         }
     }
 
-    // Check if this is the first run (no users exist)
     async isFirstRun() {
         try {
             const users = await this.all('SELECT COUNT(*) as count FROM users');
             return users[0].count === 0;
         } catch (error) {
             console.error('Error checking first run:', error);
-            return true; // Assume first run on error
+            return true;
         }
     }
 
-    // User Management
     async createUser(userData) {
         const { first_name, last_name, email, password, role, gender, phone_number } = userData;
-
-        // Hash password
         const saltRounds = 10;
         const passwordHash = await bcrypt.hash(password, saltRounds);
-
-        // Default gender if not provided (required by schema)
         const userGender = gender || 'other';
         const userId = uuidv4();
 
@@ -615,24 +485,17 @@ class Database {
 
     async authenticateUser(email, password) {
         const query = 'SELECT * FROM users WHERE email = ?';
-
         try {
             const users = await this.all(query, [email]);
-
-            if (users.length === 0) {
-                return null; // User not found
-            }
+            if (users.length === 0) return null;
 
             const user = users[0];
             const isValid = await bcrypt.compare(password, user.password_hash);
-
             if (isValid) {
-                // Don't return password hash
                 const { password_hash, ...userWithoutPassword } = user;
                 return userWithoutPassword;
             }
-
-            return null; // Invalid password
+            return null;
         } catch (error) {
             console.error('Error authenticating user:', error);
             throw error;
@@ -646,8 +509,6 @@ class Database {
 
     async updateUser(userId, userData) {
         const { first_name, last_name, email, role, phone_number, gender, password } = userData;
-
-        // Build dynamic query only for provided fields
         let setClauses = [];
         let params = [];
 
@@ -688,13 +549,11 @@ class Database {
         }
 
         setClauses.push('updated_at = CURRENT_TIMESTAMP');
-
         const query = `UPDATE users SET ${setClauses.join(', ')} WHERE id = ?`;
         params.push(userId);
 
         try {
             await this.run(query, params);
-            // Return updated user without password
             return { id: userId, first_name, last_name, email, role, phone_number, gender };
         } catch (error) {
             console.error('Error updating user:', error);
@@ -705,7 +564,6 @@ class Database {
     async updateUserStatus(userId, isActive) {
         const status = isActive ? 'active' : 'inactive';
         const query = `UPDATE users SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`;
-
         try {
             await this.run(query, [status, userId]);
             return { id: userId, status };
@@ -717,7 +575,6 @@ class Database {
 
     async deleteUser(userId) {
         const query = `DELETE FROM users WHERE id = ?`;
-
         try {
             const result = await this.run(query, [userId]);
             return { success: result.changes > 0 };
@@ -727,7 +584,6 @@ class Database {
         }
     }
 
-    // Online Status Management
     async setUserOnline(userId, sessionId = null) {
         const query = `
             INSERT INTO user_presence (user_id, is_online, last_seen, session_id)
@@ -771,7 +627,6 @@ class Database {
         return await this.all(query);
     }
 
-    // Settings Management
     async getSetting(key) {
         const query = 'SELECT value FROM settings WHERE key = ?';
         const rows = await this.all(query, [key]);
@@ -789,7 +644,6 @@ class Database {
         return await this.run(query, [uuidv4(), key, value]);
     }
 
-    // Generic database operations
     async run(query, params = []) {
         return new Promise((resolve, reject) => {
             this.db.run(query, params, function (err) {
@@ -826,7 +680,6 @@ class Database {
         });
     }
 
-    // Close database connection
     close() {
         if (this.db) {
             this.db.close((err) => {
@@ -839,24 +692,18 @@ class Database {
         }
     }
 
-    // Role-based permissions for backup operations
     async validateBackupPermission(role) {
         if (role !== 'admin') {
             throw new Error('Only admins are allowed to perform backup operations.');
         }
     }
 
-    // Example usage in backup restoration
     async restoreBackup(filePath, role) {
         await this.validateBackupPermission(role);
-
         if (!filePath.endsWith('.bak')) {
             throw new Error('Invalid file type. Only .bak files are supported.');
         }
-
-        // Restore logic here
         console.log(`Restoring backup from ${filePath}...`);
-        // ...existing restore logic...
     }
 }
 

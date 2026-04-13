@@ -9,7 +9,6 @@ import * as inventoryService from '../../services/inventoryService';
 import * as testService from '../../services/testService';
 import DynamicTableView from '../../components/DynamicTableView';
 import MessagesContent from '../../components/content/MessagesContent';
-import NetworkConfigScreen from '../NetworkConfigScreen';
 
 const AdminDashboard = () => {
   const { user, logout } = useUser();
@@ -38,12 +37,9 @@ const AdminDashboard = () => {
     totalRevenue: 0
   });
   const [systemLogs, setSystemLogs] = useState([]);
-  const [networkDbPath, setNetworkDbPath] = useState('');
   const [adminLoading, setAdminLoading] = useState(false);
   const [adminMessage, setAdminMessage] = useState(null);
-  const [showNetworkConfig, setShowNetworkConfig] = useState(false);
   const [onlineUsers, setOnlineUsers] = useState([]);
-  const [syncStatus, setSyncStatus] = useState(null);
   const [activityFilter, setActivityFilter] = useState('24h');
   const [filteredLogs, setFilteredLogs] = useState([]);
   const [caseStudies, setCaseStudies] = useState([]);
@@ -155,18 +151,6 @@ const AdminDashboard = () => {
       }
     } catch (error) {
       console.error('Error loading online users:', error);
-    }
-  };
-
-  const loadSyncStatus = async () => {
-    if (!window.electronAPI) return;
-    try {
-      const res = await window.electronAPI.getSyncStatus();
-      if (res?.success) {
-        setSyncStatus(res.status);
-      }
-    } catch (error) {
-      console.error('Error loading sync status:', error);
     }
   };
 
@@ -314,7 +298,6 @@ const AdminDashboard = () => {
     loadActivityLogs();
     loadRevenueLogs();
     loadOnlineUsers();
-    loadSyncStatus();
     loadFilteredActivityLogs(activityFilter);
 
     if (window.electronAPI) {
@@ -324,17 +307,15 @@ const AdminDashboard = () => {
         loadActivityLogs();
         loadRevenueLogs();
         loadOnlineUsers();
-        loadSyncStatus();
       });
       return unsubscribe;
     }
   }, []);
 
-  // Reload online users and sync status periodically
+  // Reload online users periodically
   React.useEffect(() => {
     const interval = setInterval(() => {
       loadOnlineUsers();
-      loadSyncStatus();
       loadFilteredActivityLogs(activityFilter);
     }, 10000);
     return () => clearInterval(interval);
@@ -419,7 +400,6 @@ const AdminDashboard = () => {
   React.useEffect(() => {
     if (activeTab === 'settings') {
       loadOnlineUsers();
-      loadSyncStatus();
       loadFilteredActivityLogs('24h');
     }
   }, [activeTab]);
@@ -447,25 +427,6 @@ const AdminDashboard = () => {
       loadDoctorCaseStudies();
     }
   }, [activeTab]);
-
-  const handleAdminSaveNetworkPath = async () => {
-    try {
-      if (!window.electronAPI?.setNetworkDbPath) return;
-      setAdminLoading(true);
-      const res = await window.electronAPI.setNetworkDbPath(networkDbPath || '');
-      if (res?.success) {
-        setAdminMessage('Network database path saved. Restart app on all computers.');
-      } else {
-        setAdminMessage(res?.error || 'Failed to save network path');
-      }
-    } catch (err) {
-      console.error('Admin save network path error:', err);
-      setAdminMessage('Failed to save network path');
-    } finally {
-      setAdminLoading(false);
-      setTimeout(() => setAdminMessage(null), 5000);
-    }
-  };
 
   const handleToggleConfig = async (configKey) => {
     if (toggleConfig) {
@@ -507,7 +468,7 @@ const AdminDashboard = () => {
               {onlineUsers.filter(u => u.is_online).length} of {users.length} online
             </span>
             <button
-              onClick={() => { loadOnlineUsers(); loadSyncStatus(); }}
+              onClick={() => { loadOnlineUsers(); }}
               className="text-blue-600 hover:text-blue-800 text-sm"
             >
               Refresh
@@ -549,53 +510,6 @@ const AdminDashboard = () => {
           )}
         </div>
       </div>
-
-      {/* Network Status Panel */}
-      {syncStatus && syncStatus.isNetworkMode && (
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
-          <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Network Status</h3>
-            <span className={`px-3 py-1 text-xs font-medium rounded-full ${
-              syncStatus.connectionStatus === 'connected' 
-                ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300'
-                : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300'
-            }`}>
-              {syncStatus.connectionStatus === 'connected' ? 'Connected' : 'Disconnected'}
-            </span>
-          </div>
-          <div className="p-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Database Path</p>
-                <p className="text-sm font-medium text-gray-900 dark:text-white break-all">
-                  {syncStatus.serverPath || 'Not configured'}
-                </p>
-              </div>
-              <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">This Device</p>
-                <p className="text-sm font-medium text-gray-900 dark:text-white">
-                  {syncStatus.deviceName || 'Unknown'}
-                </p>
-              </div>
-              <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Connected Devices</p>
-                <p className="text-lg font-bold text-blue-600 dark:text-blue-400">
-                  {syncStatus.totalOnlineUsers || 0}
-                </p>
-                <p className="text-xs text-gray-500">devices sharing database</p>
-              </div>
-            </div>
-            <div className="mt-4">
-              <button
-                onClick={() => setShowNetworkConfig(true)}
-                className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 text-sm"
-              >
-                Configure Network
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Activity Log with Filters */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
@@ -1077,22 +991,6 @@ const AdminDashboard = () => {
               )}
 
               <div className="space-y-6">
-                {/* Network Configuration */}
-                <div className="bg-slate-50 dark:bg-slate-900/50 p-6 rounded-2xl border border-slate-100 dark:border-slate-800">
-                  <div className="flex items-center justify-between mb-4">
-                    <div>
-                      <h4 className="text-sm font-bold text-slate-900 dark:text-white">Network Database Configuration</h4>
-                      <p className="text-xs text-slate-500 mt-0.5">Configure shared database for multi-computer setup</p>
-                    </div>
-                    <button
-                      onClick={() => setShowNetworkConfig(true)}
-                      className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold uppercase tracking-wider transition-all"
-                    >
-                      Configure Network
-                    </button>
-                  </div>
-                </div>
-
                 {/* Online Users */}
                 <div className="bg-slate-50 dark:bg-slate-900/50 p-6 rounded-2xl border border-slate-100 dark:border-slate-800">
                   <div className="flex items-center justify-between mb-4">
@@ -1125,32 +1023,6 @@ const AdminDashboard = () => {
                   </div>
                 </div>
 
-                {/* Sync Status */}
-                <div className="bg-slate-50 dark:bg-slate-900/50 p-6 rounded-2xl border border-slate-100 dark:border-slate-800">
-                  <div className="flex items-center justify-between mb-4">
-                    <div>
-                      <h4 className="text-sm font-bold text-slate-900 dark:text-white">Sync Status</h4>
-                      <p className="text-xs text-slate-500 mt-0.5">Database synchronization status</p>
-                    </div>
-                    <button
-                      onClick={loadSyncStatus}
-                      className="px-4 py-2 bg-slate-600 hover:bg-slate-700 text-white rounded-lg text-xs font-bold uppercase tracking-wider transition-all"
-                    >
-                      Refresh
-                    </button>
-                  </div>
-                  <div className="p-4 bg-white dark:bg-slate-950 rounded-lg border border-slate-100 dark:border-slate-800">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-3 h-3 rounded-full ${syncStatus?.connected ? 'bg-emerald-500' : 'bg-slate-300'}`} />
-                      <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">
-                        {syncStatus?.connected ? 'Connected' : 'Standalone Mode'}
-                      </span>
-                    </div>
-                    {syncStatus?.lastSync && (
-                      <p className="text-xs text-slate-400 mt-2">Last sync: {new Date(syncStatus.lastSync).toLocaleString()}</p>
-                    )}
-                  </div>
-                </div>
 
                 {/* Activity Logs */}
                 <div className="bg-slate-50 dark:bg-slate-900/50 p-6 rounded-2xl border border-slate-100 dark:border-slate-800">
@@ -1236,13 +1108,6 @@ const AdminDashboard = () => {
         {activeTab === 'finance' && renderFinancialOversight()}
         {activeTab === 'case-studies' && renderDoctorCaseStudiesPage()}
         {activeTab === 'settings' && renderSystemSettings()}
-
-        {showNetworkConfig && (
-          <NetworkConfigScreen
-            onClose={() => setShowNetworkConfig(false)}
-            onSave={() => setShowNetworkConfig(false)}
-          />
-        )}
       </div>
     </Layout>
   );

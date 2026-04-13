@@ -1,6 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
-
-const DEFAULT_SERVER_URL = 'http://localhost:3001';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
 export default function useServerConnection() {
     const [connected, setConnected] = useState(false);
@@ -8,8 +6,79 @@ export default function useServerConnection() {
     const [serverUrl, setServerUrl] = useState('');
     const [error, setError] = useState(null);
     const [currentUser, setCurrentUser] = useState(null);
-    const [ws, setWs] = useState(null);
     const [onlineUsers, setOnlineUsers] = useState([]);
+    const [accessToken, setAccessToken] = useState(null);
+    const [refreshToken, setRefreshToken] = useState(null);
+
+    const wsRef = useRef(null);
+    const reconnectTimer = useRef(null);
+    const pingTimer = useRef(null);
+
+    const clearTokens = () => {
+        setAccessToken(null);
+        setRefreshToken(null);
+        setCurrentUser(null);
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('refreshToken');
+        localStorage.removeItem('serverUser');
+    };
+
+    const loadSavedSession = useCallback(() => {
+        try {
+            const savedUrl = localStorage.getItem('serverUrl');
+            const savedAccess = localStorage.getItem('accessToken');
+            const savedRefresh = localStorage.getItem('refreshToken');
+            const savedUser = localStorage.getItem('serverUser');
+            if (savedUrl) setServerUrl(savedUrl);
+            if (savedAccess) setAccessToken(savedAccess);
+            if (savedRefresh) setRefreshToken(savedRefresh);
+            if (savedUser) setCurrentUser(JSON.parse(savedUser));
+        } catch {}
+    }, []);
+
+    const api = useCallback(async (endpoint, method = 'GET', body = null) => {
+        if (!serverUrl) return { success: false, error: 'No server URL configured' };
+
+        const headers = { 'Content-Type': 'application/json' };
+        if (accessToken) headers['Authorization'] = `Bearer ${accessToken}`;
+
+        let response = await fetch(`${serverUrl}${endpoint}`, {
+            method,
+            headers,
+            body: body != null ? JSON.stringify(body) : null
+        });
+
+        if (response.status === 401 && refreshToken) {
+            const refreshed = await refresh();
+            if (refreshed && accessToken) {
+                headers['Authorization'] = `Bearer ${accessToken}`;
+                response = await fetch(`${serverUrl}${endpoint}`, { method, headers, body: body != null ? JSON.stringify(body) : null });
+            }
+        }
+
+        return response.json();
+    }, [serverUrl, accessToken, refreshToken]);
+
+    const refresh = useCallback(async () => {
+        if (!serverUrl || !refreshToken) return false;
+        try {
+            const response = await fetch(`${serverUrl}/api/auth/refresh`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ refreshToken })
+            });
+            const data = await response.json();
+            if (data.success) {
+                setAccessToken(data.accessToken);
+                setRefreshToken(data.refreshToken);
+                localStorage.setItem('accessToken', data.accessToken);
+                localStorage.setItem('refreshToken', data.refreshToken);
+                return true;
+            }
+        } catch {}
+        clearTokens();
+        return false;
+    }, [serverUrl, refreshToken]);
 
     const connect = useCallback(async (serverIp, port = 3001) => {
         const url = `http://${serverIp}:${port}`;
@@ -18,18 +87,12 @@ export default function useServerConnection() {
         setError(null);
 
         try {
-            // Test connection with a simple request
-            const response = await fetch(`${url}/api/config`);
-            if (!response.ok) {
-                throw new Error('Cannot connect to server');
-            }
-            
+            const response = await fetch(`${url}/api/health`);
+            if (!response.ok) throw new Error('Server unreachable');
+
+            localStorage.setItem('serverUrl', url);
             setConnected(true);
             setConnecting(false);
-            
-            // Store server config
-            localStorage.setItem('serverUrl', url);
-            
             return { success: true };
         } catch (err) {
             setConnected(false);
@@ -39,19 +102,8 @@ export default function useServerConnection() {
         }
     }, []);
 
-    const disconnect = useCallback(() => {
-        if (ws) {
-            ws.close();
-            setWs(null);
-        }
-        setConnected(false);
-        localStorage.removeItem('serverUrl');
-    }, [ws]);
-
     const login = useCallback(async (email, password) => {
-        if (!serverUrl) {
-            return { success: false, error: 'Not connected to server' };
-        }
+        if (!serverUrl) return { success: false, error: 'Not connected to server' };
 
         try {
             const response = await fetch(`${serverUrl}/api/auth/login`, {
@@ -59,24 +111,43 @@ export default function useServerConnection() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email, password })
             });
-            
             const data = await response.json();
-            
+
             if (data.success) {
+                setAccessToken(data.accessToken);
+                setRefreshToken(data.refreshToken);
                 setCurrentUser(data.user);
-                // Connect WebSocket
+
+                localStorage.setItem('serverUrl', serverUrl);
+                localStorage.setItem('accessToken', data.accessToken);
+                localStorage.setItem('refreshToken', data.refreshToken);
+                localStorage.setItem('serverUser', JSON.stringify(data.user));
+
                 connectWebSocket(data.user);
             }
-            
+
             return data;
         } catch (err) {
             return { success: false, error: err.message };
         }
-    }, [serverUrl]);
+    }, [serverUrl, connectWebSocket]);
+
+    const logout = useCallback(async () => {
+        try {
+            if (accessToken) await api('/api/auth/logout', 'POST');
+        } catch {}
+        if (wsRef.current) wsRef.current.close();
+        clearTokens();
+        setConnected(false);
+    }, [accessToken, api]);
 
     const connectWebSocket = useCallback((user) => {
+        if (!serverUrl) return;
+        if (wsRef.current) wsRef.current.close();
+
         const wsUrl = serverUrl.replace('http', 'ws');
         const websocket = new WebSocket(wsUrl);
+        wsRef.current = websocket;
 
         websocket.onopen = () => {
             websocket.send(JSON.stringify({
@@ -86,82 +157,69 @@ export default function useServerConnection() {
                 userRole: user.role,
                 deviceName: localStorage.getItem('deviceName') || 'Unknown'
             }));
+            pingTimer.current = setInterval(() => {
+                if (websocket.readyState === WebSocket.OPEN) websocket.send(JSON.stringify({ type: 'ping' }));
+            }, 30000);
         };
 
         websocket.onmessage = (event) => {
             try {
-                const message = JSON.parse(event.data);
-                handleWebSocketMessage(message);
-            } catch (err) {
-                console.error('WebSocket message error:', err);
-            }
+                const msg = JSON.parse(event.data);
+                switch (msg.type) {
+                    case 'data:update':
+                        window.dispatchEvent(new CustomEvent('server:dataUpdate', { detail: msg.data }));
+                        break;
+                    case 'chat:message':
+                        window.dispatchEvent(new CustomEvent('server:chatMessage', { detail: msg.data }));
+                        break;
+                    case 'presence':
+                        setOnlineUsers(prev => {
+                            const exists = prev.find(u => u.userId === msg.data.userId);
+                            if (msg.data.status === 'offline') return prev.filter(u => u.userId !== msg.data.userId);
+                            if (exists) return prev.map(u => u.userId === msg.data.userId ? { ...u, ...msg.data } : u);
+                            return [...prev, msg.data];
+                        });
+                        break;
+                    case 'connected':
+                    case 'pong':
+                        break;
+                }
+            } catch {}
         };
 
         websocket.onclose = () => {
-            setConnected(false);
+            clearInterval(pingTimer.current);
+            reconnectTimer.current = setTimeout(() => {
+                if (serverUrl && accessToken) connectWebSocket(currentUser || { id: null, name: null, role: null });
+            }, 5000);
         };
 
-        websocket.onerror = (err) => {
-            console.error('WebSocket error:', err);
-        };
+        websocket.onerror = () => websocket.close();
+    }, [serverUrl, accessToken, currentUser]);
 
-        setWs(websocket);
-    }, [serverUrl]);
-
-    const handleWebSocketMessage = useCallback((message) => {
-        switch (message.type) {
-            case 'data:update':
-                window.dispatchEvent(new CustomEvent('server:dataUpdate', { detail: message.data }));
-                break;
-            case 'chat:message':
-                window.dispatchEvent(new CustomEvent('server:chatMessage', { detail: message.data }));
-                break;
-            case 'user:presence':
-                setOnlineUsers(prev => {
-                    const exists = prev.find(u => u.userId === message.data.userId);
-                    if (exists) {
-                        return prev.map(u => u.userId === message.data.userId ? message.data : u);
-                    }
-                    return [...prev, message.data];
-                });
-                break;
-            case 'client:disconnect':
-                setOnlineUsers(prev => prev.filter(u => u.userId !== message.data.userId));
-                break;
-            default:
-                break;
+    const fetchOnlineUsers = useCallback(async () => {
+        const data = await api('/api/presence/online');
+        if (data.success) {
+            setOnlineUsers(data.users || []);
         }
-    }, []);
+    }, [api]);
 
-    const apiCall = useCallback(async (endpoint, method = 'GET', body = null) => {
-        if (!connected) {
-            return { success: false, error: 'Not connected to server' };
-        }
-
-        try {
-            const options = {
-                method,
-                headers: { 'Content-Type': 'application/json' }
-            };
-            
-            if (body) {
-                options.body = JSON.stringify(body);
-            }
-            
-            const response = await fetch(`${serverUrl}${endpoint}`, options);
-            const data = await response.json();
-            return data;
-        } catch (err) {
-            return { success: false, error: err.message };
-        }
-    }, [connected, serverUrl]);
-
-    // Load saved server URL on mount
     useEffect(() => {
-        const savedUrl = localStorage.getItem('serverUrl');
-        if (savedUrl) {
-            setServerUrl(savedUrl);
+        loadSavedSession();
+    }, [loadSavedSession]);
+
+    useEffect(() => {
+        if (accessToken && serverUrl && !wsRef.current) {
+            connectWebSocket(currentUser || { id: null, name: null, role: null });
         }
+    }, [accessToken, serverUrl]);
+
+    useEffect(() => {
+        return () => {
+            clearInterval(pingTimer.current);
+            clearTimeout(reconnectTimer.current);
+            if (wsRef.current) wsRef.current.close();
+        };
     }, []);
 
     return {
@@ -171,9 +229,12 @@ export default function useServerConnection() {
         error,
         currentUser,
         onlineUsers,
+        accessToken,
         connect,
-        disconnect,
         login,
-        apiCall
+        logout,
+        api,
+        refresh,
+        fetchOnlineUsers
     };
 }

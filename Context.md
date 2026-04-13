@@ -2234,3 +2234,93 @@ Contact the technical team with:
 
 **The system is now ready for your clinic's legacy data import. Start with the "Import External Intelligence" button in the Admin Dashboard.**
 
+
+---
+
+## Changes (April 13, 2026) - Server-Client Architecture Migration
+
+### Architecture Change: P2P → Server-Client
+
+The application has been migrated from a peer-to-peer shared folder architecture to a proper server-client architecture with SQL Server as the central database.
+
+#### Before (P2P Shared Database)
+- All computers shared ONE SQLite database file on a network path (e.g., `\192.168.1.100\EyeClinic`)
+- No data sync/export/import needed - changes saved directly
+- WAL mode enabled for concurrent access
+- Only presence broadcast remained
+- `LanSyncService`, `NetworkConfigService`, `SyncService`, `SqlServerService`, `SchemaSyncService` handled P2P networking
+
+#### After (Server-Client)
+- Server PC runs Node.js backend + SQL Server database (port 3001)
+- Clients connect via HTTP REST API + WebSocket
+- JWT authentication: access token (15 min) + refresh token (7 days)
+- Server PC also runs Electron client for normal use
+- All data stored centrally in SQL Server (`eye_clinic_db`)
+
+### Files DELETED (P2P removal)
+- `src/services/LanSyncService.js`
+- `src/services/NetworkConfigService.js`
+- `src/services/SyncService.js`
+- `src/services/SqlServerService.js`
+- `src/services/SchemaSyncService.js`
+- `src/pages/NetworkConfigScreen.jsx`
+
+### Files MODIFIED
+- `database.js` - Removed network path resolution, WAL network pragmas, `sync_queue`, `sync_metadata` tables
+- `electron/main.js` - Removed P2P imports, added `DEFAULT_CONFIG`, `saveConfig()` helper, passes config to IPCHandlers
+- `electron/ipc/handlers.js` - Removed all P2P handlers (17 handlers), added `registerServerConfigHandlers()` with `serverConfig:get/set` and `serverConfig:getSqlServer/setSqlServer`, updated `auth:login` to support server mode HTTP forwarding
+- `electron/preload.js` - Removed all P2P APIs, added server config APIs
+- `electron/server/ServerManager.js` - Complete rewrite: now uses mssql + JWT auth instead of SQLite; Express + WebSocket server with JWT middleware
+- `src/components/content/SettingsContent.jsx` - Removed LAN Sync/Network Config/Server Mode sections; added Server Connection section (client/server mode toggle, SQL Server config, server URL config)
+- `src/components/content/SettingsContent.jsx` - Removed `NetworkConfigScreen` import, `showNetworkConfig` state, `networkDbPath`, `syncStatus`, `loadSyncStatus()`, Network Status Panel, Sync Status block
+- `src/hooks/useServerConnection.js` - Complete rewrite: JWT token management, auto-refresh, WebSocket with ping/pong, presence tracking, server data update events
+- `package.json` - Added `jsonwebtoken` dependency, `setup:server` and `start:server` npm scripts
+
+### Files CREATED
+- `scripts/setup-server.js` - SQL Server database setup: creates `eye_clinic_db`, all 14 tables, seeds admin user. Usage: `node scripts/setup-server.js --host localhost --user sa --password <pass> [--admin-email x@clinic.com --admin-password secret123]`
+- `scripts/start-server.js` - Standalone Node.js backend server: Express REST API + WebSocket + mssql + JWT. Usage: `node scripts/start-server.js`. Configure via env vars (`DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`) or `server-config.json`
+
+### NPM Scripts Added
+```bash
+npm run setup:server  # Create SQL Server database + tables + admin user
+npm run start:server  # Start backend server (port 3001)
+```
+
+### Configuration (config.json / server-config.json)
+```json
+{
+  "isServerMode": false,
+  "serverUrl": "http://192.168.1.100:3001",
+  "serverPort": 3001,
+  "sql_server": {
+    "host": "localhost",
+    "port": 1433,
+    "database": "eye_clinic_db",
+    "user": "sa",
+    "password": "",
+    "encrypt": true,
+    "trustServerCertificate": true
+  }
+}
+```
+
+### Server Mode
+- `isServerMode: true` → This PC runs the backend server (Node.js on port 3001, connected to SQL Server)
+- `isServerMode: false` + `serverUrl` → This PC is a client connecting to a remote server
+- `isServerMode: false` + no `serverUrl` → Standalone mode (local SQLite, no server)
+
+### Auth Flow
+1. Client sends credentials to `/api/auth/login`
+2. Server returns `{ accessToken, refreshToken, user }`
+3. Access token included as `Authorization: Bearer <token>` header
+4. Token auto-refreshes on 401 response
+5. Refresh token stored in session; new token pair issued on `/api/auth/refresh`
+
+### Remaining Work
+- Full end-to-end testing with SQL Server
+- Client PC login via server mode
+- All CRUD operations via HTTP instead of IPC
+- WebSocket real-time updates (presence, chat, data changes)
+- Admin user management via server
+- Backup/restore via SQL Server
+- Phase 8 verification

@@ -1,4 +1,3 @@
-// main.js — Eye Clinic Management System
 const electron = require('electron');
 if (!electron || !electron.app || !electron.BrowserWindow) {
   const { spawn } = require('child_process');
@@ -15,12 +14,10 @@ if (!electron || !electron.app || !electron.BrowserWindow) {
 const { app, BrowserWindow } = electron;
 const path = require('path');
 const fs = require('fs');
-
-// Services
 const Database = require('../database.js');
-const NetworkConfigService = require('../src/services/NetworkConfigService');
 const ServerManager = require('./server/ServerManager');
 const IPCHandlers = require('./ipc/handlers');
+
 let mainWindow = null;
 let dbInstance = null;
 
@@ -36,14 +33,11 @@ function createWindow() {
     },
   });
 
-  // Load URL based on environment
   const isDev = process.env.NODE_ENV === 'development';
 
-  // Ensure helpful logs for production mode
   if (isDev) {
     console.log('Running in development mode. Loading from localhost:5173');
     mainWindow.loadURL('http://localhost:5173');
-    // Open DevTools automatically to debug any white screens
     mainWindow.webContents.openDevTools();
   } else {
     const indexPath = path.join(__dirname, '../dist/index.html');
@@ -51,7 +45,6 @@ function createWindow() {
     mainWindow.loadFile(indexPath);
   }
 
-  // Log any loading errors
   mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
     console.error('Failed to load:', errorCode, errorDescription);
   });
@@ -62,57 +55,72 @@ function createWindow() {
     console.log('Eye Clinic App — Login window is OPEN');
   });
 
-  // Force show if something goes wrong
   setTimeout(() => {
     if (mainWindow && !mainWindow.isVisible()) mainWindow.show();
   }, 5000);
 }
 
-// MAIN STARTUP
+const DEFAULT_CONFIG = {
+  isServerMode: false,
+  serverUrl: '',
+  serverPort: 3001,
+  sql_server: {
+    enabled: false,
+    host: 'localhost',
+    port: 1433,
+    database: 'eye_clinic_db',
+    user: '',
+    password: '',
+    encrypt: true,
+    trustServerCertificate: true
+  }
+};
+
+function loadConfig() {
+  const userDataPath = app.getPath('userData');
+  const configPath = path.join(userDataPath, 'config.json');
+  try {
+    if (fs.existsSync(configPath)) {
+      const loaded = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+      return { ...DEFAULT_CONFIG, ...loaded };
+    }
+  } catch (e) {
+    console.warn('[Main] Could not read config:', e.message);
+  }
+  return { ...DEFAULT_CONFIG };
+}
+
+function saveConfig(config) {
+  const userDataPath = app.getPath('userData');
+  const configPath = path.join(userDataPath, 'config.json');
+  try {
+    fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
+    return true;
+  } catch (e) {
+    console.error('[Main] Could not save config:', e.message);
+    return false;
+  }
+}
+
 app.whenReady().then(async () => {
   console.log('Starting Eye Clinic App...');
 
   try {
-    // 1. Initialize Network Config (loads from disk, starts presence broadcast)
-    console.log('Initializing network config...');
-    NetworkConfigService.init();
-    const netConfig = NetworkConfigService.getConfig();
-    console.log('Network config loaded:', JSON.stringify({
-      isNetworkMode: netConfig.isNetworkMode,
-      serverPath: netConfig.serverPath ? '(set)' : '(not set)',
-      deviceName: netConfig.deviceName || '(not set)'
-    }));
-
-    // 2. Database
     console.log('Initializing database...');
     dbInstance = new Database();
     await dbInstance.initialize();
     console.log('Database ready at:', dbInstance.dbPath);
 
-    // 3. Check if this machine should act as server
-    const serverConfigPath = path.join(path.dirname(dbInstance.dbPath), 'config', 'server-config.json');
-    let serverConfig = { serverMode: false, port: 3001 };
-    
-    if (fs.existsSync(serverConfigPath)) {
-      try {
-        serverConfig = JSON.parse(fs.readFileSync(serverConfigPath, 'utf8'));
-      } catch (e) {
-        console.warn('[Main] Could not read server config:', e.message);
-      }
-    }
-
-    // 4. Start server if server mode is enabled
-    if (serverConfig.serverMode) {
+    const config = loadConfig();
+    if (config.isServerMode) {
       console.log('[Main] Server mode enabled, starting server...');
-      ServerManager.initialize(dbInstance.db);
-      await ServerManager.start({ port: serverConfig.port || 3001 });
+      ServerManager.initialize(dbInstance);
+      await ServerManager.start({ port: config.serverPort || 3001 });
       console.log('[Main] Server started successfully');
     }
 
-    // 5. IPC Handlers
-    new IPCHandlers();
+    new IPCHandlers({ config, saveConfig, loadConfig, serverManager: ServerManager });
 
-    // 6. Open window
     createWindow();
 
     console.log('APP FULLY STARTED');

@@ -77,7 +77,7 @@ const DoctorsDashboard = ({ activeSection }) => {
   const [activePanel, setActivePanel] = useState('dashboard');
   const [dashboardStats, setDashboardStats] = useState({
     totalFulfilledPrescriptions: 0,
-    pendingEvaluations: 4 // Mocked or fetched from elsewhere
+    pendingEvaluations: 0 // Mocked or fetched from elsewhere
   });
 
   // Helper function to calculate age from DOB
@@ -394,8 +394,8 @@ const DoctorsDashboard = ({ activeSection }) => {
                 >
                   <option value="">Select patient</option>
                   {clientList
-                    .filter(p => 
-                      patientSearchTerm === '' || 
+                    .filter(p =>
+                      patientSearchTerm === '' ||
                       p.name.toLowerCase().includes(patientSearchTerm.toLowerCase()) ||
                       (p.patient_id && p.patient_id.toLowerCase().includes(patientSearchTerm.toLowerCase()))
                     )
@@ -849,6 +849,3 @@ const DoctorsDashboard = ({ activeSection }) => {
 }
 
 export default DoctorsDashboard
-
-
-

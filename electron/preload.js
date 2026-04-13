@@ -210,20 +210,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getCurrentUser: () => ipcRenderer.invoke('auth:getCurrentUser'),
     checkUpdate: () => ipcRenderer.invoke('app:checkUpdate'),
     checkOnlineStatus: () => ipcRenderer.invoke('system:checkOnline'),
-    setNetworkDbPath: (path) => ipcRenderer.invoke('system:setNetworkDbPath', { path }),
-    getNetworkDbPath: () => ipcRenderer.invoke('system:getNetworkDbPath'),
     setCvfWatchPath: (path) => ipcRenderer.invoke('system:setCvfWatchPath', { path }),
     getCvfWatchPath: () => ipcRenderer.invoke('system:getCvfWatchPath'),
-    setLanSyncPath: (path) => ipcRenderer.invoke('system:setLanSyncPath', { path }),
-    getLanSyncPath: () => ipcRenderer.invoke('system:getLanSyncPath'),
-    getSqlServerConfig: () => ipcRenderer.invoke('system:getSqlServerConfig').catch((error) => ({ success: false, error: error?.message || String(error) })),
-    setSqlServerConfig: (config) => ipcRenderer.invoke('system:setSqlServerConfig', config).catch((error) => ({ success: false, error: error?.message || String(error) })),
-    testSqlServerConnection: (config) => ipcRenderer.invoke('system:testSqlServerConnection', config).catch((error) => ({ success: false, error: error?.message || String(error) })),
-    runSqlServerSync: () => ipcRenderer.invoke('system:runSqlServerSync').catch((error) => ({ success: false, error: error?.message || String(error) })),
-    lanSyncExport: () => ipcRenderer.invoke('sync:lanExport'),
-    lanSyncImport: () => ipcRenderer.invoke('sync:lanImport'),
-    lanSyncGetConflicts: () => ipcRenderer.invoke('sync:getConflicts'),
-    lanSyncResolveConflict: (payload) => ipcRenderer.invoke('sync:resolveConflict', payload),
     listCvfIncomingFiles: (payload) => ipcRenderer.invoke('cvf:listIncomingFiles', payload),
     attachCvfPdfToPatient: (payload) => ipcRenderer.invoke('cvf:attachPdfToPatient', payload),
     setUserOnline: (userId) => ipcRenderer.invoke('presence:setOnline', { userId }),
@@ -256,51 +244,31 @@ contextBridge.exposeInMainWorld('electronAPI', {
         return () => ipcRenderer.removeListener(channel, subscription);
     },
 
-    // Network Configuration APIs
-    getNetworkConfig: () => ipcRenderer.invoke('network:getConfig'),
-    saveNetworkConfig: (config) => ipcRenderer.invoke('network:saveConfig', config),
-    testNetworkConnection: (serverPath) => ipcRenderer.invoke('network:testConnection', serverPath),
-    selectNetworkFolder: () => ipcRenderer.invoke('network:selectFolder'),
-
-    // Network Sync APIs
-    getSyncStatus: () => ipcRenderer.invoke('network:getSyncStatus'),
-    performSync: () => ipcRenderer.invoke('network:performSync'),
-    getConflicts: () => ipcRenderer.invoke('network:getConflicts'),
-    resolveConflict: (id, resolution) => ipcRenderer.invoke('network:resolveConflict', { id, resolution }),
-
-    // Server Management APIs
-    serverStart: (config) => ipcRenderer.invoke('server:start', config),
-    serverStop: () => ipcRenderer.invoke('server:stop'),
-    serverStatus: () => ipcRenderer.invoke('server:status'),
-    serverSaveConfig: (config) => ipcRenderer.invoke('server:saveConfig', config),
-    serverGetConfig: () => ipcRenderer.invoke('server:getConfig'),
-
     // Backup/Restore APIs
     backupCreate: () => ipcRenderer.invoke('backup:create'),
     backupList: () => ipcRenderer.invoke('backup:list'),
     backupRestore: (backupPath) => ipcRenderer.invoke('backup:restore', { backupPath }),
 
-    // Enhanced Network APIs
-    getOnlineUsersDetailed: () => ipcRenderer.invoke('network:getOnlineUsers'),
-    getNetworkSyncStatus: () => ipcRenderer.invoke('network:getSyncStatusDetailed'),
-    getActivityLogsFiltered: (filters) => ipcRenderer.invoke('network:getActivityLogsFiltered', filters),
-    
     // Presence listeners for real-time updates
     onPresenceUpdate: (callback) => {
         const subscription = (event, data) => callback(data);
         ipcRenderer.on('presence:update', subscription);
         return () => ipcRenderer.removeListener('presence:update', subscription);
     },
-    onSyncStatusUpdate: (callback) => {
-        const subscription = (event, data) => callback(data);
-        ipcRenderer.on('sync:statusUpdate', subscription);
-        return () => ipcRenderer.removeListener('sync:statusUpdate', subscription);
-    },
     onUserProfileUpdated: (callback) => {
         const subscription = (event, user) => callback(user);
         ipcRenderer.on('user:profileUpdated', subscription);
         return () => ipcRenderer.removeListener('user:profileUpdated', subscription);
     },
+
+    // Server Configuration APIs
+    getServerConfig: () => ipcRenderer.invoke('serverConfig:get'),
+    setServerConfig: (config) => ipcRenderer.invoke('serverConfig:set', config),
+    getSqlServerConfig: () => ipcRenderer.invoke('serverConfig:getSqlServer'),
+    setSqlServerConfig: (config) => ipcRenderer.invoke('serverConfig:setSqlServer', config),
+    serverStart: (config) => ipcRenderer.invoke('server:start', config),
+    serverStop: () => ipcRenderer.invoke('server:stop'),
+    serverStatus: () => ipcRenderer.invoke('server:status'),
 });
 
 // Listen for preload events
