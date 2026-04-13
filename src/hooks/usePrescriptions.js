@@ -36,7 +36,7 @@ export default function usePrescriptions() {
                 result = await window.electronAPI.getPrescriptionsByPatient(patientId);
             }
             if (result.success) {
-                setPrescriptions(result.prescriptions);
+                setPrescriptions(result.prescriptions || result.data || []);
             } else {
                 setError(result.error);
             }
@@ -54,12 +54,12 @@ export default function usePrescriptions() {
         try {
             let result;
             if (isServerMode()) {
-                result = await serverApiCall('/api/prescriptions?status=pending', 'GET');
+                result = await serverApiCall('/api/prescriptions/pending', 'GET');
             } else {
                 result = await window.electronAPI.getPendingPrescriptions();
             }
             if (result.success) {
-                setPrescriptions(result.prescriptions);
+                setPrescriptions(result.prescriptions || result.data || []);
             } else {
                 setError(result.error);
             }
