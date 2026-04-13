@@ -22,7 +22,7 @@ function getInventoryRoutes() {
             handler: authenticated(async (req, res) => {
                 authenticatedAdmin(async (reqInner, resInner) => {
                     try {
-                        const { item_code, item_name, category, quantity, unit, min_stock_level, expiry_date } = reqInner.body;
+                        const { item_code, item_name, category, current_quantity, unit, minimum_quantity, expiry_date } = reqInner.body;
                         const id = uuidv4();
                         await sqlQuery(
                             `INSERT INTO inventory (id, item_code, item_name, category, quantity, unit, min_stock_level, expiry_date, created_at, updated_at) VALUES (@id, @code, @name, @cat, @qty, @unit, @min, @exp, GETDATE(), GETDATE())`,
@@ -31,9 +31,9 @@ function getInventoryRoutes() {
                                 { name: 'code', type: mssql.VarChar, value: item_code || id },
                                 { name: 'name', type: mssql.VarChar, value: item_name || '' },
                                 { name: 'cat', type: mssql.VarChar, value: category || '' },
-                                { name: 'qty', type: mssql.Int, value: quantity || 0 },
+                                { name: 'qty', type: mssql.Int, value: current_quantity || 0 },
                                 { name: 'unit', type: mssql.VarChar, value: unit || '' },
-                                { name: 'min', type: mssql.Int, value: min_stock_level || 0 },
+                                { name: 'min', type: mssql.Int, value: minimum_quantity || 0 },
                                 { name: 'exp', type: mssql.VarChar, value: expiry_date || null }
                             ]
                         );
@@ -49,15 +49,15 @@ function getInventoryRoutes() {
             handler: authenticated(async (req, res) => {
                 authenticatedAdmin(async (reqInner, resInner) => {
                     try {
-                        const { item_name, category, quantity, unit, min_stock_level, expiry_date } = reqInner.body;
+                        const { item_name, category, current_quantity, unit, minimum_quantity, expiry_date } = reqInner.body;
                         await sqlQuery(
                             `UPDATE inventory SET item_name=@name, category=@cat, quantity=@qty, unit=@unit, min_stock_level=@min, expiry_date=@exp, updated_at=GETDATE() WHERE id=@id`,
                             [
                                 { name: 'name', type: mssql.VarChar, value: item_name || '' },
                                 { name: 'cat', type: mssql.VarChar, value: category || '' },
-                                { name: 'qty', type: mssql.Int, value: quantity || 0 },
+                                { name: 'qty', type: mssql.Int, value: current_quantity || 0 },
                                 { name: 'unit', type: mssql.VarChar, value: unit || '' },
-                                { name: 'min', type: mssql.Int, value: min_stock_level || 0 },
+                                { name: 'min', type: mssql.Int, value: minimum_quantity || 0 },
                                 { name: 'exp', type: mssql.VarChar, value: expiry_date || null },
                                 { name: 'id', type: mssql.VarChar, value: reqInner.params.id }
                             ]

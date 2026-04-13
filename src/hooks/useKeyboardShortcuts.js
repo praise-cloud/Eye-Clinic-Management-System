@@ -3,9 +3,11 @@ import { useEffect } from 'react';
 const useKeyboardShortcuts = (shortcuts) => {
   useEffect(() => {
     const handleKeyDown = (event) => {
-      // Check for each shortcut
+      if (!event.key) return;
+      const eventKey = event.key.toLowerCase();
       shortcuts.forEach(({ key, ctrlKey = false, altKey = false, shiftKey = false, callback }) => {
-        const keyMatch = event.key.toLowerCase() === key.toLowerCase();
+        if (!key || typeof key !== 'string') return;
+        const keyMatch = eventKey === key.toLowerCase();
         const ctrlMatch = event.ctrlKey === ctrlKey;
         const altMatch = event.altKey === altKey;
         const shiftMatch = event.shiftKey === shiftKey;

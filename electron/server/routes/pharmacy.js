@@ -111,7 +111,9 @@ function getPharmacyRoutes() {
                     broadcast('data:update', { table: 'pharmacy', action: 'dispense' });
                     broadcast('data:update', { table: 'dashboard', action: 'refresh' });
                     broadcast('data:update', { table: 'revenue', action: 'create' });
-                    res.json({ success: true, id: dispId });
+                    const dispensationResult = await sqlQuery('SELECT * FROM pharmacy_dispensations WHERE id = @id', [{ name: 'id', type: mssql.VarChar, value: dispId }]);
+                    const dispensation = dispensationResult?.recordset?.[0] || null;
+                    res.json({ success: true, id: dispId, dispensation });
                 } catch (err) { res.status(500).json({ success: false, error: err.message }); }
             })
         }
