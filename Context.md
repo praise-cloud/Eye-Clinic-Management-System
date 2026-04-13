@@ -1,6 +1,6 @@
 ﻿# Context
 
-Last updated: 2026-03-24
+Last updated: 2026-04-13
 
 ## Purpose
 This file consolidates all markdown documentation for this project and will be updated whenever changes are made to the application.
@@ -2362,3 +2362,86 @@ Each module exports a `registerXxxHandlers(ctx)` function that:
 - Admin user management via server
 - Backup/restore via SQL Server
 - Phase 8 verification
+
+## Changes (April 13, 2026) - Data Persistence Fix
+
+### Root Cause: IPC Handlers Not Proxying to Server
+
+The fundamental issue was that ALL IPC handlers were calling `DatabaseService` directly (SQLite), completely bypassing the server even when server mode was configured. This meant:
+- When you entered/updated data, it was saved to the LOCAL SQLite database
+- On page refresh, the app re-fetched from SQLite (which might be empty or outdated in server mode)
+- Server (SQL Server) never received the data
+
+### Fix: All IPC Handlers Now Proxy to Server in Server Mode
+
+All IPC handlers have been rewritten to check `ctx.appConfig?.serverUrl` and proxy to the server when available. Each handler:
+1. Checks if `serverUrl` is configured
+2. If yes: makes HTTP request to server and returns result
+3. If no: falls back to local SQLite via DatabaseService
+4. Broadcasts `server:dataUpdate` events (in addition to `data:update`) for WebSocket clients
+
+### Files Updated (IPC Handlers - All with server proxy):
+| File | Operations |
+|------|------------|
+| `patients.js` | getAll, getById, create, update, delete, search |
+| `inventory.js` | getAll, getById, create, update, delete, updateQuantity, getByCode, getStatistics, getLowStock, getExpiring, search |
+| `tests.js` | getAll, getById, create, update, delete, attachCvfToDocuments |
+| `prescriptions.js` | create, createMultiple, getById, getByPatient, getPending, updateStatus |
+| `chat.js` | getMessages, sendMessage, markMessageRead, markAllAsRead, getUnreadCount, deleteMessage |
+| `reports.js` | getAll, getById, generate, delete |
+| `pharmacy.js` | getDrugs, getDrugById, createDrug, updateDrug, deleteDrug, dispense |
+| `notifications.js` | getAll, markRead, markAllRead |
+| `dashboard.js` | getStats, getSalesRecords |
+| `presence.js` | setOnline, setOffline, getOnlineUsers, getUsersWithPresence |
+
+### Files Updated (Server Endpoints):
+- `scripts/start-server.js`: Patient POST/UPDATE now return `{ success, id, patient }` instead of just `{ success, id }`. Both now include `intake_date` in INSERT/UPDATE.
+- `electron/server/ServerManager.js`: Same patient endpoint fixes.
+
+### Files Updated (Frontend UI):
+- `src/components/content/PatientsContent.jsx`: Added "Date Added" column showing `created_at`. Updated CSV export.
+- `src/components/content/DashboardContent.jsx`: Added "New Clients Today" stat card. Fixed broken date filter (Today/Yesterday/This Week/Custom) that was defined but never applied. Added custom date picker input.
+
+### Drug Dispense Revenue Recording
+- Both `scripts/start-server.js` and `electron/server/ServerManager.js` dispense endpoints now insert a `revenue` record with `amount = unit_price × quantity` after dispensing. Also added `unit_price` to `pharmacy_dispensations` INSERT in ServerManager.
+
+### Remaining Work
+- Backup/restore via SQL Server (optional feature for future)
+
+## Changes (April 13, 2026) - Server-Client Testing Complete
+
+### Verified Working
+All server-client architecture components tested and verified:
+
+1. **Server Setup** (`npm run setup:server`): Connected to SQL Server, created database `eye_clinic_db`, all 14 tables created, admin user seeded
+
+2. **Server Startup** (`npm run start:server`): HTTP server running on port 3001, WebSocket enabled, JWT auth working
+
+3. **Login API**: POST `/api/auth/login` returns accessToken, refreshToken, and user object
+
+4. **Patient CRUD**: All operations proxy to server when `serverUrl` is configured, broadcasts data:update events
+
+5. **WebSocket**: Connected clients receive presence, chat, and data:update events in real-time
+
+### Configuration Required
+On the server PC (this computer):
+```bash
+set DB_USER=eyetest
+set DB_PASSWORD=EyeClinic123!
+npm run setup:server
+npm run start:server
+```
+
+On client PCs:
+- Go to Settings > Server Connection
+- Enter server IP (e.g., `http://192.168.1.100:3001`)
+- Connect and login with clinic credentials
+
+### SQL Server Instance
+The server uses `localhost\SQLEXPRESS` by default. If your SQL Server has a different instance name, set:
+```bash
+set DB_HOST=YOUR_SERVER\INSTANCE_NAME
+```
+
+### Backup/Restore (Future)
+SQL Server backup/restore can be done via SQL Server Management Studio or command line. Not yet integrated into the app UI.

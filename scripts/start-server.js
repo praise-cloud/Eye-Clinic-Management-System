@@ -15,17 +15,29 @@ const ACCESS_TOKEN_TTL = '15m';
 const REFRESH_TOKEN_TTL = '7d';
 
 const DEFAULT_SQL_CONFIG = {
-  server: process.env.DB_HOST || 'localhost',
+  server: process.env.DB_HOST || 'localhost\\SQLEXPRESS',
   database: process.env.DB_NAME || 'eye_clinic_db',
-  user: process.env.DB_USER || '',
-  password: process.env.DB_PASSWORD || '',
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
   options: {
     encrypt: false,
     trustServerCertificate: true,
-    enableArithAbort: true,
-    integratedSecurity: true
+    enableArithAbort: true
   }
 };
+
+if (!DEFAULT_SQL_CONFIG.user || !DEFAULT_SQL_CONFIG.password) {
+  console.error('ERROR: DB_USER and DB_PASSWORD environment variables are required.');
+  console.error('');
+  console.error('On THIS computer (server), run these commands FIRST:');
+  console.error('  set DB_USER=eyetest');
+  console.error('  set DB_PASSWORD=EyeClinic123!');
+  console.error('  npm run setup:server');
+  console.error('  npm run start:server');
+  console.error('');
+  console.error('Then on OTHER computers (clients), configure in Settings > Server Connection');
+  process.exit(1);
+}
 
 let sqlConfig = { ...DEFAULT_SQL_CONFIG };
 let pool = null;
@@ -467,19 +479,19 @@ app.get('/api/inventory', authMiddleware, async (req, res) => {
 
 app.post('/api/inventory', authMiddleware, adminOnly, async (req, res) => {
   try {
-    const { item_code, item_name, category, quantity, unit, min_stock_level, expiry_date } = req.body;
+    const { item_code, item_name, category, current_quantity, unit, minimum_quantity, expiry_date } = req.body;
     const id = uuidv4();
     await sqlQuery(
-      `INSERT INTO inventory (id, item_code, item_name, category, quantity, unit, min_stock_level, expiry_date, created_at, updated_at)
+      `INSERT INTO inventory (id, item_code, item_name, category, current_quantity, unit_of_measure, minimum_quantity, expiry_date, created_at, updated_at)
        VALUES (@id, @code, @name, @cat, @qty, @unit, @min, @exp, GETDATE(), GETDATE())`,
       [
         { name: 'id', type: mssql.VarChar, value: id },
         { name: 'code', type: mssql.VarChar, value: item_code || id },
         { name: 'name', type: mssql.VarChar, value: item_name || '' },
         { name: 'cat', type: mssql.VarChar, value: category || '' },
-        { name: 'qty', type: mssql.Int, value: quantity || 0 },
+        { name: 'qty', type: mssql.Int, value: current_quantity || 0 },
         { name: 'unit', type: mssql.VarChar, value: unit || '' },
-        { name: 'min', type: mssql.Int, value: min_stock_level || 0 },
+        { name: 'min', type: mssql.Int, value: minimum_quantity || 0 },
         { name: 'exp', type: mssql.VarChar, value: expiry_date || null }
       ]
     );
@@ -492,15 +504,15 @@ app.post('/api/inventory', authMiddleware, adminOnly, async (req, res) => {
 
 app.put('/api/inventory/:id', authMiddleware, adminOnly, async (req, res) => {
   try {
-    const { item_name, category, quantity, unit, min_stock_level, expiry_date } = req.body;
+    const { item_name, category, current_quantity, unit, minimum_quantity, expiry_date } = req.body;
     await sqlQuery(
-      `UPDATE inventory SET item_name=@name, category=@cat, quantity=@qty, unit=@unit, min_stock_level=@min, expiry_date=@exp, updated_at=GETDATE() WHERE id=@id`,
+      `UPDATE inventory SET item_name=@name, category=@cat, current_quantity=@qty, unit_of_measure=@unit, minimum_quantity=@min, expiry_date=@exp, updated_at=GETDATE() WHERE id=@id`,
       [
         { name: 'name', type: mssql.VarChar, value: item_name || '' },
         { name: 'cat', type: mssql.VarChar, value: category || '' },
-        { name: 'qty', type: mssql.Int, value: quantity || 0 },
+        { name: 'qty', type: mssql.Int, value: current_quantity || 0 },
         { name: 'unit', type: mssql.VarChar, value: unit || '' },
-        { name: 'min', type: mssql.Int, value: min_stock_level || 0 },
+        { name: 'min', type: mssql.Int, value: minimum_quantity || 0 },
         { name: 'exp', type: mssql.VarChar, value: expiry_date || null },
         { name: 'id', type: mssql.VarChar, value: req.params.id }
       ]

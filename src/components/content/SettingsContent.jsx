@@ -536,13 +536,13 @@ const SettingsContent = () => {
             </div>
           )}
 
-          {isAdmin && (
-            <div className="card-premium p-8">
-              <div className="flex items-center justify-between mb-6 pb-6 border-b border-slate-100 dark:border-slate-800">
-                <div>
-                  <h2 className="text-lg font-black text-slate-900 dark:text-white tracking-tight">Server Connection</h2>
-                  <p className="text-sm text-slate-500 font-medium">Connect to a clinic server or run as server</p>
-                </div>
+          <div className="card-premium p-8">
+            <div className="flex items-center justify-between mb-6 pb-6 border-b border-slate-100 dark:border-slate-800">
+              <div>
+                <h2 className="text-lg font-black text-slate-900 dark:text-white tracking-tight">Server Connection</h2>
+                <p className="text-sm text-slate-500 font-medium">Connect to a clinic server or run as server</p>
+              </div>
+              {isAdmin && (
                 <div className="flex items-center gap-3">
                   <span className={`text-xs font-bold px-3 py-1.5 rounded-full ${serverMode ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400' : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'}`}>
                     {serverMode ? 'Server Mode' : 'Client Mode'}
@@ -551,9 +551,10 @@ const SettingsContent = () => {
                     <div className={`absolute top-1 w-5 h-5 bg-white rounded-full shadow-md transition-all duration-300 ${serverMode ? 'left-8' : 'left-1'}`} />
                   </button>
                 </div>
-              </div>
+              )}
+            </div>
 
-              {serverMode ? (
+              {(serverMode && isAdmin) ? (
                 <div className="space-y-5">
                   <div className="p-4 bg-indigo-50 dark:bg-indigo-900/10 rounded-2xl border border-indigo-100 dark:border-indigo-900/30">
                     <div className="flex items-center gap-3 mb-3">

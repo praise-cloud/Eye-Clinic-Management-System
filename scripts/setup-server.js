@@ -2,18 +2,25 @@ const mssql = require('mssql');
 const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
 
-const DEFAULT_CONFIG = {
-  server: process.env.DB_HOST || 'localhost',
-  port: parseInt(process.env.DB_PORT || '1433'),
-  database: 'master',
-  user: process.env.DB_USER || '',
-  password: process.env.DB_PASSWORD || '',
-  options: {
-    encrypt: false,
-    trustServerCertificate: true,
-    enableArithAbort: true
-  }
-};
+function getDbConfig(dbName = 'master') {
+  const user = process.env.DB_USER || 'eyetest';
+  const password = process.env.DB_PASSWORD || 'EyeClinic123!';
+  const dbHost = process.env.DB_HOST || 'localhost';
+  
+  return {
+    server: dbHost,
+    database: dbName,
+    user: user,
+    password: password,
+    options: {
+      encrypt: false,
+      trustServerCertificate: true,
+      enableArithAbort: true
+    }
+  };
+}
+
+const DEFAULT_CONFIG = getDbConfig();
 
 const schemas = {
   users: `CREATE TABLE users (
@@ -240,16 +247,19 @@ async function run() {
     else if (args[i] === '--admin-email' && args[i + 1]) process.env.ADMIN_EMAIL = args[++i];
     else if (args[i] === '--admin-password' && args[i + 1]) process.env.ADMIN_PASSWORD = args[++i];
     else if (args[i] === '--help') {
-      console.log('Usage: node setup-server.js [options]');
+console.log('Usage: node setup-server.js [options]');
       console.log('Options:');
       console.log('  --host <server>       SQL Server host (default: localhost)');
-      console.log('  --port <port>         SQL Server port (default: 1433)');
-      console.log('  --user <username>     SQL Server username');
-      console.log('  --password <pass>     SQL Server password');
       console.log('  --admin-email <email> Admin email (default: admin@clinic.com)');
       console.log('  --admin-password <pw> Admin password (default: admin123)');
       console.log('  --help                Show this help');
-      console.log('\nEnvironment variables: DB_USER, DB_PASSWORD');
+      console.log('\nREQUIRED Environment variables:');
+      console.log('  set DB_USER=your_sql_username');
+      console.log('  set DB_PASSWORD=your_sql_password');
+      console.log('\nExample:');
+      console.log('  set DB_USER=sa');
+      console.log('  set DB_PASSWORD=MyPassword123');
+      console.log('  npm run setup:server');
       return;
     }
   }
@@ -284,7 +294,7 @@ async function run() {
 
   await pool.close();
 
-  config.database = dbName;
+  config = getDbConfig(dbName);
   console.log(`\nConnecting to '${dbName}'...`);
 
   try {
