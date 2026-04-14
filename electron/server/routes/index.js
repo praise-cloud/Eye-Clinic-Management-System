@@ -14,6 +14,7 @@ const { getNotificationRoutes } = require('./notifications');
 const { getPresenceRoutes } = require('./presence');
 const { getUserRoutes } = require('./users');
 const { getServerRoutes } = require('./server');
+const { getRevenueRoutes } = require('./revenue');
 
 function registerAllRoutes(app) {
     const allRoutes = [
@@ -32,7 +33,8 @@ function registerAllRoutes(app) {
         ...getNotificationRoutes(),
         ...getPresenceRoutes(),
         ...getUserRoutes(),
-        ...getServerRoutes()
+        ...getServerRoutes(),
+        ...getRevenueRoutes()
     ];
 
     for (const route of allRoutes) {

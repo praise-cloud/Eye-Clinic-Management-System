@@ -28,6 +28,27 @@ const AssistantDashboardScreen = () => {
     const [notification, setNotification] = useState(null);
     const { prescriptions: pendingPrescriptions, fetchPendingPrescriptions, updateStatus, loading: prescriptionsLoading } = usePrescriptions();
 
+    const handleDispense = async (prescription) => {
+        try {
+            const result = await window.electronAPI.dispensePharmacyDrug(
+                prescription.drug_id,
+                prescription.patient_id,
+                prescription.quantity,
+                prescription.instructions || ''
+            );
+            if (result?.success) {
+                await updateStatus(prescription.id, 'dispensed', user?.id);
+                setNotification({ type: 'success', message: `Successfully dispensed ${prescription.drug_name} for ${prescription.patient_first_name}.` });
+                fetchStats();
+                fetchPendingPrescriptions();
+            } else {
+                setNotification({ type: 'error', message: result?.error || 'Failed to dispense medication. Please check stock levels.' });
+            }
+        } catch (err) {
+            setNotification({ type: 'error', message: err.message || 'Dispensing failed due to a system error.' });
+        }
+    };
+
     const loadPatients = async () => {
         try {
             setLoading(true);
@@ -222,19 +243,7 @@ const AssistantDashboardScreen = () => {
                                 </div>
                                 <div className="flex gap-2">
                                     <button
-                                        onClick={async () => {
-                                            try {
-                                                const success = await updateStatus(p.id, 'dispensed', user?.id);
-                                                if (success) {
-                                                    setNotification({ type: 'success', message: `Successfully dispensed ${p.drug_name} for ${p.patient_first_name}.` });
-                                                    fetchStats();
-                                                } else {
-                                                    setNotification({ type: 'error', message: 'Failed to dispense medication. Please check stock levels.' });
-                                                }
-                                            } catch (err) {
-                                                setNotification({ type: 'error', message: err.message || 'Dispensing failed due to a system error.' });
-                                            }
-                                        }}
+                                        onClick={() => handleDispense(p)}
                                         className="flex-1 py-2.5 bg-indigo-500 text-white rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-indigo-600 transition-all shadow-md active:scale-95 disabled:opacity-50"
                                         disabled={prescriptionsLoading}
                                     >

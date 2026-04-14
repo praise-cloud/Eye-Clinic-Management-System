@@ -170,6 +170,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     createUserAdmin: (userData, createdBy) => ipcRenderer.invoke('admin:createUser', { userData, createdBy }),
     getDashboardStats: () => ipcRenderer.invoke('dashboard:getStats'),
     getSalesRecords: (filters) => ipcRenderer.invoke('dashboard:getSalesRecords', filters),
+    getRevenueLogs: (filters) => ipcRenderer.invoke('revenue:getLogs', filters),
+    getRevenueStats: () => ipcRenderer.invoke('revenue:getStats'),
 
     // Report APIs
     getReports: (filters) => ipcRenderer.invoke('reports:getAll', filters),

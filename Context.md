@@ -1,9 +1,93 @@
 ﻿# Context
 
-Last updated: 2026-04-13
+Last updated: 2026-04-14
 
 ## Purpose
 This file consolidates all markdown documentation for this project and will be updated whenever changes are made to the application.
+
+## Changes (April 14, 2026) - ServerManager Modular Split & Drug Dispense Revenue Fix
+
+### ServerManager.js Modular Split
+The monolithic `electron/server/ServerManager.js` (~810 lines) has been split into 19 modular files:
+
+| File | Purpose |
+|------|---------|
+| `electron/server/config.js` | JWT secrets, SQL config loading |
+| `electron/server/database.js` | Pool, sqlQuery, initialize, close |
+| `electron/server/auth.js` | Tokens, middleware (auth/admin/doctor) |
+| `electron/server/websocket.js` | WebSocket setup, broadcast, sendToUser |
+| `electron/server/routes/index.js` | Route registration aggregator |
+| `electron/server/routes/health.js` | Health check |
+| `electron/server/routes/auth.js` | Login, refresh, logout, me |
+| `electron/server/routes/patients.js` | Patient CRUD |
+| `electron/server/routes/tests.js` | Test CRUD |
+| `electron/server/routes/inventory.js` | Inventory CRUD |
+| `electron/server/routes/pharmacy.js` | Pharmacy drugs & dispense |
+| `electron/server/routes/prescriptions.js` | Prescriptions CRUD |
+| `electron/server/routes/chat.js` | Chat messages |
+| `electron/server/routes/settings.js` | Settings CRUD |
+| `electron/server/routes/dashboard.js` | Dashboard stats |
+| `electron/server/routes/activity-logs.js` | Activity logs |
+| `electron/server/routes/reports.js` | Reports CRUD |
+| `electron/server/routes/notifications.js` | Notifications |
+| `electron/server/routes/presence.js` | Presence tracking |
+| `electron/server/routes/users.js` | User management (admin) |
+| `electron/server/routes/server.js` | Server status |
+| `electron/server/routes/revenue.js` | Revenue records (NEW) |
+
+**ServerManager.js** is now ~65 lines, imports and uses modular routes.
+**scripts/start-server.js** now uses the same modular routes.
+
+### Fixed useKeyboardShortcuts.js Error
+- Added null check for `event.key` to prevent TypeError when pressing certain keys
+- File: `src/hooks/useKeyboardShortcuts.js`
+
+### Fixed Prescription API (Server Routes)
+- Added `/api/prescriptions/multiple` endpoint for creating multiple prescriptions at once
+- Added `/api/prescriptions/:id` endpoint for fetching single prescription
+- Fixed field mapping - now accepts both `patient_id`/`drug_id` AND `patientId`/`drugId` (frontend format)
+- Fixed response format - returns `prescription` and `prescriptions` keys as expected by hooks
+- File: `electron/server/routes/prescriptions.js`
+
+### Drug Dispense → Revenue Flow
+When assistant dispenses a drug, the following happens:
+
+1. **Assistant Dashboard** (`src/pages/dashboard/AssistantDashboardScreen.jsx`)
+   - `handleDispense()` calls `dispensePharmacyDrug()` API
+   - Updates prescription status to 'dispensed'
+   - Refreshes stats showing updated Today's Revenue
+
+2. **Server Dispense Endpoint** (`electron/server/routes/pharmacy.js`)
+   - Records dispensation in `pharmacy_dispensations` table
+   - Reduces drug stock in `pharmacy_drugs`
+   - Records revenue in `revenue` table with amount = unit_price × quantity
+   - Broadcasts `data:update` for `pharmacy`, `revenue`, `dashboard`
+
+3. **New Revenue API** (`electron/server/routes/revenue.js`)
+   - `GET /api/revenue` - Get all revenue records with filters
+   - `GET /api/revenue/stats` - Get revenue stats (today, monthly, total)
+
+4. **Admin Financial Dashboard**
+   - Uses `revenueService` to fetch revenue records
+   - Shows transaction count in revenue stats
+   - Refreshes on data updates
+
+### Files Created:
+- `electron/server/routes/revenue.js` - Revenue API endpoints
+- `src/services/revenueService.js` - Frontend revenue service
+- `electron/ipc/handlers/revenue.js` - Revenue IPC handlers
+
+### Files Modified:
+- `electron/server/routes/index.js` - Added revenue routes
+- `electron/server/routes/prescriptions.js` - Fixed field mapping
+- `electron/server/routes/pharmacy.js` - Added dispensation details to response
+- `electron/server/routes/inventory.js` - Fixed field name mapping (current_quantity, minimum_quantity)
+- `electron/preload.js` - Added `getRevenueLogs`, `getRevenueStats`
+- `electron/ipc/handlers.js` - Added revenue handlers
+- `src/pages/dashboard/AssistantDashboardScreen.jsx` - Added `handleDispense()`
+- `src/pages/dashboard/AdminDashboard.jsx` - Uses revenueService
+- `src/hooks/usePrescriptions.js` - Fixed response handling
+- `src/hooks/useKeyboardShortcuts.js` - Added null check
 
 ## Changes (March 24, 2026) - Hot Reload Removal & Profile Update Fix
 

@@ -20,6 +20,7 @@ const registerCvfHandlers = require('./handlers/cvf');
 const registerWindowHandlers = require('./handlers/window');
 const registerDashboardHandlers = require('./handlers/dashboard');
 const registerServerHandlers = require('./handlers/server');
+const registerRevenueHandlers = require('./handlers/revenue');
 
 let currentUser = null;
 let accessToken = null;
@@ -65,6 +66,7 @@ class IPCHandlers {
     registerWindowHandlers(ctx);
     registerDashboardHandlers(ctx);
     registerServerHandlers(ctx);
+    registerRevenueHandlers(ctx);
 
     if (ctx._authUtils) {
       ctx._authUtils.setTokens = ctx._setTokens;

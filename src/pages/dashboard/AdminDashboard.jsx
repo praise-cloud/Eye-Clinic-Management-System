@@ -7,6 +7,7 @@ import { useSystemConfig } from '../../context/SystemConfigContext';
 import * as patientService from '../../services/patientService';
 import * as inventoryService from '../../services/inventoryService';
 import * as testService from '../../services/testService';
+import * as revenueService from '../../services/revenueService';
 import DynamicTableView from '../../components/DynamicTableView';
 import MessagesContent from '../../components/content/MessagesContent';
 
@@ -125,20 +126,30 @@ const AdminDashboard = () => {
   };
 
   const loadRevenueLogs = async () => {
-    if (!window.electronAPI || !window.electronAPI.getActivityLogs) return;
     try {
-      const res = await window.electronAPI.getActivityLogs({});
-      if (res?.success && Array.isArray(res.logs)) {
-        // Filter for pharmacy related actions
-        const filtered = res.logs.filter(log =>
-          log.entity_type === 'prescription' ||
-          log.entity_type === 'pharmacy_dispensation' ||
-          log.action_type === 'dispense'
-        );
-        setRevenueLog(filtered);
+      const logs = await revenueService.getRevenueLogs({});
+      if (Array.isArray(logs)) {
+        setRevenueLog(logs);
       }
     } catch (error) {
       console.error('Error loading revenue logs:', error);
+    }
+  };
+
+  const loadRevenueStats = async () => {
+    try {
+      const revenueStats = await revenueService.getRevenueStats();
+      if (revenueStats) {
+        setStats(prev => ({
+          ...prev,
+          todayRevenue: revenueStats.todayRevenue || 0,
+          monthlyRevenue: revenueStats.monthlyRevenue || 0,
+          totalRevenue: revenueStats.totalRevenue || 0,
+          todayTransactionCount: revenueStats.todayTransactionCount || 0
+        }));
+      }
+    } catch (error) {
+      console.error('Error loading revenue stats:', error);
     }
   };
 
@@ -297,6 +308,7 @@ const AdminDashboard = () => {
     loadStats();
     loadActivityLogs();
     loadRevenueLogs();
+    loadRevenueStats();
     loadOnlineUsers();
     loadFilteredActivityLogs(activityFilter);
 
@@ -306,6 +318,7 @@ const AdminDashboard = () => {
         loadStats();
         loadActivityLogs();
         loadRevenueLogs();
+        loadRevenueStats();
         loadOnlineUsers();
       });
       return unsubscribe;
