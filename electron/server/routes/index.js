@@ -15,6 +15,10 @@ const { getPresenceRoutes } = require('./presence');
 const { getUserRoutes } = require('./users');
 const { getServerRoutes } = require('./server');
 const { getRevenueRoutes } = require('./revenue');
+const { getVisitRoutes } = require('./visits');
+const { getCaseNoteRoutes } = require('./case-notes');
+const { getReminderRoutes } = require('./reminders');
+const { getBackupRoutes } = require('./backup');
 
 function registerAllRoutes(app) {
     const allRoutes = [
@@ -34,7 +38,11 @@ function registerAllRoutes(app) {
         ...getPresenceRoutes(),
         ...getUserRoutes(),
         ...getServerRoutes(),
-        ...getRevenueRoutes()
+        ...getRevenueRoutes(),
+        ...getVisitRoutes(),
+        ...getCaseNoteRoutes(),
+        ...getReminderRoutes(),
+        ...getBackupRoutes()
     ];
 
     for (const route of allRoutes) {

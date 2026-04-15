@@ -232,6 +232,25 @@ contextBridge.exposeInMainWorld('electronAPI', {
     createMultiplePrescriptions: (data) => ipcRenderer.invoke('prescriptions:createMultiple', data),
     updatePrescriptionStatus: (data) => ipcRenderer.invoke('prescriptions:updateStatus', data),
 
+    // Visit APIs
+    getAllVisits: (filters) => ipcRenderer.invoke('visits:getAll', filters),
+    getVisitById: (id) => ipcRenderer.invoke('visits:getById', id),
+    createVisit: (visitData) => ipcRenderer.invoke('visits:create', visitData),
+    getVisitsByPatient: (patientId) => ipcRenderer.invoke('visits:getByPatient', patientId),
+
+    // Case Note APIs
+    getAllCaseNotes: (filters) => ipcRenderer.invoke('caseNotes:getAll', filters),
+    getCaseNoteById: (id) => ipcRenderer.invoke('caseNotes:getById', id),
+    createCaseNote: (caseNoteData) => ipcRenderer.invoke('caseNotes:create', caseNoteData),
+    updateCaseNote: (data) => ipcRenderer.invoke('caseNotes:update', data),
+    signCaseNote: (data) => ipcRenderer.invoke('caseNotes:sign', data),
+    getCaseNotesByPatient: (patientId) => ipcRenderer.invoke('caseNotes:getByPatient', patientId),
+
+    // Reminder APIs
+    getAllReminders: (filters) => ipcRenderer.invoke('reminders:getAll', filters),
+    createReminder: (reminderData) => ipcRenderer.invoke('reminders:create', reminderData),
+    getUpcomingReminders: () => ipcRenderer.invoke('reminders:getUpcoming'),
+
     // Notification APIs
     getNotifications: (userId) => ipcRenderer.invoke('notifications:getAll', userId),
     markNotificationRead: (id) => ipcRenderer.invoke('notifications:markRead', id),

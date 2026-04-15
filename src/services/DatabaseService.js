@@ -2216,6 +2216,178 @@ class DatabaseService {
         });
     }
 
+    async getVisitsByPatient(patientId) {
+        const db = await this.getDatabase();
+        try {
+            return await db.all('SELECT * FROM visits WHERE patient_id = ? ORDER BY visit_date DESC', [patientId]);
+        } catch { return []; }
+    }
+
+    async getTestsByPatient(patientId) {
+        const db = await this.getDatabase();
+        try {
+            return await db.all('SELECT * FROM tests WHERE patient_id = ? ORDER BY test_date DESC', [patientId]);
+        } catch { return []; }
+    }
+
+    async getCaseNotesByPatient(patientId) {
+        const db = await this.getDatabase();
+        try {
+            return await db.all('SELECT * FROM case_notes WHERE patient_id = ? ORDER BY created_at DESC', [patientId]);
+        } catch { return []; }
+    }
+
+    async getPrescriptionsByPatient(patientId) {
+        const db = await this.getDatabase();
+        try {
+            return await db.all('SELECT * FROM prescriptions WHERE patient_id = ? ORDER BY created_at DESC', [patientId]);
+        } catch { return []; }
+    }
+
+    async getRevenueByPatient(patientId) {
+        const db = await this.getDatabase();
+        try {
+            return await db.all('SELECT * FROM revenue WHERE patient_id = ? ORDER BY timestamp DESC', [patientId]);
+        } catch { return []; }
+    }
+
+    async createVisit(visitData) {
+        const db = await this.getDatabase();
+        const { v4: uuidv4 } = require('uuid');
+        const id = uuidv4();
+        await db.run(
+            `INSERT INTO visits (id, patient_id, visit_date, visit_type, reason, payment_status, amount_paid, linked_prescription_id, created_by)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [id, visitData.patient_id, visitData.visit_date, visitData.visit_type || 'follow_up', visitData.reason,
+             visitData.payment_status || 'pending', visitData.amount_paid || 0, visitData.linked_prescription_id, visitData.created_by]
+        );
+        return { id, ...visitData };
+    }
+
+    async getPendingPrescriptions() {
+        const db = await this.getDatabase();
+        try {
+            return await db.all(`
+                SELECT pr.*, p.first_name || ' ' || p.last_name as patient_name,
+                       d.drug_name, du.first_name || ' ' || du.last_name as doctor_name
+                FROM prescriptions pr
+                JOIN patients p ON pr.patient_id = p.id
+                LEFT JOIN pharmacy_drugs d ON pr.drug_id = d.id
+                JOIN users du ON pr.doctor_id = du.id
+                WHERE pr.status IN ('pending', 'pending_return')
+                ORDER BY pr.created_at DESC
+            `);
+        } catch { return []; }
+    }
+
+    async updatePrescriptionStatus(id, status, userId, extraData = {}) {
+        const db = await this.getDatabase();
+        await db.run('UPDATE prescriptions SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [status, id]);
+        if (status === 'dispensed' && userId) {
+            const { v4: uuidv4 } = require('uuid');
+            const prescription = await db.get('SELECT * FROM prescriptions WHERE id = ?', [id]);
+            if (prescription) {
+                // Record dispensation
+                const dispId = uuidv4();
+                await db.run(
+                    `INSERT INTO prescription_dispensations (id, prescription_id, patient_id, dispensed_by, dispensed_at,
+                     payment_received, payment_type, glasses_amount_adjusted, glasses_adjustment_notes, notes)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                    [dispId, id, prescription.patient_id, userId, new Date().toISOString(),
+                     extraData.payment_received || 0, extraData.payment_type || 'cash',
+                     extraData.glasses_amount_adjusted || 0, extraData.glasses_adjustment_notes || '', extraData.notes || '']
+                );
+                // Update drug stock
+                if (prescription.drug_id) {
+                    const drug = await db.get('SELECT * FROM pharmacy_drugs WHERE id = ?', [prescription.drug_id]);
+                    if (drug) {
+                        await db.run('UPDATE pharmacy_drugs SET current_quantity = current_quantity - ? WHERE id = ?',
+                            [prescription.quantity || 1, prescription.drug_id]);
+                        const drugDispId = uuidv4();
+                        await db.run(
+                            `INSERT INTO pharmacy_dispensations (id, prescription_id, drug_id, patient_id, quantity, unit_price, total_amount, user_id)
+                             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                            [drugDispId, id, prescription.drug_id, prescription.patient_id,
+                             prescription.quantity || 1, drug.unit_price || 0,
+                             (prescription.quantity || 1) * (drug.unit_price || 0), userId]
+                        );
+                    }
+                }
+                // Record revenue
+                if ((extraData.payment_received || 0) > 0) {
+                    const revenueId = uuidv4();
+                    await db.run(
+                        `INSERT INTO revenue (id, source, source_id, amount, collected_by, patient_id, description)
+                         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                        [revenueId, prescription.prescription_type === 'glasses' ? 'glasses' : 'pharmacy',
+                         id, extraData.payment_received, userId, prescription.patient_id,
+                         `Prescription dispensed - Patient ID ${prescription.patient_id}`]
+                    );
+                }
+            }
+        }
+        return { success: true };
+    }
+
+    async createCaseNote(caseNoteData) {
+        const db = await this.getDatabase();
+        const { v4: uuidv4 } = require('uuid');
+        const id = uuidv4();
+        await db.run(
+            `INSERT INTO case_notes (id, patient_id, visit_id, test_id, doctor_id, chief_complaint,
+             visual_acuity_od, visual_acuity_os, intraocular_pressure_od, intraocular_pressure_os,
+             cvf_analysis_od, cvf_analysis_os, diagnosis, recommendation, next_appointment, status)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [id, caseNoteData.patient_id, caseNoteData.visit_id, caseNoteData.test_id, caseNoteData.doctor_id,
+             caseNoteData.chief_complaint, caseNoteData.visual_acuity_od, caseNoteData.visual_acuity_os,
+             caseNoteData.intraocular_pressure_od, caseNoteData.intraocular_pressure_os,
+             caseNoteData.cvf_analysis_od, caseNoteData.cvf_analysis_os,
+             caseNoteData.diagnosis, caseNoteData.recommendation, caseNoteData.next_appointment,
+             caseNoteData.status || 'draft']
+        );
+        return { id, ...caseNoteData };
+    }
+
+    async getAppointmentReminders(status = null) {
+        const db = await this.getDatabase();
+        try {
+            if (status) {
+                return await db.all(`
+                    SELECT ar.*, p.first_name || ' ' || p.last_name as patient_name,
+                           u.first_name || ' ' || u.last_name as notified_to_name
+                    FROM appointment_reminders ar
+                    JOIN patients p ON ar.patient_id = p.id
+                    LEFT JOIN users u ON ar.notified_to = u.id
+                    WHERE ar.status = ?
+                    ORDER BY ar.appointment_date DESC
+                `, [status]);
+            }
+            return await db.all(`
+                SELECT ar.*, p.first_name || ' ' || p.last_name as patient_name,
+                       u.first_name || ' ' || u.last_name as notified_to_name
+                FROM appointment_reminders ar
+                JOIN patients p ON ar.patient_id = p.id
+                LEFT JOIN users u ON ar.notified_to = u.id
+                ORDER BY ar.appointment_date DESC
+            `);
+        } catch { return []; }
+    }
+
+    async createAppointmentReminder(reminderData) {
+        const db = await this.getDatabase();
+        const { v4: uuidv4 } = require('uuid');
+        const id = uuidv4();
+        await db.run(
+            `INSERT INTO appointment_reminders (id, patient_id, case_note_id, visit_id, appointment_date,
+             reminder_for, status, notified_to, notes)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [id, reminderData.patient_id, reminderData.case_note_id, reminderData.visit_id,
+             reminderData.appointment_date, reminderData.reminder_for,
+             reminderData.status || 'pending', reminderData.notified_to, reminderData.notes || '']
+        );
+        return { id, ...reminderData };
+    }
+
     async performSchemaValidation() {
         const db = await this.getDatabase();
 

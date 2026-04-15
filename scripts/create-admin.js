@@ -14,7 +14,7 @@ Module.prototype.require = function (id) {
 };
 
 // Load Database after mocking electron
-const Database = require('../database/database.js');
+const Database = require('../database.js');
 const { app } = require('electron');
 
 // Duplicate-safe helper: creates user if missing, otherwise skips

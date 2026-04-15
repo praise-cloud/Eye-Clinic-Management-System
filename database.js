@@ -1,710 +1,542 @@
-const sqlite3 = require('sqlite3').verbose();
+// database.js
 const path = require('path');
 const fs = require('fs');
 const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
 
+let BetterSqlite3;
+try {
+  BetterSqlite3 = require('better-sqlite3');
+} catch (err) {
+  console.error('[Database] better-sqlite3 failed to load:', err.message);
+  BetterSqlite3 = null;
+}
+
 class Database {
-    constructor(dbPath = null) {
-        if (dbPath) {
-            this.dbPath = dbPath;
-        } else {
-            this.dbPath = this.resolveDbPath();
+  constructor(dbPath = null) {
+    this.dbPath = dbPath || this.resolveDbPath();
+    this.db = null;
+  }
+
+  resolveDbPath() {
+    try {
+      const { app } = require('electron');
+      const userDataPath = app.getPath('userData');
+      if (!fs.existsSync(userDataPath)) {
+        fs.mkdirSync(userDataPath, { recursive: true });
+      }
+      return path.join(userDataPath, 'eye_clinic.db');
+    } catch (error) {
+      console.warn('[Database] Fallback path used:', error.message);
+      return path.join(__dirname, 'eye_clinic.db');
+    }
+  }
+
+  async initialize() {
+    if (!BetterSqlite3) {
+      throw new Error('better-sqlite3 is not available');
+    }
+
+    const dir = path.dirname(this.dbPath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+
+    console.log('[Database] Initializing at:', this.dbPath);
+
+    this.db = new BetterSqlite3(this.dbPath, { verbose: null });
+    this.db.pragma('journal_mode = WAL');
+    this.db.pragma('foreign_keys = ON');
+
+    await this.createTables();
+    console.log('[Database] Ready');
+    return this;
+  }
+
+  // Wrap better-sqlite3 sync calls in async interface
+  // so all existing code that uses await still works
+  async run(sql, params = []) {
+    try {
+      const stmt = this.db.prepare(sql);
+      const result = stmt.run(params);
+      return { lastID: result.lastInsertRowid, changes: result.changes };
+    } catch (err) {
+      throw err;
+    }
+  }
+
+  async all(sql, params = []) {
+    try {
+      const stmt = this.db.prepare(sql);
+      return stmt.all(params);
+    } catch (err) {
+      throw err;
+    }
+  }
+
+  async get(sql, params = []) {
+    try {
+      const stmt = this.db.prepare(sql);
+      return stmt.get(params);
+    } catch (err) {
+      throw err;
+    }
+  }
+
+  async createTables() {
+    const queries = [
+      `CREATE TABLE IF NOT EXISTS users (
+        id TEXT PRIMARY KEY,
+        first_name TEXT NOT NULL,
+        last_name TEXT NOT NULL,
+        email TEXT UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL,
+        gender TEXT NOT NULL DEFAULT 'other',
+        role TEXT NOT NULL CHECK (role IN ('admin', 'doctor', 'assistant')),
+        phone_number TEXT,
+        status TEXT DEFAULT 'active' CHECK (status IN ('active', 'inactive')),
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`,
+      `CREATE TABLE IF NOT EXISTS patients (
+        id TEXT PRIMARY KEY,
+        patient_id TEXT UNIQUE NOT NULL,
+        first_name TEXT NOT NULL,
+        last_name TEXT NOT NULL,
+        dob DATE,
+        gender TEXT CHECK (gender IN ('male', 'female', 'other')),
+        contact TEXT,
+        email TEXT,
+        address TEXT,
+        reason_for_visit TEXT,
+        client_type TEXT,
+        marital_status TEXT,
+        intake_date DATE,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`,
+      `CREATE TABLE IF NOT EXISTS visits (
+        id TEXT PRIMARY KEY,
+        patient_id TEXT NOT NULL,
+        visit_date DATE NOT NULL,
+        visit_type TEXT DEFAULT 'follow_up',
+        reason TEXT,
+        payment_status TEXT DEFAULT 'pending' CHECK (payment_status IN ('pending', 'paid', 'partial')),
+        amount_paid REAL DEFAULT 0,
+        linked_prescription_id TEXT,
+        created_by TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (patient_id) REFERENCES patients(id)
+      )`,
+      `CREATE TABLE IF NOT EXISTS tests (
+        id TEXT PRIMARY KEY,
+        patient_id TEXT NOT NULL,
+        visit_id TEXT,
+        test_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+        eye TEXT CHECK (eye IN ('left', 'right', 'both')),
+        machine_type TEXT,
+        raw_data TEXT,
+        report_status TEXT DEFAULT 'pending',
+        created_by TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (patient_id) REFERENCES patients(id)
+      )`,
+      `CREATE TABLE IF NOT EXISTS reports (
+        id TEXT PRIMARY KEY,
+        patient_id TEXT NOT NULL,
+        report_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+        report_type TEXT DEFAULT 'visual_field_report',
+        title TEXT,
+        report_file TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (patient_id) REFERENCES patients(id)
+      )`,
+      `CREATE TABLE IF NOT EXISTS chat (
+        id TEXT PRIMARY KEY,
+        sender_id TEXT NOT NULL,
+        receiver_id TEXT NOT NULL,
+        message_text TEXT NOT NULL,
+        attachment TEXT,
+        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+        status TEXT DEFAULT 'unread' CHECK (status IN ('read', 'unread')),
+        reply_to_id TEXT,
+        FOREIGN KEY (sender_id) REFERENCES users(id),
+        FOREIGN KEY (receiver_id) REFERENCES users(id)
+      )`,
+      `CREATE TABLE IF NOT EXISTS inventory (
+        id TEXT PRIMARY KEY,
+        item_code TEXT UNIQUE NOT NULL,
+        item_name TEXT NOT NULL,
+        category TEXT NOT NULL,
+        description TEXT,
+        manufacturer TEXT,
+        model_number TEXT,
+        serial_number TEXT,
+        current_quantity INTEGER DEFAULT 0,
+        minimum_quantity INTEGER DEFAULT 0,
+        maximum_quantity INTEGER DEFAULT 100,
+        unit_of_measure TEXT DEFAULT 'pieces',
+        unit_cost REAL DEFAULT 0,
+        supplier_name TEXT,
+        supplier_contact TEXT,
+        purchase_date TEXT,
+        expiry_date TEXT,
+        location TEXT,
+        status TEXT DEFAULT 'active',
+        last_updated_by TEXT,
+        notes TEXT,
+        image_path TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`,
+      `CREATE TABLE IF NOT EXISTS pharmacy_drugs (
+        id TEXT PRIMARY KEY,
+        drug_code TEXT UNIQUE NOT NULL,
+        drug_name TEXT NOT NULL,
+        drug_form TEXT,
+        strength TEXT,
+        pack_size INTEGER DEFAULT 1,
+        unit_price REAL DEFAULT 0,
+        current_quantity INTEGER DEFAULT 0,
+        minimum_quantity INTEGER DEFAULT 0,
+        status TEXT DEFAULT 'active',
+        supplier_name TEXT,
+        supplier_contact TEXT,
+        expiry_date TEXT,
+        last_updated_by TEXT,
+        notes TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`,
+      `CREATE TABLE IF NOT EXISTS pharmacy_dispensations (
+        id TEXT PRIMARY KEY,
+        prescription_id TEXT,
+        drug_id TEXT NOT NULL,
+        patient_id TEXT NOT NULL,
+        visit_id TEXT,
+        quantity INTEGER NOT NULL,
+        unit_price REAL DEFAULT 0,
+        total_amount REAL NOT NULL,
+        user_id TEXT NOT NULL,
+        notes TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (drug_id) REFERENCES pharmacy_drugs(id),
+        FOREIGN KEY (patient_id) REFERENCES patients(id),
+        FOREIGN KEY (user_id) REFERENCES users(id)
+      )`,
+      `CREATE TABLE IF NOT EXISTS prescriptions (
+        id TEXT PRIMARY KEY,
+        patient_id TEXT NOT NULL,
+        visit_id TEXT,
+        case_note_id TEXT,
+        doctor_id TEXT NOT NULL,
+        prescription_type TEXT DEFAULT 'drug' CHECK (prescription_type IN ('drug', 'glasses')),
+        drug_id TEXT,
+        quantity INTEGER DEFAULT 1,
+        instructions TEXT,
+        glasses_details TEXT,
+        glasses_amount_adjusted REAL DEFAULT 0,
+        glasses_adjustment_notes TEXT,
+        status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'dispensed', 'cancelled', 'pending_return')),
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (patient_id) REFERENCES patients(id),
+        FOREIGN KEY (doctor_id) REFERENCES users(id),
+        FOREIGN KEY (drug_id) REFERENCES pharmacy_drugs(id)
+      )`,
+      `CREATE TABLE IF NOT EXISTS prescription_dispensations (
+        id TEXT PRIMARY KEY,
+        prescription_id TEXT NOT NULL,
+        patient_id TEXT NOT NULL,
+        visit_id TEXT,
+        dispensed_by TEXT NOT NULL,
+        dispensed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        payment_received REAL DEFAULT 0,
+        payment_type TEXT DEFAULT 'cash',
+        payment_status TEXT DEFAULT 'paid' CHECK (payment_status IN ('paid', 'pending', 'waived')),
+        glasses_amount_adjusted REAL DEFAULT 0,
+        glasses_adjustment_notes TEXT,
+        notes TEXT,
+        FOREIGN KEY (prescription_id) REFERENCES prescriptions(id),
+        FOREIGN KEY (patient_id) REFERENCES patients(id),
+        FOREIGN KEY (dispensed_by) REFERENCES users(id)
+      )`,
+      `CREATE TABLE IF NOT EXISTS revenue (
+        id TEXT PRIMARY KEY,
+        source TEXT NOT NULL,
+        source_id TEXT,
+        amount REAL NOT NULL,
+        currency TEXT DEFAULT 'NGN',
+        user_id TEXT,
+        patient_id TEXT,
+        visit_id TEXT,
+        collected_by TEXT,
+        description TEXT,
+        meta TEXT,
+        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`,
+      `CREATE TABLE IF NOT EXISTS notifications (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        title TEXT NOT NULL,
+        message TEXT NOT NULL,
+        type TEXT NOT NULL,
+        related_id TEXT,
+        status TEXT DEFAULT 'unread' CHECK (status IN ('read', 'unread')),
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id)
+      )`,
+      `CREATE TABLE IF NOT EXISTS activity_logs (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        action_type TEXT NOT NULL,
+        entity_type TEXT NOT NULL,
+        entity_id TEXT,
+        description TEXT NOT NULL,
+        ip_address TEXT,
+        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id)
+      )`,
+      `CREATE TABLE IF NOT EXISTS settings (
+        id TEXT PRIMARY KEY,
+        key TEXT UNIQUE NOT NULL,
+        value TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`,
+      `CREATE TABLE IF NOT EXISTS user_presence (
+        user_id TEXT PRIMARY KEY,
+        is_online INTEGER DEFAULT 0,
+        last_seen DATETIME DEFAULT CURRENT_TIMESTAMP,
+        session_id TEXT,
+        FOREIGN KEY (user_id) REFERENCES users(id)
+      )`,
+      `CREATE TABLE IF NOT EXISTS case_notes (
+        id TEXT PRIMARY KEY,
+        patient_id TEXT NOT NULL,
+        visit_id TEXT,
+        test_id TEXT,
+        doctor_id TEXT NOT NULL,
+        chief_complaint TEXT,
+        visual_acuity_od TEXT,
+        visual_acuity_os TEXT,
+        intraocular_pressure_od TEXT,
+        intraocular_pressure_os TEXT,
+        cvf_analysis_od TEXT,
+        cvf_analysis_os TEXT,
+        diagnosis TEXT,
+        recommendation TEXT,
+        next_appointment DATE,
+        status TEXT DEFAULT 'draft' CHECK (status IN ('draft', 'signed')),
+        signed_off_by TEXT,
+        signed_off_at DATETIME,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (patient_id) REFERENCES patients(id),
+        FOREIGN KEY (doctor_id) REFERENCES users(id)
+      )`,
+      `CREATE TABLE IF NOT EXISTS case_note_attachments (
+        id TEXT PRIMARY KEY,
+        case_note_id TEXT NOT NULL,
+        test_id TEXT,
+        attachment_type TEXT NOT NULL,
+        file_path TEXT NOT NULL,
+        file_name TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (case_note_id) REFERENCES case_notes(id)
+      )`,
+      `CREATE TABLE IF NOT EXISTS appointment_reminders (
+        id TEXT PRIMARY KEY,
+        patient_id TEXT NOT NULL,
+        case_note_id TEXT,
+        visit_id TEXT,
+        appointment_date DATE NOT NULL,
+        reminder_for TEXT NOT NULL,
+        status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'sent', 'cancelled')),
+        notified_to TEXT NOT NULL,
+        notified_at DATETIME,
+        notes TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (patient_id) REFERENCES patients(id)
+      )`
+    ];
+
+    for (const sql of queries) {
+      await this.run(sql);
+    }
+
+    await this.runMigrations();
+  }
+
+  async runMigrations() {
+    const addColumnIfMissing = async (table, column, type) => {
+      try {
+        const info = await this.all(`PRAGMA table_info(${table})`);
+        const exists = info.some(c => c.name === column);
+        if (!exists) {
+          await this.run(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
+          console.log(`[Migration] Added ${table}.${column}`);
         }
-        this.db = null;
+      } catch (e) {
+        console.warn(`[Migration] ${table}.${column} skipped:`, e.message);
+      }
+    };
+
+    await addColumnIfMissing('users', 'gender', "TEXT NOT NULL DEFAULT 'other'");
+    await addColumnIfMissing('users', 'phone_number', 'TEXT');
+    await addColumnIfMissing('patients', 'email', 'TEXT');
+    await addColumnIfMissing('patients', 'client_type', 'TEXT');
+    await addColumnIfMissing('patients', 'marital_status', 'TEXT');
+    await addColumnIfMissing('patients', 'reason_for_visit', 'TEXT');
+    await addColumnIfMissing('patients', 'intake_date', 'DATE');
+    await addColumnIfMissing('pharmacy_dispensations', 'unit_price', 'REAL DEFAULT 0');
+    await addColumnIfMissing('pharmacy_dispensations', 'prescription_id', 'TEXT');
+    await addColumnIfMissing('pharmacy_dispensations', 'visit_id', 'TEXT');
+    await addColumnIfMissing('revenue', 'patient_id', 'TEXT');
+    await addColumnIfMissing('revenue', 'visit_id', 'TEXT');
+    await addColumnIfMissing('revenue', 'collected_by', 'TEXT');
+    await addColumnIfMissing('chat', 'attachment', 'TEXT');
+    await addColumnIfMissing('chat', 'reply_to_id', 'TEXT');
+    await addColumnIfMissing('tests', 'visit_id', 'TEXT');
+    await addColumnIfMissing('tests', 'report_status', "TEXT DEFAULT 'pending'");
+    await addColumnIfMissing('tests', 'created_by', 'TEXT');
+    await addColumnIfMissing('prescriptions', 'visit_id', 'TEXT');
+    await addColumnIfMissing('prescriptions', 'case_note_id', 'TEXT');
+    await addColumnIfMissing('prescriptions', 'prescription_type', "TEXT DEFAULT 'drug'");
+    await addColumnIfMissing('prescriptions', 'glasses_details', 'TEXT');
+    await addColumnIfMissing('prescriptions', 'glasses_amount_adjusted', 'REAL DEFAULT 0');
+    await addColumnIfMissing('prescriptions', 'glasses_adjustment_notes', 'TEXT');
+    await addColumnIfMissing('prescriptions', 'status', "TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'dispensed', 'cancelled', 'pending_return'))");
+  }
+
+  async isFirstRun() {
+    try {
+      const row = await this.get('SELECT COUNT(*) as count FROM users');
+      return row.count === 0;
+    } catch {
+      return true;
+    }
+  }
+
+  async createUser(userData) {
+    const { first_name, last_name, email, password, role, gender, phone_number } = userData;
+    const passwordHash = await bcrypt.hash(password, 10);
+    const userId = uuidv4();
+
+    await this.run(
+      `INSERT INTO users (id, first_name, last_name, email, password_hash, gender, role, phone_number)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [userId, first_name, last_name, email, passwordHash, gender || 'other', role, phone_number || null]
+    );
+
+    return { id: userId, first_name, last_name, email, role, gender: gender || 'other', phone_number };
+  }
+
+  async authenticateUser(email, password) {
+    const user = await this.get('SELECT * FROM users WHERE email = ?', [email]);
+    if (!user) return null;
+    const valid = await bcrypt.compare(password, user.password_hash);
+    if (!valid) return null;
+    const { password_hash, ...safe } = user;
+    return safe;
+  }
+
+  async getAllUsers() {
+    return this.all(
+      'SELECT id, first_name, last_name, email, role, phone_number, status, gender, created_at FROM users ORDER BY created_at DESC'
+    );
+  }
+
+  async updateUser(userId, userData) {
+    const { first_name, last_name, email, role, phone_number, gender, password } = userData;
+    const sets = [];
+    const params = [];
+
+    if (first_name !== undefined) { sets.push('first_name = ?'); params.push(first_name); }
+    if (last_name !== undefined) { sets.push('last_name = ?'); params.push(last_name); }
+    if (email !== undefined) { sets.push('email = ?'); params.push(email); }
+    if (role !== undefined) { sets.push('role = ?'); params.push(role); }
+    if (phone_number !== undefined) { sets.push('phone_number = ?'); params.push(phone_number || null); }
+    if (gender !== undefined) { sets.push('gender = ?'); params.push(gender || 'other'); }
+    if (password) {
+      sets.push('password_hash = ?');
+      params.push(await bcrypt.hash(password, 10));
     }
 
-    resolveDbPath() {
-        try {
-            const { app } = require('electron');
-            const userDataPath = app.getPath('userData');
-            const documentsPath = path.join(process.env.USERPROFILE || process.env.HOME || '', 'Documents', 'KORENE_EyeClinic');
+    if (sets.length === 0) throw new Error('No fields to update');
+    sets.push('updated_at = CURRENT_TIMESTAMP');
+    params.push(userId);
 
-            if (!fs.existsSync(documentsPath)) {
-                console.log('[Database] Creating Documents folder:', documentsPath);
-                fs.mkdirSync(documentsPath, { recursive: true });
-            }
+    await this.run(`UPDATE users SET ${sets.join(', ')} WHERE id = ?`, params);
+    return { id: userId, first_name, last_name, email, role, phone_number, gender };
+  }
 
-            const dbPath = path.join(documentsPath, 'database.db');
-            console.log('[Database] Using database at:', dbPath);
-            return dbPath;
-        } catch (error) {
-            console.warn('[Database] Fallback to local path, error:', error.message);
-            return path.join(__dirname, 'eye_clinic.db');
-        }
+  async updateUserStatus(userId, isActive) {
+    const status = isActive ? 'active' : 'inactive';
+    await this.run(`UPDATE users SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, [status, userId]);
+    return { id: userId, status };
+  }
+
+  async deleteUser(userId) {
+    const result = await this.run(`DELETE FROM users WHERE id = ?`, [userId]);
+    return { success: result.changes > 0 };
+  }
+
+  async setUserOnline(userId, sessionId = null) {
+    return this.run(
+      `INSERT INTO user_presence (user_id, is_online, last_seen, session_id) VALUES (?, 1, CURRENT_TIMESTAMP, ?)
+       ON CONFLICT(user_id) DO UPDATE SET is_online = 1, last_seen = CURRENT_TIMESTAMP, session_id = excluded.session_id`,
+      [userId, sessionId]
+    );
+  }
+
+  async setUserOffline(userId) {
+    return this.run(
+      `UPDATE user_presence SET is_online = 0, last_seen = CURRENT_TIMESTAMP WHERE user_id = ?`,
+      [userId]
+    );
+  }
+
+  async getOnlineUsers() {
+    return this.all(
+      `SELECT u.id, u.first_name, u.last_name, u.email, u.role, p.last_seen
+       FROM users u JOIN user_presence p ON u.id = p.user_id
+       WHERE p.is_online = 1 ORDER BY u.first_name`
+    );
+  }
+
+  async getUsersWithPresence() {
+    return this.all(
+      `SELECT u.id, u.first_name, u.last_name, u.email, u.role, u.phone_number,
+              COALESCE(p.is_online, 0) as is_online, p.last_seen
+       FROM users u LEFT JOIN user_presence p ON u.id = p.user_id
+       ORDER BY p.is_online DESC, u.first_name`
+    );
+  }
+
+  async getSetting(key) {
+    const row = await this.get('SELECT value FROM settings WHERE key = ?', [key]);
+    return row ? row.value : null;
+  }
+
+  async setSetting(key, value) {
+    return this.run(
+      `INSERT INTO settings (id, key, value) VALUES (?, ?, ?)
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP`,
+      [uuidv4(), key, value]
+    );
+  }
+
+  close() {
+    if (this.db) {
+      this.db.close();
+      this.db = null;
+      console.log('[Database] Closed');
     }
-
-    async initialize() {
-        return new Promise((resolve, reject) => {
-            const dir = path.dirname(this.dbPath);
-            try {
-                if (!fs.existsSync(dir)) {
-                    fs.mkdirSync(dir, { recursive: true });
-                }
-            } catch (mkErr) {
-                console.warn('[Database] Could not create directory:', mkErr.message);
-            }
-
-            console.log('[Database] Initializing database...');
-            console.log('[Database] Path:', this.dbPath);
-
-            this.db = new sqlite3.Database(this.dbPath, sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE, (err) => {
-                if (err) {
-                    console.error('[Database] Error opening database:', err);
-                    reject(err);
-                    return;
-                }
-
-                console.log('[Database] Connected successfully at:', this.dbPath);
-
-                this.db.serialize(() => {
-                    this.db.run('PRAGMA journal_mode=DELETE', (err) => {
-                        if (err) console.warn('[Database] Journal mode failed:', err.message);
-                        else console.log('[Database] Journal mode set to DELETE');
-                    });
-                });
-
-                this.createTables()
-                    .then(() => {
-                        console.log('[Database] Tables created/verified');
-                        resolve();
-                    })
-                    .catch(reject);
-            });
-        });
-    }
-
-    async createTables() {
-        const queries = [
-            `CREATE TABLE IF NOT EXISTS users (
-                id TEXT PRIMARY KEY,
-                first_name TEXT NOT NULL,
-                last_name TEXT NOT NULL,
-                email TEXT UNIQUE NOT NULL,
-                password_hash TEXT NOT NULL,
-                gender TEXT NOT NULL,
-                role TEXT NOT NULL CHECK (role IN ('admin', 'doctor', 'assistant')),
-                phone_number TEXT,
-                status TEXT DEFAULT 'active' CHECK (status IN ('active', 'inactive')),
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-            )`,
-
-            `CREATE TABLE IF NOT EXISTS patients (
-                id TEXT PRIMARY KEY,
-                patient_id TEXT UNIQUE NOT NULL,
-                first_name TEXT NOT NULL,
-                last_name TEXT NOT NULL,
-                dob DATE,
-                gender TEXT CHECK (gender IN ('male', 'female', 'other')),
-                contact TEXT,
-                email TEXT,
-                address TEXT,
-                reason_for_visit TEXT,
-                client_type TEXT,
-                marital_status TEXT,
-                intake_date DATE,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-            )`,
-
-            `CREATE TABLE IF NOT EXISTS tests (
-                id TEXT PRIMARY KEY,
-                patient_id TEXT NOT NULL,
-                test_date DATETIME DEFAULT CURRENT_TIMESTAMP,
-                eye TEXT CHECK (eye IN ('left', 'right', 'both')),
-                machine_type TEXT,
-                raw_data TEXT,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (patient_id) REFERENCES patients (id)
-            )`,
-
-            `CREATE TABLE IF NOT EXISTS reports (
-                id TEXT PRIMARY KEY,
-                patient_id TEXT NOT NULL,
-                report_date DATETIME DEFAULT CURRENT_TIMESTAMP,
-                report_type TEXT DEFAULT 'visual_field_report',
-                title TEXT,
-                report_file TEXT,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (patient_id) REFERENCES patients (id)
-            )`,
-
-            `CREATE TABLE IF NOT EXISTS chat (
-                id TEXT PRIMARY KEY,
-                sender_id TEXT NOT NULL,
-                receiver_id TEXT NOT NULL,
-                message_text TEXT NOT NULL,
-                attachment TEXT,
-                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-                status TEXT DEFAULT 'unread' CHECK (status IN ('read', 'unread')),
-                reply_to_id TEXT,
-                FOREIGN KEY (sender_id) REFERENCES users (id),
-                FOREIGN KEY (receiver_id) REFERENCES users (id),
-                FOREIGN KEY (reply_to_id) REFERENCES chat (id)
-            )`,
-
-            `CREATE TABLE IF NOT EXISTS inventory (
-                id TEXT PRIMARY KEY,
-                item_code TEXT UNIQUE NOT NULL,
-                item_name TEXT NOT NULL,
-                category TEXT NOT NULL CHECK (category IN ('equipment', 'supplies', 'medication', 'consumables', 'other')),
-                description TEXT,
-                manufacturer TEXT,
-                model_number TEXT,
-                serial_number TEXT,
-                current_quantity INTEGER DEFAULT 0,
-                minimum_quantity INTEGER DEFAULT 0,
-                maximum_quantity INTEGER DEFAULT 100,
-                unit_of_measure TEXT DEFAULT 'pieces',
-                unit_cost DECIMAL(10, 2) DEFAULT 0.00,
-                supplier_name TEXT,
-                supplier_contact TEXT,
-                purchase_date DATE,
-                expiry_date DATE,
-                location TEXT,
-                status TEXT DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'maintenance', 'disposed')),
-                last_updated_by TEXT,
-                notes TEXT,
-                image_path TEXT,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (last_updated_by) REFERENCES users (id)
-            )`,
-
-            `CREATE TABLE IF NOT EXISTS pharmacy_drugs (
-                id TEXT PRIMARY KEY,
-                drug_code TEXT UNIQUE NOT NULL,
-                drug_name TEXT NOT NULL,
-                drug_form TEXT NOT NULL CHECK (drug_form IN ('tablet', 'capsule', 'syrup', 'injection', 'cream', 'drops', 'other')),
-                strength TEXT NOT NULL,
-                pack_size INTEGER NOT NULL,
-                unit_price DECIMAL(10, 2) NOT NULL,
-                current_quantity INTEGER DEFAULT 0,
-                minimum_quantity INTEGER DEFAULT 0,
-                status TEXT DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'out_of_stock')),
-                supplier_name TEXT,
-                supplier_contact TEXT,
-                expiry_date DATE,
-                last_updated_by TEXT,
-                notes TEXT,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (last_updated_by) REFERENCES users (id)
-            )`,
-
-            `CREATE TABLE IF NOT EXISTS pharmacy_dispensations (
-                id TEXT PRIMARY KEY,
-                drug_id TEXT NOT NULL,
-                patient_id TEXT NOT NULL,
-                quantity INTEGER NOT NULL,
-                unit_price REAL DEFAULT 0,
-                total_amount DECIMAL(10, 2) NOT NULL,
-                user_id TEXT NOT NULL,
-                notes TEXT,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (drug_id) REFERENCES pharmacy_drugs (id),
-                FOREIGN KEY (patient_id) REFERENCES patients (id),
-                FOREIGN KEY (user_id) REFERENCES users (id)
-            )`,
-
-            `CREATE TABLE IF NOT EXISTS revenue (
-                id TEXT PRIMARY KEY,
-                source TEXT NOT NULL,
-                source_id TEXT,
-                amount REAL NOT NULL,
-                currency TEXT DEFAULT 'NGN',
-                user_id TEXT,
-                patient_id TEXT,
-                description TEXT,
-                meta TEXT,
-                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (user_id) REFERENCES users (id),
-                FOREIGN KEY (patient_id) REFERENCES patients (id)
-            )`,
-
-            `CREATE TABLE IF NOT EXISTS activity_logs (
-                id TEXT PRIMARY KEY,
-                user_id TEXT NOT NULL,
-                action_type TEXT NOT NULL,
-                entity_type TEXT NOT NULL,
-                entity_id TEXT,
-                description TEXT NOT NULL,
-                ip_address TEXT,
-                user_agent TEXT,
-                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (user_id) REFERENCES users (id)
-            )`,
-
-            `CREATE TABLE IF NOT EXISTS settings (
-                id TEXT PRIMARY KEY,
-                key TEXT UNIQUE NOT NULL,
-                value TEXT,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-            )`,
-
-            `CREATE TABLE IF NOT EXISTS user_presence (
-                user_id TEXT PRIMARY KEY,
-                is_online BOOLEAN DEFAULT FALSE,
-                last_seen DATETIME DEFAULT CURRENT_TIMESTAMP,
-                session_id TEXT,
-                FOREIGN KEY (user_id) REFERENCES users (id)
-            )`,
-
-            `CREATE TABLE IF NOT EXISTS prescriptions (
-                id TEXT PRIMARY KEY,
-                patient_id TEXT NOT NULL,
-                doctor_id TEXT NOT NULL,
-                drug_id TEXT NOT NULL,
-                quantity INTEGER NOT NULL,
-                instructions TEXT,
-                status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'dispensed', 'cancelled')),
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (patient_id) REFERENCES patients (id),
-                FOREIGN KEY (doctor_id) REFERENCES users (id),
-                FOREIGN KEY (drug_id) REFERENCES pharmacy_drugs (id)
-            )`,
-
-            `CREATE TABLE IF NOT EXISTS notifications (
-                id TEXT PRIMARY KEY,
-                user_id TEXT NOT NULL,
-                title TEXT NOT NULL,
-                message TEXT NOT NULL,
-                type TEXT NOT NULL,
-                related_id TEXT,
-                status TEXT DEFAULT 'unread' CHECK (status IN ('read', 'unread')),
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (user_id) REFERENCES users (id)
-            )`
-        ];
-
-        for (const query of queries) {
-            await this.run(query);
-        }
-
-        await this.runMigrations();
-
-        console.log('Database tables created successfully');
-    }
-
-    async runMigrations() {
-        try {
-            const chatTableInfo = await this.all("PRAGMA table_info(chat)");
-            const hasAttachmentColumn = chatTableInfo.some(column => column.name === 'attachment');
-            const hasReplyToIdColumn = chatTableInfo.some(column => column.name === 'reply_to_id');
-
-            if (!hasAttachmentColumn) {
-                console.log('Migration: Adding attachment column to chat table...');
-                await this.run('ALTER TABLE chat ADD COLUMN attachment TEXT');
-            }
-
-            if (!hasReplyToIdColumn) {
-                console.log('Migration: Adding reply_to_id column to chat table...');
-                await this.run('ALTER TABLE chat ADD COLUMN reply_to_id TEXT');
-            }
-
-            const patientsTableInfo = await this.all("PRAGMA table_info(patients)");
-            const existingPatientCols = new Set(patientsTableInfo.map(c => c.name));
-
-            const patientColsToAdd = [
-                { name: 'email', type: 'TEXT' },
-                { name: 'client_type', type: 'TEXT' },
-                { name: 'marital_status', type: 'TEXT' },
-                { name: 'address', type: 'TEXT' },
-                { name: 'reason_for_visit', type: 'TEXT' },
-                { name: 'intake_date', type: 'DATE' }
-            ];
-
-            for (const col of patientColsToAdd) {
-                if (!existingPatientCols.has(col.name)) {
-                    try {
-                        await this.run(`ALTER TABLE patients ADD COLUMN ${col.name} ${col.type}`);
-                        console.log(`Migration: Added column ${col.name} to patients`);
-                    } catch (e) {
-                        if (!e.message.includes('duplicate column name')) {
-                            console.warn(`Patients col ${col.name} skipped:`, e.message);
-                        }
-                    }
-                }
-            }
-
-            const inventoryTableInfo = await this.all("PRAGMA table_info(inventory)");
-            const existingInventoryCols = new Set(inventoryTableInfo.map(c => c.name));
-            const inventoryColsToAdd = [
-                { name: 'category', type: 'TEXT' },
-                { name: 'description', type: 'TEXT' },
-                { name: 'manufacturer', type: 'TEXT' },
-                { name: 'model_number', type: 'TEXT' },
-                { name: 'serial_number', type: 'TEXT' },
-                { name: 'maximum_quantity', type: 'INTEGER DEFAULT 100' },
-                { name: 'unit_of_measure', type: 'TEXT DEFAULT "pieces"' },
-                { name: 'unit_cost', type: 'REAL DEFAULT 0' },
-                { name: 'supplier_name', type: 'TEXT' },
-                { name: 'supplier_contact', type: 'TEXT' },
-                { name: 'purchase_date', type: 'TEXT' },
-                { name: 'expiry_date', type: 'TEXT' },
-                { name: 'location', type: 'TEXT' },
-                { name: 'last_updated_by', type: 'TEXT' },
-                { name: 'notes', type: 'TEXT' },
-                { name: 'image_path', type: 'TEXT' }
-            ];
-            for (const col of inventoryColsToAdd) {
-                if (!existingInventoryCols.has(col.name)) {
-                    try {
-                        await this.run(`ALTER TABLE inventory ADD COLUMN ${col.name} ${col.type}`);
-                    } catch (e) {
-                        if (!e.message.includes('duplicate column name')) {
-                            console.warn(`Inventory col ${col.name} skipped:`, e.message);
-                        }
-                    }
-                }
-            }
-
-            const drugsTableInfo = await this.all("PRAGMA table_info(pharmacy_drugs)");
-            const existingDrugCols = new Set(drugsTableInfo.map(c => c.name));
-            const drugColsToAdd = [
-                { name: 'drug_form', type: 'TEXT' },
-                { name: 'strength', type: 'TEXT' },
-                { name: 'pack_size', type: 'TEXT' },
-                { name: 'unit_price', type: 'REAL DEFAULT 0' },
-                { name: 'supplier_name', type: 'TEXT' },
-                { name: 'supplier_contact', type: 'TEXT' },
-                { name: 'expiry_date', type: 'TEXT' },
-                { name: 'last_updated_by', type: 'TEXT' },
-                { name: 'notes', type: 'TEXT' }
-            ];
-            for (const col of drugColsToAdd) {
-                if (!existingDrugCols.has(col.name)) {
-                    try {
-                        await this.run(`ALTER TABLE pharmacy_drugs ADD COLUMN ${col.name} ${col.type}`);
-                    } catch (e) {
-                        if (!e.message.includes('duplicate column name')) {
-                            console.warn(`Drug col ${col.name} skipped:`, e.message);
-                        }
-                    }
-                }
-            }
-
-            const dispTableInfo = await this.all("PRAGMA table_info(pharmacy_dispensations)");
-            const hasUnitPrice = dispTableInfo.some(col => col.name === 'unit_price');
-            if (!hasUnitPrice) {
-                try {
-                    await this.run('ALTER TABLE pharmacy_dispensations ADD COLUMN unit_price REAL DEFAULT 0');
-                    console.log('Migration: Added unit_price column to pharmacy_dispensations');
-                } catch (e) {
-                    if (!e.message.includes('duplicate column name')) {
-                        console.warn('unit_price migration skipped:', e.message);
-                    }
-                }
-            }
-
-            const revenueTableInfo = await this.all("PRAGMA table_info(revenue)");
-            const hasPatientId = revenueTableInfo.some(col => col.name === 'patient_id');
-            if (!hasPatientId) {
-                try {
-                    await this.run('ALTER TABLE revenue ADD COLUMN patient_id TEXT');
-                    console.log('Migration: Added patient_id column to revenue');
-                } catch (e) {
-                    if (!e.message.includes('duplicate column name')) {
-                        console.warn('patient_id migration skipped:', e.message);
-                    }
-                }
-            }
-
-            const usersTableInfo = await this.all("PRAGMA table_info(users)");
-            const hasPhoneNumberColumn = usersTableInfo.some(column => column.name === 'phone_number');
-            if (!hasPhoneNumberColumn) {
-                console.log('Migration: Adding phone_number column to users table...');
-                await this.run('ALTER TABLE users ADD COLUMN phone_number TEXT');
-            }
-
-            const hasFirstNameColumn = usersTableInfo.some(column => column.name === 'first_name');
-            const hasNameColumn = usersTableInfo.some(column => column.name === 'name');
-            if (hasNameColumn && !hasFirstNameColumn) {
-                console.log('Migration: Splitting name into first_name/last_name...');
-                await this.run('ALTER TABLE users ADD COLUMN first_name TEXT');
-                await this.run('ALTER TABLE users ADD COLUMN last_name TEXT');
-                const users = await this.all('SELECT id, name FROM users');
-                for (const user of users) {
-                    const parts = user.name.split(' ');
-                    const firstName = parts[0] || '';
-                    const lastName = parts.slice(1).join(' ') || '';
-                    await this.run('UPDATE users SET first_name = ?, last_name = ? WHERE id = ?', [firstName, lastName, user.id]);
-                }
-            }
-        } catch (error) {
-            console.error('Migration error:', error);
-        }
-
-        try {
-            await this.run(`ALTER TABLE users ADD COLUMN gender TEXT NOT NULL DEFAULT 'other'`);
-            console.log('Migration: added gender column with default');
-        } catch (e) {
-            if (!e.message.includes('duplicate column name')) {
-                console.warn('Gender migration skipped:', e.message);
-            }
-        }
-    }
-
-    async isFirstRun() {
-        try {
-            const users = await this.all('SELECT COUNT(*) as count FROM users');
-            return users[0].count === 0;
-        } catch (error) {
-            console.error('Error checking first run:', error);
-            return true;
-        }
-    }
-
-    async createUser(userData) {
-        const { first_name, last_name, email, password, role, gender, phone_number } = userData;
-        const saltRounds = 10;
-        const passwordHash = await bcrypt.hash(password, saltRounds);
-        const userGender = gender || 'other';
-        const userId = uuidv4();
-
-        const query = `
-            INSERT INTO users (id, first_name, last_name, email, password_hash, gender, role, phone_number, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-        `;
-
-        try {
-            await this.run(query, [userId, first_name, last_name, email, passwordHash, userGender, role, phone_number || null]);
-            console.log('User created successfully:', email);
-            return { id: userId, first_name, last_name, email, role, gender: userGender, phone_number };
-        } catch (error) {
-            console.error('Error creating user:', error);
-            throw error;
-        }
-    }
-
-    async authenticateUser(email, password) {
-        const query = 'SELECT * FROM users WHERE email = ?';
-        try {
-            const users = await this.all(query, [email]);
-            if (users.length === 0) return null;
-
-            const user = users[0];
-            const isValid = await bcrypt.compare(password, user.password_hash);
-            if (isValid) {
-                const { password_hash, ...userWithoutPassword } = user;
-                return userWithoutPassword;
-            }
-            return null;
-        } catch (error) {
-            console.error('Error authenticating user:', error);
-            throw error;
-        }
-    }
-
-    async getAllUsers() {
-        const query = 'SELECT id, first_name, last_name, email, role, phone_number, status, gender, created_at FROM users ORDER BY created_at DESC';
-        return await this.all(query);
-    }
-
-    async updateUser(userId, userData) {
-        const { first_name, last_name, email, role, phone_number, gender, password } = userData;
-        let setClauses = [];
-        let params = [];
-
-        if (first_name !== undefined) {
-            setClauses.push('first_name = ?');
-            params.push(first_name);
-        }
-        if (last_name !== undefined) {
-            setClauses.push('last_name = ?');
-            params.push(last_name);
-        }
-        if (email !== undefined) {
-            setClauses.push('email = ?');
-            params.push(email);
-        }
-        if (role !== undefined) {
-            setClauses.push('role = ?');
-            params.push(role);
-        }
-        if (phone_number !== undefined) {
-            setClauses.push('phone_number = ?');
-            params.push(phone_number || null);
-        }
-        if (gender !== undefined) {
-            setClauses.push('gender = ?');
-            params.push(gender || 'other');
-        }
-
-        if (password) {
-            const saltRounds = 10;
-            const passwordHash = await bcrypt.hash(password, saltRounds);
-            setClauses.push('password_hash = ?');
-            params.push(passwordHash);
-        }
-
-        if (setClauses.length === 0) {
-            throw new Error('No fields to update');
-        }
-
-        setClauses.push('updated_at = CURRENT_TIMESTAMP');
-        const query = `UPDATE users SET ${setClauses.join(', ')} WHERE id = ?`;
-        params.push(userId);
-
-        try {
-            await this.run(query, params);
-            return { id: userId, first_name, last_name, email, role, phone_number, gender };
-        } catch (error) {
-            console.error('Error updating user:', error);
-            throw error;
-        }
-    }
-
-    async updateUserStatus(userId, isActive) {
-        const status = isActive ? 'active' : 'inactive';
-        const query = `UPDATE users SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`;
-        try {
-            await this.run(query, [status, userId]);
-            return { id: userId, status };
-        } catch (error) {
-            console.error('Error updating user status:', error);
-            throw error;
-        }
-    }
-
-    async deleteUser(userId) {
-        const query = `DELETE FROM users WHERE id = ?`;
-        try {
-            const result = await this.run(query, [userId]);
-            return { success: result.changes > 0 };
-        } catch (error) {
-            console.error('Error deleting user:', error);
-            throw error;
-        }
-    }
-
-    async setUserOnline(userId, sessionId = null) {
-        const query = `
-            INSERT INTO user_presence (user_id, is_online, last_seen, session_id)
-            VALUES (?, TRUE, CURRENT_TIMESTAMP, ?)
-            ON CONFLICT(user_id) DO UPDATE SET
-                is_online = TRUE,
-                last_seen = CURRENT_TIMESTAMP,
-                session_id = excluded.session_id
-        `;
-        return await this.run(query, [userId, sessionId]);
-    }
-
-    async setUserOffline(userId) {
-        const query = `
-            UPDATE user_presence
-            SET is_online = FALSE, last_seen = CURRENT_TIMESTAMP
-            WHERE user_id = ?
-        `;
-        return await this.run(query, [userId]);
-    }
-
-    async getOnlineUsers() {
-        const query = `
-            SELECT u.id, u.first_name, u.last_name, u.email, u.role, p.last_seen
-            FROM users u
-            JOIN user_presence p ON u.id = p.user_id
-            WHERE p.is_online = TRUE
-            ORDER BY u.first_name, u.last_name
-        `;
-        return await this.all(query);
-    }
-
-    async getUsersWithPresence() {
-        const query = `
-            SELECT u.id, u.first_name, u.last_name, u.email, u.role, u.phone_number,
-                   COALESCE(p.is_online, FALSE) as is_online, p.last_seen
-            FROM users u
-            LEFT JOIN user_presence p ON u.id = p.user_id
-            ORDER BY p.is_online DESC, u.first_name, u.last_name
-        `;
-        return await this.all(query);
-    }
-
-    async getSetting(key) {
-        const query = 'SELECT value FROM settings WHERE key = ?';
-        const rows = await this.all(query, [key]);
-        return rows.length > 0 ? rows[0].value : null;
-    }
-
-    async setSetting(key, value) {
-        const query = `
-            INSERT INTO settings (id, key, value, updated_at)
-            VALUES (?, ?, ?, CURRENT_TIMESTAMP)
-            ON CONFLICT(key) DO UPDATE SET
-                value = excluded.value,
-                updated_at = CURRENT_TIMESTAMP
-        `;
-        return await this.run(query, [uuidv4(), key, value]);
-    }
-
-    async run(query, params = []) {
-        return new Promise((resolve, reject) => {
-            this.db.run(query, params, function (err) {
-                if (err) {
-                    reject(err);
-                } else {
-                    resolve({ lastID: this.lastID, changes: this.changes });
-                }
-            });
-        });
-    }
-
-    async all(query, params = []) {
-        return new Promise((resolve, reject) => {
-            this.db.all(query, params, (err, rows) => {
-                if (err) {
-                    reject(err);
-                } else {
-                    resolve(rows);
-                }
-            });
-        });
-    }
-
-    async get(query, params = []) {
-        return new Promise((resolve, reject) => {
-            this.db.get(query, params, (err, row) => {
-                if (err) {
-                    reject(err);
-                } else {
-                    resolve(row);
-                }
-            });
-        });
-    }
-
-    close() {
-        if (this.db) {
-            this.db.close((err) => {
-                if (err) {
-                    console.error('Error closing database:', err);
-                } else {
-                    console.log('Database connection closed.');
-                }
-            });
-        }
-    }
-
-    async validateBackupPermission(role) {
-        if (role !== 'admin') {
-            throw new Error('Only admins are allowed to perform backup operations.');
-        }
-    }
-
-    async restoreBackup(filePath, role) {
-        await this.validateBackupPermission(role);
-        if (!filePath.endsWith('.bak')) {
-            throw new Error('Invalid file type. Only .bak files are supported.');
-        }
-        console.log(`Restoring backup from ${filePath}...`);
-    }
+  }
 }
 
 module.exports = Database;

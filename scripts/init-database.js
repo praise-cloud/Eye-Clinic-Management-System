@@ -1,4 +1,4 @@
-const Database = require('../database/database.js');
+const Database = require('../database.js');
 const path = require('path');
 
 async function initializeDatabase() {

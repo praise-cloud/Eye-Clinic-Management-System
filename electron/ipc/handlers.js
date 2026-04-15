@@ -21,6 +21,10 @@ const registerWindowHandlers = require('./handlers/window');
 const registerDashboardHandlers = require('./handlers/dashboard');
 const registerServerHandlers = require('./handlers/server');
 const registerRevenueHandlers = require('./handlers/revenue');
+const registerVisitHandlers = require('./handlers/visits');
+const registerCaseNoteHandlers = require('./handlers/case-notes');
+const registerReminderHandlers = require('./handlers/reminders');
+const registerBackupHandlers = require('./handlers/backup');
 
 let currentUser = null;
 let accessToken = null;
@@ -67,6 +71,10 @@ class IPCHandlers {
     registerDashboardHandlers(ctx);
     registerServerHandlers(ctx);
     registerRevenueHandlers(ctx);
+    registerVisitHandlers(ctx);
+    registerCaseNoteHandlers(ctx);
+    registerReminderHandlers(ctx);
+    registerBackupHandlers(ctx);
 
     if (ctx._authUtils) {
       ctx._authUtils.setTokens = ctx._setTokens;

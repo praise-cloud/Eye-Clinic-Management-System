@@ -240,6 +240,8 @@ const CreateInventoryItemScreen = () => {
                   <option value="equipment">Equipment</option>
                   <option value="supplies">Supplies</option>
                   <option value="medication">Medication</option>
+                  <option value="glasses">Glasses/Frames</option>
+                  <option value="lenses">Lenses</option>
                   <option value="consumables">Consumables</option>
                   <option value="other">Other</option>
                 </select>

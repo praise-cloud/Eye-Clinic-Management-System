@@ -20,7 +20,7 @@ Module.prototype.require = function(id) {
 };
 
 // Use existing Database class
-const Database = require('../database/database.js');
+const Database = require('../database.js');
 
 async function setupDatabase() {
     console.log('🏥 Eye Clinic Database Setup');

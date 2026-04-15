@@ -1,79 +1,61 @@
-// src/services/BackupService.js
-const fs = require('fs-extra');
-const path = require('path');
-const { app } = require('electron');
-const { dialog } = require('electron');
-const DatabaseService = require('./DatabaseService');
+// src/services/backupService.js
+const getServerUrl = () => localStorage.getItem('serverUrl');
+const isServerMode = () => !!getServerUrl();
 
-class BackupService {
-  static async createBackup(mainWindow) {
+const serverApiCall = async (endpoint, method = 'GET', body = null) => {
+    const serverUrl = getServerUrl();
+    if (!serverUrl) return { success: false, error: 'Not connected to server' };
     try {
-      const source = path.join(app.getPath('userData'), 'eye_clinic.db');
-      const backupDir = path.join(app.getPath('documents'), 'Eye Clinic Backups');
-      await fs.ensureDir(backupDir);
-
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-      const backupPath = path.join(backupDir, `eye_clinic_backup_${timestamp}.db`);
-
-      await fs.copy(source, backupPath);
-
-      dialog.showMessageBox(mainWindow, {
-        type: 'info',
-        title: 'Backup Successful',
-        message: `Backup created successfully!\nSaved to: ${backupPath}`,
-      });
-
-      return { success: true, path: backupPath };
+        const accessToken = sessionStorage.getItem('accessToken');
+        const headers = { 'Content-Type': 'application/json' };
+        if (accessToken) headers['Authorization'] = `Bearer ${accessToken}`;
+        const options = { method, headers };
+        if (body) options.body = JSON.stringify(body);
+        const response = await fetch(`${serverUrl}${endpoint}`, options);
+        return await response.json();
     } catch (err) {
-      dialog.showErrorBox('Backup Failed', err.message);
-      return { success: false, error: err.message };
+        return { success: false, error: err.message };
     }
-  }
+};
 
-  static async restoreBackup(mainWindow) {
+export const createBackup = async (options = {}) => {
+    if (isServerMode()) {
+        const res = await serverApiCall('/api/backup/create', 'POST', options);
+        return res?.success ? res.backup : null;
+    }
     try {
-      const result = await dialog.showOpenDialog(mainWindow, {
-        title: 'Select Backup File',
-        filters: [
-          { name: 'Backup Files', extensions: ['sqlite', 'db', 'bak'] },
-        ],
-        properties: ['openFile']
-      });
-
-      if (result.canceled || !result.filePaths[0]) return;
-
-      const filePath = result.filePaths[0];
-
-      if (filePath.endsWith('.bak')) {
-        // Use DatabaseService to restore .bak files
-        const response = await DatabaseService.restoreBackup(filePath);
-        if (response.success) {
-          dialog.showMessageBox(mainWindow, {
-            type: 'info',
-            title: 'Restore Complete',
-            message: 'Database restored successfully from .bak file.',
-          });
-        } else {
-          throw new Error(response.message);
-        }
-      } else {
-        // Handle .db file restoration
-        const target = path.join(app.getPath('userData'), 'eye_clinic.db');
-        await fs.copy(filePath, target);
-
-        dialog.showMessageBox(mainWindow, {
-          type: 'info',
-          title: 'Restore Complete',
-          message: 'Database restored successfully. Please restart the app.',
-        });
-
-        app.relaunch();
-        app.exit();
-      }
+        const res = await window.electronAPI?.backupCreate?.(options);
+        return res?.success ? res.backup : null;
     } catch (err) {
-      dialog.showErrorBox('Restore Failed', err.message);
+        console.error('createBackup error:', err);
+        return null;
     }
-  }
-}
+};
 
-module.exports = BackupService;
+export const listBackups = async () => {
+    if (isServerMode()) {
+        const res = await serverApiCall('/api/backup/list', 'GET');
+        return res?.success ? res.backups || [] : [];
+    }
+    try {
+        const res = await window.electronAPI?.backupList?.();
+        return res?.success ? res.backups : [];
+    } catch (err) {
+        console.error('listBackups error:', err);
+        return [];
+    }
+};
+
+export const restoreBackup = async (fileName) => {
+    if (isServerMode()) {
+        const res = await serverApiCall(`/api/backup/restore/${encodeURIComponent(fileName)}`, 'POST', {});
+        return res?.success;
+    }
+    try {
+        const res = await window.electronAPI?.backupRestore?.(fileName);
+        return !!res?.success;
+    } catch (err) {
+        console.error('restoreBackup error:', err);
+        return false;
+    }
+};

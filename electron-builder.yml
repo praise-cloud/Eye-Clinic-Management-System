@@ -1,44 +1,42 @@
 appId: com.korene.eyeclinic
-productName: Eye Clinic Management
+productName: KORENE
 copyright: Copyright © 2026 KORENE Eye Clinic
 
 asar: true
-compression: normal
+compression: maximum
+nodeGypRebuild: false
+buildDependenciesFromSource: false
 
 directories:
-  output: release
+  output: release/KORENE
   buildResources: build
 
 files:
   - dist/**/*
   - electron/**/*
-  - src/**/*
-  - database/**/*
   - database.js
   - package.json
+  - node_modules/**/*
+  - "!node_modules/.cache/**/*"
+  - "!node_modules/**/test/**/*"
+  - "!node_modules/**/tests/**/*"
+  - "!node_modules/**/*.md"
+  - "!node_modules/**/README*"
+  - "!node_modules/**/LICENSE*"
+  - "!node_modules/**/.git/**/*"
 
 extraMetadata:
   main: electron/main.js
+  version: 1.0.0
+
+asarUnpack:
+  - node_modules/better-sqlite3/**/*
+  - node_modules/bcryptjs/**/*
 
 win:
   target:
-    - target: nsis
-      arch:
-        - x64
-  artifactName: ${productName}-Setup-${version}.${ext}
+    - target: dir
+  artifactName: KORENE-${version}.${ext}
+  signAndEditExecutable: false
 
-nsis:
-  oneClick: false
-  perMachine: false
-  allowToChangeInstallationDirectory: true
-  allowElevation: true
-  createDesktopShortcut: true
-  createStartMenuShortcut: true
-  shortcutName: KORENE Eye Clinic
-  license: LICENSE.txt
-  runAfterFinish: true
-  displayLanguageSelector: false
-
-publish:
-  provider: generic
-  url: https://updates.korene-eyeclinic.com
+afterPack: ./scripts/afterPack.js

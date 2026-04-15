@@ -21,7 +21,10 @@ import AdminDashboard from '../pages/dashboard/AdminDashboard'
 import CreateInventoryItemScreen from '../pages/CreateInventoryItemScreen'
 import ViewInventoryItemScreen from '../pages/ViewInventoryItemScreen'
 import PatientDetailsPage from '../pages/PatientDetailsPage'
+import PatientProfilePage from '../pages/PatientProfilePage'
 import CaseNotesPage from '../pages/CaseNotesPage'
+import CaseNoteEditorPage from '../pages/CaseNoteEditorPage'
+import RemindersPage from '../pages/RemindersPage'
 import DispenseModal from './modals/DispenseModal'
 
 
@@ -50,6 +53,7 @@ const MainApp = () => {
     if (path.startsWith('/messages')) return 'messages';
     if (path.startsWith('/tests')) return 'tests';
     if (path.startsWith('/case-notes')) return 'case-notes';
+    if (path.startsWith('/reminders')) return 'reminders';
     if (path.startsWith('/reports')) return 'reports';
     if (path.startsWith('/settings')) return 'settings';
     return 'dashboard';
@@ -163,7 +167,11 @@ const MainApp = () => {
         <Route path="/inventory/edit/:id" element={<CreateInventoryItemScreen />} />
         <Route path="/inventory/view/:id" element={<ViewInventoryItemScreen />} />
         <Route path="/pharmacy" element={user?.role === 'assistant' ? <PharmacyContent /> : <Navigate to="/" replace />} />
+        <Route path="/reminders" element={user?.role === 'assistant' ? <RemindersPage /> : <Navigate to="/" replace />} />
         <Route path="/patients/:id" element={<PatientDetailsPage />} />
+        <Route path="/patient-profile/:id" element={<PatientProfilePage />} />
+        <Route path="/case-note/new" element={<CaseNoteEditorPage />} />
+        <Route path="/case-note/edit/:id" element={<CaseNoteEditorPage />} />
         <Route path="/settings" element={<SettingsContent />} />
       </Routes>
     );

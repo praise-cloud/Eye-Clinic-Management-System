@@ -165,4 +165,25 @@ module.exports = function registerPatientHandlers(ctx) {
         }
         catch (error) { return buildErrorResponse(error, { scope: 'patients', action: 'search', entity: 'patient' }); }
     });
+
+    ipcMain.handle('patients:getHistory', async (event, patientId) => {
+        try {
+            if (!patientId) return { success: false, error: 'Patient ID required' };
+            const serverUrl = ctx.appConfig?.serverUrl;
+            if (serverUrl) {
+                const result = await httpRequest(`${serverUrl}/api/patients/${patientId}/history`, 'GET', '', { 'Authorization': `Bearer ${getToken()}` });
+                return result;
+            }
+            // Fallback: get all data for this patient
+            const patient = await DatabaseService.getPatientById(patientId);
+            if (!patient) return { success: false, error: 'Patient not found' };
+            const visits = await DatabaseService.getVisitsByPatient(patientId);
+            const tests = await DatabaseService.getTestsByPatient(patientId);
+            const caseNotes = await DatabaseService.getCaseNotesByPatient(patientId);
+            const prescriptions = await DatabaseService.getPrescriptionsByPatient(patientId);
+            const revenue = await DatabaseService.getRevenueByPatient(patientId);
+            const attachments = [];
+            return { success: true, patient, visits, tests, caseNotes, prescriptions, revenue, attachments };
+        } catch (error) { return buildErrorResponse(error, { scope: 'patients', action: 'getHistory', entity: 'patient' }); }
+    });
 };
