@@ -97,6 +97,9 @@ export default function useServerConnection() {
             if (savedAccess) setAccessToken(savedAccess);
             if (savedRefresh) setRefreshToken(savedRefresh);
             if (savedUser) setCurrentUser(JSON.parse(savedUser));
+            if (window.electronAPI?.syncUser && savedAccess && savedUser) {
+                await window.electronAPI.syncUser(JSON.parse(savedUser), savedAccess, savedRefresh);
+            }
 
             if (savedAccess && savedUrl) {
                 const res = await fetch(`${savedUrl}/api/auth/me`, {
@@ -109,6 +112,9 @@ export default function useServerConnection() {
                     setServerUrl(savedUrl);
                     setAccessToken(savedAccess);
                     setRefreshToken(savedRefresh);
+                    if (window.electronAPI?.syncUser) {
+                        await window.electronAPI.syncUser(data.user, savedAccess, savedRefresh);
+                    }
                     connectWebSocket(data.user);
                 } else {
                     sessionStorage.removeItem('accessToken');
@@ -179,6 +185,9 @@ export default function useServerConnection() {
             if (!response.ok) throw new Error('Server unreachable');
 
             localStorage.setItem('serverUrl', url);
+            if (window.electronAPI?.setServerConfig) {
+                await window.electronAPI.setServerConfig({ serverUrl: url });
+            }
             setConnected(true);
             setConnecting(false);
             return { success: true };
@@ -188,6 +197,62 @@ export default function useServerConnection() {
             setError(err.message);
             return { success: false, error: err.message };
         }
+    }, []);
+
+    const autoDetectServer = useCallback(async () => {
+        setConnecting(true);
+        setError(null);
+
+        // Try localhost first
+        const targets = ['localhost', '127.0.0.1'];
+
+        // Get local IP to scan subnet
+        try {
+            const ipResponse = await fetch('https://api.ipify.org?format=json');
+            // Can't get local IP from browser, use common local network ranges
+            const localIPs = [];
+            for (let i = 1; i < 255; i++) {
+                localIPs.push(`192.168.1.${i}`);
+                localIPs.push(`192.168.0.${i}`);
+                localIPs.push(`10.0.0.${i}`);
+            }
+            targets.push(...localIPs);
+        } catch {
+            // Add common IPs anyway
+            for (let i = 1; i < 255; i++) {
+                targets.push(`192.168.1.${i}`);
+                targets.push(`192.168.0.${i}`);
+            }
+        }
+
+        // Scan in parallel, but limit concurrency
+        const scanBatch = async (batch) => {
+            const promises = batch.map(async (ip) => {
+                try {
+                    const response = await fetch(`http://${ip}:3001/api/health`, { 
+                        method: 'GET',
+                        signal: AbortSignal.timeout(500)
+                    });
+                    if (response.ok) return ip;
+                } catch {}
+                return null;
+            });
+            const results = await Promise.all(promises);
+            return results.find(ip => ip !== null);
+        };
+
+        // Scan in batches of 20
+        for (let i = 0; i < targets.length; i += 20) {
+            const batch = targets.slice(i, i + 20);
+            const found = await scanBatch(batch);
+            if (found) {
+                setConnecting(false);
+                return { success: true, ip: found, url: `http://${found}:3001` };
+            }
+        }
+
+        setConnecting(false);
+        return { success: false, error: 'Server not found on network' };
     }, []);
 
     const login = useCallback(async (email, password) => {
@@ -207,9 +272,15 @@ export default function useServerConnection() {
                 setCurrentUser(data.user);
 
                 localStorage.setItem('serverUrl', serverUrl);
+                if (window.electronAPI?.setServerConfig) {
+                    await window.electronAPI.setServerConfig({ serverUrl: serverUrl });
+                }
                 sessionStorage.setItem('accessToken', data.accessToken);
                 sessionStorage.setItem('refreshToken', data.refreshToken);
                 sessionStorage.setItem('serverUser', JSON.stringify(data.user));
+                if (window.electronAPI?.syncUser) {
+                    await window.electronAPI.syncUser(data.user, data.accessToken, data.refreshToken);
+                }
 
                 connectWebSocket(data.user);
             }

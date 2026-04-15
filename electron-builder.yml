@@ -1,0 +1,44 @@
+appId: com.korene.eyeclinic
+productName: Eye Clinic Management
+copyright: Copyright © 2026 KORENE Eye Clinic
+
+asar: true
+compression: normal
+
+directories:
+  output: release
+  buildResources: build
+
+files:
+  - dist/**/*
+  - electron/**/*
+  - src/**/*
+  - database/**/*
+  - database.js
+  - package.json
+
+extraMetadata:
+  main: electron/main.js
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  artifactName: ${productName}-Setup-${version}.${ext}
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  allowElevation: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: KORENE Eye Clinic
+  license: LICENSE.txt
+  runAfterFinish: true
+  displayLanguageSelector: false
+
+publish:
+  provider: generic
+  url: https://updates.korene-eyeclinic.com

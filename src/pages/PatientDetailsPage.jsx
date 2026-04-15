@@ -19,8 +19,6 @@ const PatientDetailsPage = () => {
     const [error, setError] = useState(null);
     const [tests, setTests] = useState([]);
     const [testsLoading, setTestsLoading] = useState(false);
-    const [resultView, setResultView] = useState('cards');
-    const [activeResultsTab, setActiveResultsTab] = useState('results');
     const [documents, setDocuments] = useState([]);
     const [documentsLoading, setDocumentsLoading] = useState(false);
     const [editingTestId, setEditingTestId] = useState(null);
@@ -230,90 +228,11 @@ const PatientDetailsPage = () => {
         return 'text-gray-600 bg-gray-100';
     };
 
-    const resultTests = tests.filter(t => t.machineType !== 'case_note' && t.rawData?.source !== 'case_note');
-    const caseNotes = tests
-        .filter(t => t.machineType === 'case_note' || t.rawData?.source === 'case_note')
-        .sort((a, b) => {
-            const aDate = new Date(a.rawData?.visit_date || a.testDate || 0).getTime();
-            const bDate = new Date(b.rawData?.visit_date || b.testDate || 0).getTime();
-            return bDate - aDate;
-        });
-
     const formatDate = (value) => {
         if (!value) return 'N/A';
         const dt = new Date(value);
         if (Number.isNaN(dt.getTime())) return value;
         return dt.toLocaleDateString();
-    };
-
-    const downloadCaseNotePdf = (note) => {
-        if (!note) return;
-        const data = note.rawData || {};
-        const doc = new jsPDF();
-        let y = 14;
-        const lineGap = 7;
-        const addLine = (label, value) => {
-            const safeValue = value ? String(value) : '-';
-            doc.text(`${label}: ${safeValue}`, 14, y);
-            y += lineGap;
-            if (y > 280) {
-                doc.addPage();
-                y = 14;
-            }
-        };
-
-        doc.setFontSize(14);
-        doc.text('Case Note', 14, y);
-        y += 10;
-        doc.setFontSize(10);
-
-        addLine('Patient Name', patient?.name || 'N/A');
-        addLine('Patient ID', patient?.patient_id || 'N/A');
-        addLine('Visit Date', formatDate(data.visit_date || note.testDate));
-        addLine('Doctor', data.doctor_name || 'N/A');
-
-        y += 4;
-        addLine('Case Details', data.case_details);
-        addLine('Case History', data.case_history);
-        addLine('Ophthalmoscopy', data.ophthalmoscopy);
-        addLine('Previous Rx', data.previous_rx);
-        addLine('Externals', data.externals);
-
-        y += 4;
-        addLine('Visual Acuity Unaided Dist RE', data.visual_acuity?.unaided?.dist?.re);
-        addLine('Visual Acuity Unaided Dist LE', data.visual_acuity?.unaided?.dist?.le);
-        addLine('Visual Acuity Unaided Near RE', data.visual_acuity?.unaided?.near?.re);
-        addLine('Visual Acuity Unaided Near LE', data.visual_acuity?.unaided?.near?.le);
-        addLine('Visual Acuity Aided Dist RE', data.visual_acuity?.aided?.dist?.re);
-        addLine('Visual Acuity Aided Dist LE', data.visual_acuity?.aided?.dist?.le);
-        addLine('Visual Acuity Aided Near RE', data.visual_acuity?.aided?.near?.re);
-        addLine('Visual Acuity Aided Near LE', data.visual_acuity?.aided?.near?.le);
-
-        y += 4;
-        addLine('Objective Refraction RE VA', data.objective_refraction?.re_va);
-        addLine('Objective Refraction LE VA', data.objective_refraction?.le_va);
-        addLine('Subjective Refraction RE Add', data.subjective_refraction?.re_add);
-        addLine('Subjective Refraction RE VA', data.subjective_refraction?.re_va);
-        addLine('Subjective Refraction LE Add', data.subjective_refraction?.le_add);
-        addLine('Subjective Refraction LE VA', data.subjective_refraction?.le_va);
-        addLine('Ret', data.additional_options?.ret ? 'Yes' : 'No');
-        addLine('AutoRef', data.additional_options?.autoRef ? 'Yes' : 'No');
-
-        y += 4;
-        addLine('Tonometry RE', data.tonometry?.re);
-        addLine('Tonometry LE', data.tonometry?.le);
-        addLine('Tonometry Time', data.tonometry?.time);
-        addLine('Diagnosis', data.diagnosis);
-        addLine('Recommendation', data.recommendation);
-        addLine('Final Rx OD', data.final_rx?.od);
-        addLine('Final Rx OS', data.final_rx?.os);
-        addLine('Lens Type', data.lens_type);
-        addLine('Next Visit', formatDate(data.next_visit_date));
-        addLine('Outstanding Bill', data.outstanding_bill);
-
-        const safeId = patient?.patient_id || patient?.id || 'patient';
-        const fileName = `case_note_${safeId}_${Date.now()}.pdf`;
-        doc.save(fileName);
     };
 
     const downloadDocument = async (doc) => {
@@ -351,341 +270,87 @@ const PatientDetailsPage = () => {
                         <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">Client Results</h2>
                         <p className="text-sm text-slate-500 font-medium mt-1">All diagnostic test outcomes for this client</p>
                     </div>
-                    <div className="flex flex-wrap items-center gap-3">
-                        <div className="inline-flex rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
-                            <button
-                                onClick={() => setActiveResultsTab('results')}
-                                className={`px-4 py-2 text-xs font-black uppercase tracking-widest ${
-                                    activeResultsTab === 'results'
-                                        ? 'bg-indigo-600 text-white'
-                                        : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300'
-                                }`}
-                            >
-                                Results
-                            </button>
-                            <button
-                                onClick={() => setActiveResultsTab('case-notes')}
-                                className={`px-4 py-2 text-xs font-black uppercase tracking-widest ${
-                                    activeResultsTab === 'case-notes'
-                                        ? 'bg-indigo-600 text-white'
-                                        : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300'
-                                }`}
-                            >
-                                Case Notes
-                            </button>
-                        </div>
-                        {activeResultsTab === 'results' && (
-                            <div className="inline-flex rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
-                                <button
-                                    onClick={() => setResultView('cards')}
-                                    className={`px-4 py-2 text-xs font-black uppercase tracking-widest ${
-                                        resultView === 'cards'
-                                            ? 'bg-indigo-600 text-white'
-                                            : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300'
-                                    }`}
-                                >
-                                    Card View
-                                </button>
-                                <button
-                                    onClick={() => setResultView('table')}
-                                    className={`px-4 py-2 text-xs font-black uppercase tracking-widest ${
-                                        resultView === 'table'
-                                            ? 'bg-indigo-600 text-white'
-                                            : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300'
-                                    }`}
-                                >
-                                    Table View
-                                </button>
-                            </div>
-                        )}
-                    </div>
                 </div>
                 <div className="card-premium">
                     {testsLoading ? (
                         <div className="flex justify-center items-center py-16">
                             <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
                         </div>
-                    ) : activeResultsTab === 'results' ? (
-                        resultTests.length === 0 ? (
-                            <div className="p-10 text-center">
-                                <p className="text-sm font-bold text-slate-600 dark:text-slate-400">No result records found</p>
-                            </div>
-                        ) : (
-                            resultView === 'cards' ? (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 p-6">
-                                {resultTests.map(t => (
-                                    <div
-                                        key={t.id}
-                                        ref={(node) => setCardRef(t.id, node)}
-                                        className={`rounded-xl border ${String(t.id) === String(editingTestId) ? 'md:col-span-2 lg:col-span-3 border-indigo-400' : 'border-slate-200 dark:border-slate-800'} bg-white dark:bg-slate-900 overflow-hidden group flex flex-col`}
-                                    >
-                                        <div className="p-5 flex flex-col items-start justify-between bg-gradient-to-r from-slate-50/70 to-slate-100/50 dark:from-slate-800/40 dark:to-slate-900/30 border-b border-slate-100 dark:border-slate-800 w-full">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 flex items-center justify-center font-black text-xs">
-                                                    {String(t.testType || 'Test').split(' ').map(n => n[0]).join('')}
-                                                </div>
-                                                <div>
-                                                    <p className="text-sm font-bold text-slate-900 dark:text-white">{t.testType}</p>
-                                                    <div className="flex items-center gap-2 mt-1">
-                                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Date: {t.date}</span>
-                                                        <span className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Eye: {t.eye?.toUpperCase()}</span>
-                                                    </div>
-                                                </div>
+                    ) : tests.length === 0 ? (
+                        <div className="p-10 text-center">
+                            <p className="text-sm font-bold text-slate-600 dark:text-slate-400">No result records found</p>
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 p-6">
+                            {tests.map(t => (
+                                <div
+                                    key={t.id}
+                                    ref={(node) => setCardRef(t.id, node)}
+                                    className={`rounded-xl border ${String(t.id) === String(editingTestId) ? 'md:col-span-2 lg:col-span-3 border-indigo-400' : 'border-slate-200 dark:border-slate-800'} bg-white dark:bg-slate-900 overflow-hidden group flex flex-col`}
+                                >
+                                    <div className="p-5 flex flex-col items-start justify-between bg-gradient-to-r from-slate-50/70 to-slate-100/50 dark:from-slate-800/40 dark:to-slate-900/30 border-b border-slate-100 dark:border-slate-800 w-full">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 flex items-center justify-center font-black text-xs">
+                                                {String(t.testType || 'Test').split(' ').map(n => n[0]).join('')}
                                             </div>
-                                            <div className="flex py-4">
-                                                <span className={`inline-flex px-4 py-2 text-xs font-semibold rounded-full ${getResultColor(t.result)}`}>
-                                                    {t.result}
-                                                </span>
-                                            </div>
-                                            <div className="flex flex-wrap items-center gap-2">
-                                                <button
-                                                    className="px-4 py-2 text-xs font-bold rounded-lg bg-slate-300 text-slate-700 hover:bg-slate-200"
-                                                    onClick={() => setViewingTest(t)}
-                                                >
-                                                    View
-                                                </button>
-                                                <button
-                                                    className="px-4 py-2 text-xs font-bold rounded-lg bg-indigo-600 text-white hover:bg-indigo-700"
-                                                    onClick={() => startEditTest(t.id)}
-                                                >
-                                                    Edit
-                                                </button>
-                                                <button
-                                                    className="px-4 py-2 text-xs font-bold rounded-lg bg-rose-600 text-white hover:bg-rose-700"
-                                                    onClick={() => setDeleteConfirm(t)}
-                                                >
-                                                    Delete
-                                                </button>
+                                            <div>
+                                                <p className="text-sm font-bold text-slate-900 dark:text-white">{t.testType}</p>
+                                                <div className="flex items-center gap-2 mt-1">
+                                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Date: {t.date}</span>
+                                                    <span className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Eye: {t.eye?.toUpperCase()}</span>
+                                                </div>
                                             </div>
                                         </div>
-                                        <div className="p-5 space-y-3">
-                                            <div className="flex flex-col gap-4">
-                                                <div>
-                                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Modality</label>
-                                                    <p className="text-sm font-bold text-slate-900 dark:text-white">{t.testType}</p>
-                                                </div>
-                                                {t.imageData ? (
-                                                    <div className="mt-2">
-                                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Image</label>
-                                                        <div className="rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800">
-                                                            <img src={t.imageData} alt={t.fileName || 'Test Image'} className={`w-full ${String(t.id) === String(editingTestId) ? 'h-80' : 'h-56'} object-cover transition-transform duration-300 group-hover:scale-[1.02]`} />
-                                                        </div>
-                                                        {t.fileName && <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-2">File: <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300">{t.fileName}</span></p>}
+                                        <div className="flex py-4">
+                                            <span className={`inline-flex px-4 py-2 text-xs font-semibold rounded-full ${getResultColor(t.result)}`}>
+                                                {t.result}
+                                            </span>
+                                        </div>
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            <button
+                                                className="px-4 py-2 text-xs font-bold rounded-lg bg-slate-300 text-slate-700 hover:bg-slate-200"
+                                                onClick={() => setViewingTest(t)}
+                                            >
+                                                View
+                                            </button>
+                                            <button
+                                                className="px-4 py-2 text-xs font-bold rounded-lg bg-indigo-600 text-white hover:bg-indigo-700"
+                                                onClick={() => startEditTest(t.id)}
+                                            >
+                                                Edit
+                                            </button>
+                                            <button
+                                                className="px-4 py-2 text-xs font-bold rounded-lg bg-rose-600 text-white hover:bg-rose-700"
+                                                onClick={() => setDeleteConfirm(t)}
+                                            >
+                                                Delete
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div className="p-5 space-y-3">
+                                        <div className="flex flex-col gap-4">
+                                            <div>
+                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Modality</label>
+                                                <p className="text-sm font-bold text-slate-900 dark:text-white">{t.testType}</p>
+                                            </div>
+                                            {t.imageData ? (
+                                                <div className="mt-2">
+                                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Image</label>
+                                                    <div className="rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800">
+                                                        <img src={t.imageData} alt={t.fileName || 'Test Image'} className={`w-full ${String(t.id) === String(editingTestId) ? 'h-80' : 'h-56'} object-cover transition-transform duration-300 group-hover:scale-[1.02]`} />
                                                     </div>
-                                                ) : null}
-                                                <div>
-                                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Notes</label>
-                                                    <p className="text-sm font-medium text-slate-600 dark:text-slate-400 truncate">{t.notes || '-'}</p>
+                                                    {t.fileName && <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-2">File: <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300">{t.fileName}</span></p>}
                                                 </div>
+                                            ) : null}
+                                            <div>
+                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Notes</label>
+                                                <p className="text-sm font-medium text-slate-600 dark:text-slate-400 truncate">{t.notes || '-'}</p>
                                             </div>
                                         </div>
                                     </div>
-                                ))}
-                            </div>
-                            ) : (
-                                <div className="overflow-x-auto">
-                                    <table className="min-w-full text-left">
-                                        <thead>
-                                            <tr className="bg-slate-50/50 dark:bg-slate-800/30 border-b border-slate-100 dark:border-slate-800 font-black text-[10px] text-slate-400 uppercase tracking-widest">
-                                                <th className="px-8 py-5">Test</th>
-                                                <th className="px-8 py-5">Eye</th>
-                                                <th className="px-8 py-5">Date</th>
-                                                <th className="px-8 py-5">Result</th>
-                                                <th className="px-8 py-5">Notes</th>
-                                                <th className="px-8 py-5 text-right">Actions</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                                            {resultTests.map((t) => (
-                                                <tr key={t.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors">
-                                                    <td className="px-8 py-6 text-sm font-bold text-slate-900 dark:text-white">{t.testType}</td>
-                                                    <td className="px-8 py-6 text-xs font-black uppercase tracking-widest text-slate-500">{t.eye?.toUpperCase()}</td>
-                                                    <td className="px-8 py-6 text-xs font-black uppercase tracking-widest text-slate-500">{t.date}</td>
-                                                    <td className="px-8 py-6">
-                                                        <span className={`inline-flex px-3 py-1 text-xs font-semibold rounded-full ${getResultColor(t.result)}`}>
-                                                            {t.result}
-                                                        </span>
-                                                    </td>
-                                                    <td className="px-8 py-6 text-sm text-slate-600 dark:text-slate-400 max-w-xs truncate">{t.notes || '-'}</td>
-                                                    <td className="px-8 py-6">
-                                                        <div className="flex justify-end gap-2">
-                                                            <button
-                                                                className="px-4 py-2 text-xs font-bold rounded-lg bg-slate-300 text-slate-700 hover:bg-slate-200"
-                                                                onClick={() => setViewingTest(t)}
-                                                            >
-                                                                View
-                                                            </button>
-                                                            <button
-                                                                className="px-4 py-2 text-xs font-bold rounded-lg bg-indigo-600 text-white hover:bg-indigo-700"
-                                                                onClick={() => startEditTest(t.id)}
-                                                            >
-                                                                Edit
-                                                            </button>
-                                                            <button
-                                                                className="px-4 py-2 text-xs font-bold rounded-lg bg-rose-600 text-white hover:bg-rose-700"
-                                                                onClick={() => setDeleteConfirm(t)}
-                                                            >
-                                                                Delete
-                                                            </button>
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
                                 </div>
-                            )
-                        )
-                    ) : (
-                        caseNotes.length === 0 ? (
-                            <div className="p-10 text-center">
-                                <p className="text-sm font-bold text-slate-600 dark:text-slate-400">No case notes recorded yet</p>
-                            </div>
-                        ) : (
-                            <div className="p-6 space-y-6">
-                                {caseNotes.map((note) => {
-                                    const data = note.rawData || {};
-                                    const visitDate = data.visit_date || note.testDate;
-                                    return (
-                                        <div key={note.id} className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 space-y-6">
-                                            <div className="flex flex-wrap items-start justify-between gap-4">
-                                                <div>
-                                                    <p className="text-xs font-black text-slate-400 uppercase tracking-widest">Case Note</p>
-                                                    <h3 className="text-lg font-black text-slate-900 dark:text-white tracking-tight">
-                                                        Visit Date: {formatDate(visitDate)}
-                                                    </h3>
-                                                    <p className="text-sm text-slate-500 font-medium mt-1">Doctor: {data.doctor_name || 'N/A'}</p>
-                                                </div>
-                                                <div className="flex items-center gap-3">
-                                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                                                        Note ID: {note.id}
-                                                    </span>
-                                                    <button
-                                                        className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-lg bg-indigo-600 text-white hover:bg-indigo-700"
-                                                        onClick={() => downloadCaseNotePdf(note)}
-                                                    >
-                                                        Download PDF
-                                                    </button>
-                                                </div>
-                                            </div>
-
-                                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-                                                <div>
-                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Case Details</p>
-                                                    <p className="text-sm font-medium text-slate-700 dark:text-slate-300 mt-2 whitespace-pre-line">{data.case_details || '-'}</p>
-                                                </div>
-                                                <div>
-                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Case History</p>
-                                                    <p className="text-sm font-medium text-slate-700 dark:text-slate-300 mt-2 whitespace-pre-line">{data.case_history || '-'}</p>
-                                                </div>
-                                                <div>
-                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Ophthalmoscopy / Other Examinations</p>
-                                                    <p className="text-sm font-medium text-slate-700 dark:text-slate-300 mt-2 whitespace-pre-line">{data.ophthalmoscopy || '-'}</p>
-                                                </div>
-                                                <div className="grid grid-cols-1 gap-4">
-                                                    <div>
-                                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Previous Rx</p>
-                                                        <p className="text-sm font-medium text-slate-700 dark:text-slate-300 mt-2">{data.previous_rx || '-'}</p>
-                                                    </div>
-                                                    <div>
-                                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Externals</p>
-                                                        <p className="text-sm font-medium text-slate-700 dark:text-slate-300 mt-2">{data.externals || '-'}</p>
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-                                                <div className="rounded-xl border border-slate-200 dark:border-slate-800 p-4">
-                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Visual Acuity (Unaided)</p>
-                                                    <div className="grid grid-cols-2 gap-3 text-sm font-medium text-slate-700 dark:text-slate-300">
-                                                        <div>Dist RE: {data.visual_acuity?.unaided?.dist?.re || '-'}</div>
-                                                        <div>Dist LE: {data.visual_acuity?.unaided?.dist?.le || '-'}</div>
-                                                        <div>Near RE: {data.visual_acuity?.unaided?.near?.re || '-'}</div>
-                                                        <div>Near LE: {data.visual_acuity?.unaided?.near?.le || '-'}</div>
-                                                    </div>
-                                                </div>
-                                                <div className="rounded-xl border border-slate-200 dark:border-slate-800 p-4">
-                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Visual Acuity (Aided)</p>
-                                                    <div className="grid grid-cols-2 gap-3 text-sm font-medium text-slate-700 dark:text-slate-300">
-                                                        <div>Dist RE: {data.visual_acuity?.aided?.dist?.re || '-'}</div>
-                                                        <div>Dist LE: {data.visual_acuity?.aided?.dist?.le || '-'}</div>
-                                                        <div>Near RE: {data.visual_acuity?.aided?.near?.re || '-'}</div>
-                                                        <div>Near LE: {data.visual_acuity?.aided?.near?.le || '-'}</div>
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-                                                <div className="rounded-xl border border-slate-200 dark:border-slate-800 p-4">
-                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Objective Refraction (VA)</p>
-                                                    <div className="text-sm font-medium text-slate-700 dark:text-slate-300 space-y-2">
-                                                        <div>RE VA: {data.objective_refraction?.re_va || '-'}</div>
-                                                        <div>LE VA: {data.objective_refraction?.le_va || '-'}</div>
-                                                    </div>
-                                                </div>
-                                                <div className="rounded-xl border border-slate-200 dark:border-slate-800 p-4">
-                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Subjective Refraction</p>
-                                                    <div className="text-sm font-medium text-slate-700 dark:text-slate-300 space-y-2">
-                                                        <div>RE Add: {data.subjective_refraction?.re_add || '-'}</div>
-                                                        <div>RE VA: {data.subjective_refraction?.re_va || '-'}</div>
-                                                        <div>LE Add: {data.subjective_refraction?.le_add || '-'}</div>
-                                                        <div>LE VA: {data.subjective_refraction?.le_va || '-'}</div>
-                                                    </div>
-                                                </div>
-                                                <div className="rounded-xl border border-slate-200 dark:border-slate-800 p-4">
-                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Additional Options</p>
-                                                    <div className="text-sm font-medium text-slate-700 dark:text-slate-300 space-y-2">
-                                                        <div>Ret: {data.additional_options?.ret ? 'Yes' : 'No'}</div>
-                                                        <div>AutoRef: {data.additional_options?.autoRef ? 'Yes' : 'No'}</div>
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-                                                <div className="rounded-xl border border-slate-200 dark:border-slate-800 p-4">
-                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Tonometry</p>
-                                                    <div className="text-sm font-medium text-slate-700 dark:text-slate-300 space-y-2">
-                                                        <div>RE: {data.tonometry?.re || '-'}</div>
-                                                        <div>LE: {data.tonometry?.le || '-'}</div>
-                                                        <div>Time: {data.tonometry?.time || '-'}</div>
-                                                    </div>
-                                                </div>
-                                                <div className="rounded-xl border border-slate-200 dark:border-slate-800 p-4">
-                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Diagnosis & Recommendation</p>
-                                                    <div className="text-sm font-medium text-slate-700 dark:text-slate-300 space-y-2">
-                                                        <div>Diagnosis: {data.diagnosis || '-'}</div>
-                                                        <div>Recommendation: {data.recommendation || '-'}</div>
-                                                    </div>
-                                                </div>
-                                                <div className="rounded-xl border border-slate-200 dark:border-slate-800 p-4">
-                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Final Prescription</p>
-                                                    <div className="text-sm font-medium text-slate-700 dark:text-slate-300 space-y-2">
-                                                        <div>Final Rx OD: {data.final_rx?.od || '-'}</div>
-                                                        <div>Final Rx OS: {data.final_rx?.os || '-'}</div>
-                                                        <div>Lens Type: {data.lens_type || '-'}</div>
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-                                                <div>
-                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Next Visiting Date</p>
-                                                    <p className="text-sm font-medium text-slate-700 dark:text-slate-300 mt-2">{formatDate(data.next_visit_date)}</p>
-                                                </div>
-                                                <div>
-                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Doctor's Name</p>
-                                                    <p className="text-sm font-medium text-slate-700 dark:text-slate-300 mt-2">{data.doctor_name || 'N/A'}</p>
-                                                </div>
-                                                <div>
-                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Outstanding Bill</p>
-                                                    <p className="text-sm font-medium text-slate-700 dark:text-slate-300 mt-2">{data.outstanding_bill || '-'}</p>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        )
+                            ))}
+                        </div>
                     )}
                 </div>
 

@@ -1,22 +1,21 @@
 {
   "name": "eye-clinic",
   "version": "1.0.0",
-  "description": "Visual Field Test Management System for Eye Clinics",
+  "description": "KORENE Eye Clinic Management System - Professional Desktop Application",
   "main": "electron/main.js",
   "scripts": {
     "dev": "concurrently \"vite --port 5173\" \"wait-on http://localhost:5173 && cross-env NODE_ENV=development node scripts/run-electron.js\"",
     "build": "vite build",
-    "make": "electron-builder",
-    "build-renderer": "vite build",
+    "build:renderer": "vite build",
     "start": "vite preview && node scripts/run-electron.js",
     "electron": "node scripts/run-electron.js",
     "electron-dev": "cross-env NODE_ENV=development node scripts/run-electron.js",
-    "dist": "vite build && electron-builder --publish=never",
-    "dist:win": "vite build && electron-builder --win dir --publish=never",
+    "dist": "vite build && electron-builder --win",
+    "dist:dir": "vite build && electron-builder --win dir",
+    "dist:portable": "vite build && electron-builder --win portable",
     "setup-db": "node scripts/setup-database.js",
     "setup:server": "node scripts/setup-server.js",
     "start:server": "node scripts/start-server.js",
-    "postinstall": "electron-builder install-app-deps",
     "seed-admin": "node scripts/create-admin.js",
     "test": "jest"
   },
@@ -25,16 +24,24 @@
     "desktop",
     "eye-clinic",
     "medical",
-    "visual-field-test"
+    "visual-field-test",
+    "korene"
   ],
-  "author": "Eye Clinic Management Team",
-  "license": "ISC",
+  "author": "KORENE Eye Clinic",
+  "license": "MIT",
   "type": "commonjs",
   "build": {
-    "appId": "com.eyeclinic.app",
-    "productName": "KORENE",
+    "appId": "com.korene.eyeclinic",
+    "productName": "Eye Clinic Management",
+    "copyright": "Copyright © 2026 KORENE Eye Clinic",
+    "asar": true,
+    "compression": "normal",
+    "npmRebuild": false,
+    "nodeGypRebuild": false,
+    "buildDependenciesFromSource": false,
     "directories": {
-      "output": "installer-output"
+      "output": "release",
+      "buildResources": "build"
     },
     "files": [
       "dist/**/*",
@@ -44,28 +51,36 @@
       "database.js",
       "package.json"
     ],
-    "asarUnpack": "node_modules/**/*",
-    "artifactName": "${productName}.${ext}",
-    "buildDependenciesFromSource": false,
-    "npmRebuild": false,
-    "nodeGypRebuild": false,
+    "extraMetadata": {
+      "main": "electron/main.js"
+    },
+    "asarUnpack": [
+      "node_modules/sqlite3/**/*",
+      "node_modules/bcryptjs/**/*"
+    ],
     "win": {
       "target": [
         {
-          "target": "zip",
-          "arch": [
-            "x64"
-          ]
+          "target": "nsis",
+          "arch": ["x64"]
         }
       ],
+      "artifactName": "${productName}-Setup-${version}.${ext}",
       "signAndEditExecutable": false
     },
-    "extraMetadata": {
-      "main": "electron/main.js"
-    }
-  },
-  "electronRebuildConfig": {
-    "buildFromSource": false
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "allowElevation": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "KORENE Eye Clinic",
+      "license": "LICENSE.txt",
+      "runAfterFinish": true,
+      "displayLanguageSelector": false
+    },
+    "publish": null
   },
   "devDependencies": {
     "@babel/preset-env": "^7.28.5",
@@ -82,8 +97,6 @@
     "cross-env": "^10.0.0",
     "electron": "^38.1.2",
     "electron-builder": "^24.13.3",
-    "electron-rebuild": "^3.2.9",
-    "electron-reload": "^2.0.0-alpha.1",
     "jest": "^30.2.0",
     "jest-environment-jsdom": "^30.2.0",
     "nodemon": "^3.1.10",

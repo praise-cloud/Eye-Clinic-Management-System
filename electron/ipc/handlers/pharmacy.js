@@ -166,8 +166,8 @@ module.exports = function registerPharmacyHandlers(ctx) {
     ipcMain.handle('pharmacy:dispense', async (event, { drugId, patientId, quantity, notes }) => {
         try {
             if (!_currentUser) return { success: false, error: 'Authentication required' };
-            if (!['admin', 'assistant', 'doctor'].includes(String(_currentUser.role || '').toLowerCase())) {
-                return { success: false, error: 'Access denied. Only admin, doctor, or assistant can dispense pharmacy drugs.' };
+            if (!['assistant'].includes(String(_currentUser.role || '').toLowerCase())) {
+                return { success: false, error: 'Access denied. Only assistant can dispense pharmacy drugs.' };
             }
             if (!drugId || !patientId) return { success: false, error: 'Drug and patient are required' };
             const qtyNumber = Number(quantity || 0);

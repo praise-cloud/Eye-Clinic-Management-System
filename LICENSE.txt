@@ -1,0 +1,57 @@
+KORENE Eye Clinic Management System
+End User License Agreement
+
+Copyright © 2026 KORENE Eye Clinic. All rights reserved.
+
+IMPORTANT: PLEASE READ THIS LICENSE AGREEMENT CAREFULLY BEFORE USING THIS SOFTWARE.
+
+1. LICENSE GRANT
+   This software is licensed, not sold. KORENE Eye Clinic grants you a non-exclusive, 
+   non-transferable license to use the KORENE Eye Clinic Management System software 
+   ("Software") subject to the terms of this agreement.
+
+2. PERMITTED USES
+   You may:
+   - Install and use the Software on computers within your organization
+   - Make backup copies of the Software for archival purposes
+   
+   You may not:
+   - Modify, adapt, translate, reverse engineer, decompile, or disassemble the Software
+   - Create derivative works based on the Software
+   - Copy the Software except as expressly permitted
+   - Rent, lease, or lend the Software to third parties
+   - Use the Software for any unlawful purpose
+
+3. INTELLECTUAL PROPERTY
+   The Software and all copies thereof are proprietary to KORENE Eye Clinic and 
+   title thereto remains exclusively with KORENE Eye Clinic.
+
+4. DISCLAIMER OF WARRANTY
+   THE SOFTWARE IS PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, 
+   INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A 
+   PARTICULAR PURPOSE, AND NON-INFRINGEMENT.
+
+5. LIMITATION OF LIABILITY
+   IN NO EVENT SHALL KORENE Eye Clinic BE LIABLE FOR ANY SPECIAL, INCIDENTAL, 
+   INDIRECT, OR CONSEQUENTIAL DAMAGES WHATSOEVER ARISING OUT OF THE USE OF OR 
+   INABILITY TO USE THE SOFTWARE.
+
+6. TERMINATION
+   This license is effective until terminated. It will terminate automatically without 
+   notice if you fail to comply with any provision of this license.
+
+7. GOVERNING LAW
+   This agreement shall be governed by and construed in accordance with the laws of 
+   the Federal Republic of Nigeria.
+
+By installing or using the Software, you acknowledge that you have read, understood, 
+and agree to be bound by the terms and conditions of this agreement.
+
+For questions about this license, contact:
+Email: support@korene-eyeclinic.com
+Phone: +234 XXX XXX XXXX
+
+---
+
+KORENE Eye Clinic Management System
+Professional Eye Care Management Solution

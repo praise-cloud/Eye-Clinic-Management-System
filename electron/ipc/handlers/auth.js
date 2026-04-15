@@ -206,4 +206,13 @@ module.exports = function registerAuthHandlers(ctx) {
     });
 
     ipcMain.handle('auth:isAuthenticated', async () => !!_currentUser);
+
+    ipcMain.handle('auth:syncUser', async (event, { user, accessToken, refreshToken }) => {
+        _currentUser = user || null;
+        _accessToken = accessToken || null;
+        _refreshToken = refreshToken || null;
+        if (ctx._setCurrentUser) ctx._setCurrentUser(user);
+        if (ctx._setTokens) ctx._setTokens(_accessToken, _refreshToken);
+        return { success: true };
+    });
 };

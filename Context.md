@@ -1,6 +1,6 @@
 ﻿# Context
 
-Last updated: 2026-04-14
+Last updated: 2026-04-14 (evening)
 
 ## Purpose
 This file consolidates all markdown documentation for this project and will be updated whenever changes are made to the application.
@@ -2529,3 +2529,92 @@ set DB_HOST=YOUR_SERVER\INSTANCE_NAME
 
 ### Backup/Restore (Future)
 SQL Server backup/restore can be done via SQL Server Management Studio or command line. Not yet integrated into the app UI.
+
+---
+
+## Changes (April 14, 2026) - User/Token Sync Fix & Pharmacy Restriction
+
+### Fixed Dispensation Error - Root Cause
+**Problem:** When frontend logged in via `fetch()` (server mode), the `_currentUser` and `_accessToken` in IPC handlers were never set because the `auth:login` IPC handler was bypassed.
+
+**Root Cause Flow:**
+1. Frontend calls `fetch('/api/auth/login')` directly
+2. Tokens stored in `sessionStorage`
+3. IPC handlers' `_accessToken` remains `null`
+4. `dispensePharmacyDrug()` IPC call had `Authorization: Bearer null`
+5. Server rejects request → "Failed to record dispensation"
+
+### Solution: Added `auth:syncUser` IPC Handler
+Added a new IPC handler `auth:syncUser` that syncs BOTH user AND tokens to IPC handler context in a single call.
+
+### Files Modified:
+
+| File | Change |
+|------|--------|
+| `electron/ipc/handlers/auth.js` | Added `auth:syncUser` handler (replaced `auth:syncTokens`) |
+| `electron/preload.js` | Replaced `syncTokens` with `syncUser` API |
+| `src/hooks/useUser.js` | Call `syncUser` after successful server login |
+| `src/hooks/useServerConnection.js` | Call `syncUser` in 3 places (session load, validation, login) |
+
+### How It Works Now:
+1. User logs in via fetch → tokens + user stored in `sessionStorage`
+2. `syncUser()` called → syncs BOTH user AND tokens to IPC handler context
+3. When `dispensePharmacyDrug()` IPC call is made → `getToken()` returns valid token
+4. Server accepts request → dispensation succeeds, revenue recorded
+
+### Pharmacy Restricted to Assistant Only
+**Sidebar:** Already restricted to `['assistant']` only
+**IPC Handler:** Updated `electron/ipc/handlers/pharmacy.js` to restrict dispense to `['assistant']` only
+
+**Before:**
+```javascript
+if (!['admin', 'assistant', 'doctor'].includes(String(_currentUser.role || '').toLowerCase())) {
+    return { success: false, error: 'Access denied. Only admin, doctor, or assistant can dispense pharmacy drugs.' };
+}
+```
+
+**After:**
+```javascript
+if (!['assistant'].includes(String(_currentUser.role || '').toLowerCase())) {
+    return { success: false, error: 'Access denied. Only assistant can dispense pharmacy drugs.' };
+}
+```
+
+### Test Scenarios:
+- ✅ Assistant logs in → Can dispense drugs, revenue recorded
+- ✅ Doctor/Admin logs in → Cannot dispense (access denied)
+- ✅ Session restored → Tokens and user synced to IPC handlers
+- ✅ Dispense records revenue correctly in SQL Server
+
+---
+
+## Changes (April 14, 2026) - Case Notes Delete Feature
+
+### Added Delete Button to Case Note Cards
+- Added delete button next to Edit button on each case note card
+- Clicking Delete opens a confirmation dialog
+- Confirming deletes the case note from the database
+- Uses `testService.deleteTest()` to remove the record
+
+### Files Modified:
+- `src/pages/CaseNotesPage.jsx`
+  - Added `deleteConfirm` state
+  - Added `handleDelete()` function
+  - Added delete button to card footer
+  - Added delete confirmation modal
+
+---
+
+## Changes (April 14, 2026) - JSX Syntax Fixes
+
+### Fixed PatientDetailsPage.jsx Syntax Error
+- Removed duplicate/malformed ternary expression causing build failures
+- Fixed incorrect closing tag structure
+
+### Fixed CaseNotesPage.jsx Import Paths
+- Changed `../../hooks/useUser` to `../hooks/useUser`
+- Changed `../../services/testService` to `../services/testService`
+
+### Fixed SettingsContent.jsx Structure
+- Removed stray `)}` closing tag that didn't match any opening
+- Fixed indentation and JSX structure

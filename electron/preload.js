@@ -113,6 +113,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     createUser: (userData) => ipcRenderer.invoke('auth:createUser', userData),
     completeSetup: (clinicData, adminData) => ipcRenderer.invoke('auth:completeSetup', { clinicData, adminData }),
     getAllUsers: () => ipcRenderer.invoke('auth:getAllUsers'),
+    syncUser: (user, accessToken, refreshToken) => ipcRenderer.invoke('auth:syncUser', { user, accessToken, refreshToken }),
 
     // Window management
     openMainWindow: () => ipcRenderer.invoke('window:openMain'),

@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react'
-import { Routes, Route, useNavigate, useLocation } from 'react-router-dom'
+import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom'
 import Layout from './layout/Layout'
 import DashboardContent from './content/DashboardContent'
 import MessagesContent from './content/MessagesContent'
@@ -21,6 +21,7 @@ import AdminDashboard from '../pages/dashboard/AdminDashboard'
 import CreateInventoryItemScreen from '../pages/CreateInventoryItemScreen'
 import ViewInventoryItemScreen from '../pages/ViewInventoryItemScreen'
 import PatientDetailsPage from '../pages/PatientDetailsPage'
+import CaseNotesPage from '../pages/CaseNotesPage'
 import DispenseModal from './modals/DispenseModal'
 
 
@@ -48,7 +49,7 @@ const MainApp = () => {
     if (path.startsWith('/patients')) return 'patients';
     if (path.startsWith('/messages')) return 'messages';
     if (path.startsWith('/tests')) return 'tests';
-    if (path.startsWith('/case-note')) return 'case-note';
+    if (path.startsWith('/case-notes')) return 'case-notes';
     if (path.startsWith('/reports')) return 'reports';
     if (path.startsWith('/settings')) return 'settings';
     return 'dashboard';
@@ -152,8 +153,8 @@ const MainApp = () => {
                 : <DashboardContent />
           }
         />
-        <Route path="/case-note" element={<DoctorsDashboard activeSection="case-note" />} />
         <Route path="/messages" element={<MessagesContent />} />
+        <Route path="/case-notes" element={<CaseNotesPage />} />
         <Route path="/patients" element={<PatientsContent searchTerm={searchTerm} ref={patientsContentRef} />} />
         <Route path="/tests" element={<TestsContent />} />
         <Route path="/reports" element={<ReportsContent />} />
@@ -161,7 +162,7 @@ const MainApp = () => {
         <Route path="/inventory/create" element={<CreateInventoryItemScreen />} />
         <Route path="/inventory/edit/:id" element={<CreateInventoryItemScreen />} />
         <Route path="/inventory/view/:id" element={<ViewInventoryItemScreen />} />
-        <Route path="/pharmacy" element={<PharmacyContent />} />
+        <Route path="/pharmacy" element={user?.role === 'assistant' ? <PharmacyContent /> : <Navigate to="/" replace />} />
         <Route path="/patients/:id" element={<PatientDetailsPage />} />
         <Route path="/settings" element={<SettingsContent />} />
       </Routes>

@@ -123,6 +123,9 @@ const useUser = () => {
           sessionStorage.setItem('currentUser', JSON.stringify(data.user));
           localStorage.setItem('serverUrl', serverUrl);
           setUser(data.user);
+          if (window.electronAPI?.syncUser) {
+            await window.electronAPI.syncUser(data.user, data.accessToken, data.refreshToken);
+          }
 
           window.dispatchEvent(new CustomEvent('userLogin', {
             detail: { userName: data.user.name, timestamp: new Date().toLocaleString(), status: 'success' }

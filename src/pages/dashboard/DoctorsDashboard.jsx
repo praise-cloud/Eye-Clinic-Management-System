@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CLIENT_DATA } from '../../utils/constants.js';
 import { DeleteIcon, EditIcon, ViewIcon, DrugIcon } from '../../components/Icons';
 import PatientQuickViewModal from '../../components/modals/PatientQuickViewModal';
 import PrescribeModal from '../../components/modals/PrescribeModal';
@@ -15,73 +14,18 @@ const DoctorsDashboard = ({ activeSection }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(5);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [clientList, setClientList] = useState([]);
   const [quickViewPatient, setQuickViewPatient] = useState(null);
   const [prescribePatient, setPrescribePatient] = useState(null);
-  const [patientSearchTerm, setPatientSearchTerm] = useState('');
-  const getInitialCaseNoteForm = (doctorName = '') => ({
-    patientId: '',
-    visitDate: '',
-    caseDetails: '',
-    caseHistory: '',
-    ophthalmoscopy: '',
-    previousRx: '',
-    externals: '',
-    visualAcuity: {
-      unaided: {
-        dist: { re: '', le: '' },
-        near: { re: '', le: '' }
-      },
-      aided: {
-        dist: { re: '', le: '' },
-        near: { re: '', le: '' }
-      }
-    },
-    objectiveRefraction: {
-      re_va: '',
-      le_va: ''
-    },
-    subjectiveRefraction: {
-      re_add: '',
-      re_va: '',
-      le_add: '',
-      le_va: ''
-    },
-    additionalOptions: {
-      ret: false,
-      autoRef: false
-    },
-    tonometry: {
-      re: '',
-      le: '',
-      time: ''
-    },
-    diagnosis: '',
-    recommendation: '',
-    finalRx: {
-      od: '',
-      os: ''
-    },
-    lensType: '',
-    nextVisitDate: '',
-    doctorName,
-    outstandingBill: ''
-  });
-  const [caseNoteForm, setCaseNoteForm] = useState(() => getInitialCaseNoteForm(user?.name || ''));
-  const [savingCaseNote, setSavingCaseNote] = useState(false);
-  const [syncStatus, setSyncStatus] = useState('checking');
-  const [activePanel, setActivePanel] = useState('dashboard');
   const [dashboardStats, setDashboardStats] = useState({
     totalFulfilledPrescriptions: 0,
-    pendingEvaluations: 0, // Mocked or fetched from elsewhere
-    daiagnosticYield: 0 // Placeholder for future implementation
+    pendingEvaluations: 0,
+    diagnosticYield: 0
   });
 
-  // Helper function to calculate age from DOB
   const calculateAge = (dob) => {
     if (!dob) return '';
     const birthDate = new Date(dob);
@@ -94,7 +38,6 @@ const DoctorsDashboard = ({ activeSection }) => {
     return age;
   };
 
-  // Load patients from database
   const loadPatients = async () => {
     try {
       setLoading(true);
@@ -129,11 +72,6 @@ const DoctorsDashboard = ({ activeSection }) => {
     }
   };
 
-  // Get selected patient helper
-  const getSelectedPatient = () => {
-    return clientList.find(p => p.id === caseNoteForm.patientId) || null;
-  };
-
   const fetchDashboardStats = async () => {
     try {
       if (!window.electronAPI?.getDashboardStats) return;
@@ -162,25 +100,6 @@ const DoctorsDashboard = ({ activeSection }) => {
     }
   }, []);
 
-  useEffect(() => {
-    if (user?.name) {
-      setCaseNoteForm(prev => ({
-        ...prev,
-        doctorName: prev.doctorName || user.name
-      }));
-    }
-  }, [user?.name]);
-
-  useEffect(() => {
-    if (activeSection === 'case-note') {
-      setActivePanel('case-note');
-    }
-    if (activeSection === 'dashboard') {
-      setActivePanel('dashboard');
-    }
-  }, [activeSection]);
-
-  // Filter logic
   const filteredClients = clientList.filter(client => {
     const matchesSearch = searchTerm === '' ||
       client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -217,122 +136,6 @@ const DoctorsDashboard = ({ activeSection }) => {
     }
   };
 
-  const saveCaseNote = async () => {
-    if (!caseNoteForm.patientId) {
-      setError('Select a client before saving case note.');
-      return;
-    }
-    if (!caseNoteForm.visitDate) {
-      setError('Visiting Date is required.');
-      return;
-    }
-    if (!caseNoteForm.doctorName || !caseNoteForm.doctorName.trim()) {
-      setError("Doctor's Name is required.");
-      return;
-    }
-    const hasClinicalDetail = [
-      caseNoteForm.caseDetails,
-      caseNoteForm.caseHistory,
-      caseNoteForm.ophthalmoscopy,
-      caseNoteForm.diagnosis,
-      caseNoteForm.recommendation
-    ].some(value => String(value || '').trim().length > 0);
-    if (!hasClinicalDetail) {
-      setError('Enter at least one clinical detail (case details, case history, ophthalmoscopy, diagnosis, or recommendation).');
-      return;
-    }
-    try {
-      setSavingCaseNote(true);
-      setError('');
-      const selectedPatient = clientList.find(p => p.id === caseNoteForm.patientId);
-      const payload = {
-        source: 'case_note',
-        doctor_id: user?.id || null,
-        doctor_name: caseNoteForm.doctorName || user?.name || '',
-        patient_id: caseNoteForm.patientId,
-        patient_name: selectedPatient?.name || '',
-        visit_date: caseNoteForm.visitDate || new Date().toISOString(),
-        case_details: caseNoteForm.caseDetails,
-        case_history: caseNoteForm.caseHistory,
-        ophthalmoscopy: caseNoteForm.ophthalmoscopy,
-        previous_rx: caseNoteForm.previousRx,
-        externals: caseNoteForm.externals,
-        visual_acuity: caseNoteForm.visualAcuity,
-        objective_refraction: caseNoteForm.objectiveRefraction,
-        subjective_refraction: caseNoteForm.subjectiveRefraction,
-        additional_options: caseNoteForm.additionalOptions,
-        tonometry: caseNoteForm.tonometry,
-        diagnosis: caseNoteForm.diagnosis,
-        recommendation: caseNoteForm.recommendation,
-        final_rx: caseNoteForm.finalRx,
-        lens_type: caseNoteForm.lensType,
-        next_visit_date: caseNoteForm.nextVisitDate || null,
-        outstanding_bill: caseNoteForm.outstandingBill
-      };
-
-      const res = await window.electronAPI.createTest({
-        patient_id: caseNoteForm.patientId,
-        machine_type: 'case_note',
-        eye: 'both',
-        test_date: caseNoteForm.visitDate || new Date().toISOString(),
-        raw_data: JSON.stringify(payload)
-      });
-
-      if (!res?.success) {
-        setError(res?.error || 'Failed to save case note.');
-        return;
-      }
-
-      if (caseNoteForm.visitDate && window.electronAPI?.updatePatient) {
-        await window.electronAPI.updatePatient(caseNoteForm.patientId, {
-          intake_date: caseNoteForm.visitDate
-        });
-      }
-
-      if (window.electronAPI?.createReport) {
-        await window.electronAPI.createReport({
-          patient_id: caseNoteForm.patientId,
-          report_type: 'case_note_document',
-          report_file: JSON.stringify({
-            kind: 'case_note_document',
-            test_id: res.id,
-            patient_name: selectedPatient?.name || '',
-            doctor_name: caseNoteForm.doctorName || user?.name || '',
-            visit_date: caseNoteForm.visitDate,
-            diagnosis: caseNoteForm.diagnosis,
-            recommendation: caseNoteForm.recommendation,
-            final_rx: caseNoteForm.finalRx,
-            lens_type: caseNoteForm.lensType,
-            visual_acuity: caseNoteForm.visualAcuity,
-            tonometry: caseNoteForm.tonometry,
-            case_details: caseNoteForm.caseDetails,
-            case_history: caseNoteForm.caseHistory
-          })
-        });
-      }
-
-      setCaseNoteForm(prev => ({
-        ...getInitialCaseNoteForm(prev.doctorName || user?.name || ''),
-        patientId: prev.patientId,
-        visitDate: prev.visitDate
-      }));
-      await loadPatients();
-    } catch (err) {
-      setError('Failed to save case note.');
-    } finally {
-      setSavingCaseNote(false);
-    }
-  };
-
-  const clearCaseNote = () => {
-    setCaseNoteForm(prev => ({
-      ...getInitialCaseNoteForm(prev.doctorName || user?.name || ''),
-      patientId: prev.patientId
-    }));
-  };
-
-
-
   return (
     <div className="flex gap-6">
       <div className="flex-1 space-y-10 animate-premium-fade pb-10">
@@ -350,301 +153,6 @@ const DoctorsDashboard = ({ activeSection }) => {
         </div>
       </div>
 
-      {activePanel === 'case-note' && (
-      <div className="space-y-6">
-        <div className="card-premium p-6 border border-slate-200/70 dark:border-slate-800/70">
-          <div className="flex items-center justify-between mb-6 pb-6 border-b border-slate-100 dark:border-slate-800">
-            <div>
-              <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">New Case Note</h2>
-              <p className="text-sm text-slate-500 font-medium mt-1">Record clinical observations and prescription details</p>
-            </div>
-            <button
-              onClick={saveCaseNote}
-              disabled={savingCaseNote}
-              className="px-6 py-3 bg-indigo-600 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20 flex items-center gap-2"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-              {savingCaseNote ? 'Saving...' : 'Save Case Note'}
-            </button>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-            <div className="lg:col-span-2 space-y-4">
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Patient</label>
-                <div className="relative">
-                  <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-                  <input
-                    type="text"
-                    value={patientSearchTerm}
-                    onChange={(e) => setPatientSearchTerm(e.target.value)}
-                    placeholder="Search patient..."
-                    className="w-full pl-11 pr-4 py-3.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
-                  />
-                </div>
-                <select
-                  value={caseNoteForm.patientId}
-                  onChange={(e) => {
-                    const selectedPatient = clientList.find(p => p.id === e.target.value);
-                    setCaseNoteForm(prev => ({ ...prev, patientId: e.target.value }));
-                    if (selectedPatient) {
-                      setPatientSearchTerm(selectedPatient.name);
-                    }
-                  }}
-                  className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
-                >
-                  <option value="">Select patient</option>
-                  {clientList
-                    .filter(p =>
-                      patientSearchTerm === '' ||
-                      p.name.toLowerCase().includes(patientSearchTerm.toLowerCase()) ||
-                      (p.patient_id && p.patient_id.toLowerCase().includes(patientSearchTerm.toLowerCase()))
-                    )
-                    .map((p) => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Patient ID</label>
-                  <div className="px-4 py-3.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-mono text-slate-600 dark:text-slate-300">
-                    {getSelectedPatient()?.patient_id || 'Auto-generated'}
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Visit Date</label>
-                  <input
-                    type="date"
-                    value={caseNoteForm.visitDate}
-                    onChange={(e) => setCaseNoteForm(prev => ({ ...prev, visitDate: e.target.value }))}
-                    className="w-full px-4 py-3.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">DOB</label>
-                  <div className="px-4 py-3.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-600 dark:text-slate-300">
-                    {getSelectedPatient()?.dob || '-'}
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Age</label>
-                  <div className="px-4 py-3.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-600 dark:text-slate-300">
-                    {getSelectedPatient()?.dob ? calculateAge(getSelectedPatient().dob) : '-'}
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Gender</label>
-                  <div className="px-4 py-3.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-600 dark:text-slate-300 capitalize">
-                    {getSelectedPatient()?.gender || '-'}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Case Details</label>
-                <textarea
-                  value={caseNoteForm.caseDetails}
-                  onChange={(e) => setCaseNoteForm(prev => ({ ...prev, caseDetails: e.target.value }))}
-                  rows={3}
-                  className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all resize-none"
-                  placeholder="Enter case details..."
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Case History</label>
-                <textarea
-                  value={caseNoteForm.caseHistory}
-                  onChange={(e) => setCaseNoteForm(prev => ({ ...prev, caseHistory: e.target.value }))}
-                  rows={3}
-                  className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all resize-none"
-                  placeholder="Enter case history..."
-                />
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Ophthalmoscopy</label>
-                <textarea
-                  value={caseNoteForm.ophthalmoscopy}
-                  onChange={(e) => setCaseNoteForm(prev => ({ ...prev, ophthalmoscopy: e.target.value }))}
-                  rows={3}
-                  className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all resize-none"
-                  placeholder="Examination notes..."
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Previous Rx</label>
-                  <input
-                    value={caseNoteForm.previousRx}
-                    onChange={(e) => setCaseNoteForm(prev => ({ ...prev, previousRx: e.target.value }))}
-                    className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
-                    placeholder="Rx"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Externals</label>
-                  <input
-                    value={caseNoteForm.externals}
-                    onChange={(e) => setCaseNoteForm(prev => ({ ...prev, externals: e.target.value }))}
-                    className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
-                    placeholder="Externals"
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
-            <div className="p-5 bg-gradient-to-br from-indigo-50/50 to-purple-50/50 dark:from-indigo-900/10 dark:to-purple-900/10 rounded-2xl border border-indigo-100/50 dark:border-indigo-800/20">
-              <h3 className="text-sm font-black text-indigo-700 dark:text-indigo-400 uppercase tracking-widest mb-4">Visual Acuity</h3>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-3">Unaided - Distance</p>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="space-y-1">
-                      <label className="text-[10px] text-slate-400">RE</label>
-                      <input value={caseNoteForm.visualAcuity.unaided.dist.re} onChange={(e) => setCaseNoteForm(prev => ({ ...prev, visualAcuity: { ...prev.visualAcuity, unaided: { ...prev.visualAcuity.unaided, dist: { ...prev.visualAcuity.unaided.dist, re: e.target.value } } } }))} className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-mono focus:ring-2 focus:ring-indigo-500/20" />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[10px] text-slate-400">LE</label>
-                      <input value={caseNoteForm.visualAcuity.unaided.dist.le} onChange={(e) => setCaseNoteForm(prev => ({ ...prev, visualAcuity: { ...prev.visualAcuity, unaided: { ...prev.visualAcuity.unaided, dist: { ...prev.visualAcuity.unaided.dist, le: e.target.value } } } }))} className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-mono focus:ring-2 focus:ring-indigo-500/20" />
-                    </div>
-                  </div>
-                </div>
-                <div>
-                  <p className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-3">Unaided - Near</p>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="space-y-1">
-                      <label className="text-[10px] text-slate-400">RE</label>
-                      <input value={caseNoteForm.visualAcuity.unaided.near.re} onChange={(e) => setCaseNoteForm(prev => ({ ...prev, visualAcuity: { ...prev.visualAcuity, unaided: { ...prev.visualAcuity.unaided, near: { ...prev.visualAcuity.unaided.near, re: e.target.value } } } }))} className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-mono focus:ring-2 focus:ring-indigo-500/20" />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[10px] text-slate-400">LE</label>
-                      <input value={caseNoteForm.visualAcuity.unaided.near.le} onChange={(e) => setCaseNoteForm(prev => ({ ...prev, visualAcuity: { ...prev.visualAcuity, unaided: { ...prev.visualAcuity.unaided, near: { ...prev.visualAcuity.unaided.near, le: e.target.value } } } }))} className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-mono focus:ring-2 focus:ring-indigo-500/20" />
-                    </div>
-                  </div>
-                </div>
-                <div>
-                  <p className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-3">Aided - Distance</p>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="space-y-1">
-                      <label className="text-[10px] text-slate-400">RE</label>
-                      <input value={caseNoteForm.visualAcuity.aided.dist.re} onChange={(e) => setCaseNoteForm(prev => ({ ...prev, visualAcuity: { ...prev.visualAcuity, aided: { ...prev.visualAcuity.aided, dist: { ...prev.visualAcuity.aided.dist, re: e.target.value } } } }))} className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-mono focus:ring-2 focus:ring-indigo-500/20" />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[10px] text-slate-400">LE</label>
-                      <input value={caseNoteForm.visualAcuity.aided.dist.le} onChange={(e) => setCaseNoteForm(prev => ({ ...prev, visualAcuity: { ...prev.visualAcuity, aided: { ...prev.visualAcuity.aided, dist: { ...prev.visualAcuity.aided.dist, le: e.target.value } } } }))} className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-mono focus:ring-2 focus:ring-indigo-500/20" />
-                    </div>
-                  </div>
-                </div>
-                <div>
-                  <p className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-3">Aided - Near</p>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="space-y-1">
-                      <label className="text-[10px] text-slate-400">RE</label>
-                      <input value={caseNoteForm.visualAcuity.aided.near.re} onChange={(e) => setCaseNoteForm(prev => ({ ...prev, visualAcuity: { ...prev.visualAcuity, aided: { ...prev.visualAcuity.aided, near: { ...prev.visualAcuity.aided.near, re: e.target.value } } } }))} className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-mono focus:ring-2 focus:ring-indigo-500/20" />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[10px] text-slate-400">LE</label>
-                      <input value={caseNoteForm.visualAcuity.aided.near.le} onChange={(e) => setCaseNoteForm(prev => ({ ...prev, visualAcuity: { ...prev.visualAcuity, aided: { ...prev.visualAcuity.aided, near: { ...prev.visualAcuity.aided.near, le: e.target.value } } } }))} className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-mono focus:ring-2 focus:ring-indigo-500/20" />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <div className="p-5 bg-gradient-to-br from-amber-50/50 to-orange-50/50 dark:from-amber-900/10 dark:to-orange-900/10 rounded-2xl border border-amber-100/50 dark:border-amber-800/20">
-                <h3 className="text-sm font-black text-amber-700 dark:text-amber-400 uppercase tracking-widest mb-4">Tonometry</h3>
-                <div className="grid grid-cols-3 gap-3">
-                  <div className="space-y-1">
-                    <label className="text-[10px] text-slate-400">RE</label>
-                    <input value={caseNoteForm.tonometry.re} onChange={(e) => setCaseNoteForm(prev => ({ ...prev, tonometry: { ...prev.tonometry, re: e.target.value } }))} className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-mono focus:ring-2 focus:ring-amber-500/20" />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] text-slate-400">LE</label>
-                    <input value={caseNoteForm.tonometry.le} onChange={(e) => setCaseNoteForm(prev => ({ ...prev, tonometry: { ...prev.tonometry, le: e.target.value } }))} className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-mono focus:ring-2 focus:ring-amber-500/20" />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] text-slate-400">Time</label>
-                    <input value={caseNoteForm.tonometry.time} onChange={(e) => setCaseNoteForm(prev => ({ ...prev, tonometry: { ...prev.tonometry, time: e.target.value } }))} className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-mono focus:ring-2 focus:ring-amber-500/20" />
-                  </div>
-                </div>
-              </div>
-
-              <div className="p-5 bg-gradient-to-br from-emerald-50/50 to-teal-50/50 dark:from-emerald-900/10 dark:to-teal-900/10 rounded-2xl border border-emerald-100/50 dark:border-emerald-800/20">
-                <h3 className="text-sm font-black text-emerald-700 dark:text-emerald-400 uppercase tracking-widest mb-4">Final Prescription</h3>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <label className="text-[10px] text-slate-400">Rx OD</label>
-                    <input value={caseNoteForm.finalRx.od} onChange={(e) => setCaseNoteForm(prev => ({ ...prev, finalRx: { ...prev.finalRx, od: e.target.value } }))} className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-mono focus:ring-2 focus:ring-emerald-500/20" />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] text-slate-400">Rx OS</label>
-                    <input value={caseNoteForm.finalRx.os} onChange={(e) => setCaseNoteForm(prev => ({ ...prev, finalRx: { ...prev.finalRx, os: e.target.value } }))} className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-mono focus:ring-2 focus:ring-emerald-500/20" />
-                  </div>
-                  <div className="col-span-2 space-y-1">
-                    <label className="text-[10px] text-slate-400">Lens Type</label>
-                    <input value={caseNoteForm.lensType} onChange={(e) => setCaseNoteForm(prev => ({ ...prev, lensType: e.target.value }))} className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500/20" />
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
-            <div className="p-5 bg-slate-50/50 dark:bg-slate-800/30 rounded-2xl border border-slate-200/50 dark:border-slate-800/50">
-              <h3 className="text-sm font-black text-slate-700 dark:text-slate-300 uppercase tracking-widest mb-4">Diagnosis & Recommendation</h3>
-              <div className="space-y-3">
-                <div className="space-y-1">
-                  <label className="text-[10px] text-slate-400">Diagnosis</label>
-                  <textarea value={caseNoteForm.diagnosis} onChange={(e) => setCaseNoteForm(prev => ({ ...prev, diagnosis: e.target.value }))} rows={2} className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm resize-none focus:ring-2 focus:ring-indigo-500/20" />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] text-slate-400">Recommendation</label>
-                  <textarea value={caseNoteForm.recommendation} onChange={(e) => setCaseNoteForm(prev => ({ ...prev, recommendation: e.target.value }))} rows={2} className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm resize-none focus:ring-2 focus:ring-indigo-500/20" />
-                </div>
-              </div>
-            </div>
-
-            <div className="p-5 bg-slate-50/50 dark:bg-slate-800/30 rounded-2xl border border-slate-200/50 dark:border-slate-800/50">
-              <h3 className="text-sm font-black text-slate-700 dark:text-slate-300 uppercase tracking-widest mb-4">Doctor Details</h3>
-              <div className="space-y-3">
-                <div className="space-y-1">
-                  <label className="text-[10px] text-slate-400">Doctor's Name</label>
-                  <input value={caseNoteForm.doctorName} onChange={(e) => setCaseNoteForm(prev => ({ ...prev, doctorName: e.target.value }))} className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/20" />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] text-slate-400">Next Visit Date</label>
-                  <input type="date" value={caseNoteForm.nextVisitDate} onChange={(e) => setCaseNoteForm(prev => ({ ...prev, nextVisitDate: e.target.value }))} className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/20" />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] text-slate-400">Outstanding Bill</label>
-                  <input value={caseNoteForm.outstandingBill} onChange={(e) => setCaseNoteForm(prev => ({ ...prev, outstandingBill: e.target.value }))} className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/20" />
-                </div>
-              </div>
-            </div>
-
-            <div className="flex flex-col justify-end gap-3">
-              <button onClick={clearCaseNote} className="w-full py-3.5 px-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all">
-                Clear Form
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-      )}
-      {activePanel === 'dashboard' && (
-      <>
       {/* Analytics Micro-Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         {[
@@ -841,8 +349,6 @@ const DoctorsDashboard = ({ activeSection }) => {
           initialPatientId={prescribePatient.id}
           onClose={() => setPrescribePatient(null)}
         />
-      )}
-      </>
       )}
       </div>
     </div>

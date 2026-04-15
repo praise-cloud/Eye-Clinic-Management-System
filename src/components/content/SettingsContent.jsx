@@ -108,6 +108,53 @@ const SettingsContent = () => {
     setTestingConnection(false)
   }
 
+  const handleAutoDetectServer = async () => {
+    setTestingConnection(true)
+    setConnectionResult(null)
+    try {
+      // Try localhost first
+      const targets = ['localhost:3001', '127.0.0.1:3001'];
+      
+      // Add local network range
+      for (let i = 1; i < 255; i++) {
+        targets.push(`192.168.1.${i}:3001`);
+        targets.push(`192.168.0.${i}:3001`);
+        targets.push(`10.0.0.${i}:3001`);
+      }
+
+      // Scan in parallel with timeout
+      const scanServer = async (url) => {
+        try {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 300);
+          const res = await fetch(`http://${url}/api/health`, { signal: controller.signal });
+          clearTimeout(timeout);
+          if (res.ok) return url;
+        } catch {}
+        return null;
+      };
+
+      // Scan in batches
+      for (let i = 0; i < targets.length; i += 20) {
+        const batch = targets.slice(i, i + 20);
+        const results = await Promise.all(batch.map(scanServer));
+        const found = results.find(ip => ip !== null);
+        if (found) {
+          const foundUrl = `http://${found}`;
+          setServerUrl(foundUrl);
+          setConnectionResult({ success: true, message: `Server found: ${foundUrl}` });
+          setTestingConnection(false);
+          return;
+        }
+      }
+
+      setConnectionResult({ success: false, error: 'Server not found on network. Make sure server is running.' });
+    } catch (err) {
+      setConnectionResult({ success: false, error: err.message });
+    }
+    setTestingConnection(false)
+  }
+
   const handleStartServer = async () => {
     setServerStarting(true)
     try {
@@ -635,10 +682,14 @@ const SettingsContent = () => {
                         className="input-premium text-xs font-mono flex-1"
                         placeholder="http://192.168.1.100:3001"
                       />
+                      <button onClick={handleAutoDetectServer} disabled={testingConnection} className="btn btn-secondary px-3 text-xs font-bold">
+                        {testingConnection ? '...' : '🔍'}
+                      </button>
                       <button onClick={handleTestServerConnection} disabled={testingConnection} className="btn btn-ghost bg-slate-50 px-4 text-xs font-bold">
-                        {testingConnection ? '...' : 'Test'}
+                        Test
                       </button>
                     </div>
+                    <p className="text-[10px] text-slate-400 pl-1">Click 🔍 to auto-detect server on network</p>
                   </div>
                   {connectionResult && (
                     <div className={`p-3 rounded-xl text-xs font-bold flex items-center gap-2 ${connectionResult.success ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/10 dark:text-emerald-400' : 'bg-rose-50 text-rose-700 dark:bg-rose-900/10 dark:text-rose-400'}`}>
@@ -651,8 +702,7 @@ const SettingsContent = () => {
                   </button>
                 </div>
               )}
-            </div>
-          )}
+          </div>
 
           {isAdmin && (
             <div className="card-premium p-8">
