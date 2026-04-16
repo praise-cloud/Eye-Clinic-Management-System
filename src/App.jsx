@@ -7,6 +7,7 @@ import SignupScreen from './pages/auth/SignupScreen';
 import WelcomeScreen from './pages/auth/WelcomeScreen';
 import LoadingScreen from './components/LoadingScreen';
 import useUser from './hooks/useUser';
+import logger from './utils/logger';
 
 const App = () => {
   const { user, login, createUser, loading } = useUser();
@@ -22,14 +23,14 @@ const App = () => {
         const response = await window.electronAPI?.isFirstRun();
         setIsFirstRun(response?.success ? response.isFirstRun : true);
       } catch (error) {
-        console.error('Error checking first run:', error);
+        logger.error('App: Error checking first run', { error: error.message });
         setIsFirstRun(true);
       }
     };
     checkFirstRun();
   }, []);
 
-  console.log('App render - user:', user, 'loading:', loading, 'isFirstRun:', isFirstRun);
+  logger.debug('App: Rendering', { user: user?.email, loading, isFirstRun });
 
   if (loading || isFirstRun === null) {
     return <LoadingScreen />;
@@ -59,7 +60,7 @@ const App = () => {
       await createUser(userData);
       navigate('/');
     } catch (error) {
-      console.error('Setup error:', error);
+      logger.error('App: Setup error', { error: error.message });
       alert(error.message || 'Setup failed. Please try again.');
     }
   };
@@ -81,7 +82,7 @@ const App = () => {
       setIsAddingUser(false);
       navigate('/');
     } catch (error) {
-      console.error('User creation error:', error);
+      logger.error('App: User creation error', { error: error.message });
       alert(error.message || 'Failed to create user. Please try again.');
     }
   };
