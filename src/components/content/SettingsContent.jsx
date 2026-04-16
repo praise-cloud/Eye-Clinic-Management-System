@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useTheme } from '../../context/ThemeContext'
 import useUser from '../../hooks/useUser'
+import logger from '../../utils/logger'
 
 const SettingsContent = () => {
   const { isDark, toggleTheme } = useTheme()
@@ -257,7 +258,7 @@ const SettingsContent = () => {
         }
       }
     } catch (err) {
-      console.error('Backup error:', err)
+      logger.error('SettingsContent: Backup error', { error: err.message });
     }
   }
 
@@ -275,7 +276,7 @@ const SettingsContent = () => {
         }
       }
     } catch (err) {
-      console.error('Restore error:', err)
+      logger.error('SettingsContent: Restore error', { error: err.message });
     }
   }
 
@@ -324,7 +325,7 @@ const SettingsContent = () => {
         alert('Failed to update profile: ' + (result?.error || 'Unknown error'))
       }
     } catch (error) {
-      console.error('Error saving profile:', error)
+      logger.error('SettingsContent: Error saving profile', { error: error.message });
       alert('Failed to update profile: ' + error.message)
     } finally {
       setLoading(false)
@@ -375,7 +376,7 @@ const SettingsContent = () => {
         alert('Failed to change password: ' + (result?.error || 'Unknown error'))
       }
     } catch (error) {
-      console.error('Error changing password:', error)
+      logger.error('SettingsContent: Error changing password', { error: error.message });
       alert('Failed to change password: ' + error.message)
     } finally {
       setLoading(false)
