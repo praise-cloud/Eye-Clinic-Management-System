@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import logger from '../utils/logger';
 
 const isServerMode = () => !!localStorage.getItem('serverUrl') && !!sessionStorage.getItem('accessToken');
 
@@ -65,7 +66,7 @@ const useUser = () => {
         setUser(null);
       }
     } catch (err) {
-      console.error('Session init error:', err);
+      logger.error('Session initialization failed', err);
       setUser(null);
     } finally {
       setLoading(false);
@@ -144,7 +145,7 @@ const useUser = () => {
       let result;
       if (window.electronAPI?.login) {
         result = await window.electronAPI.login(credentials.email, credentials.password);
-        console.log('Login result:', result);
+        logger.debug('Login completed', { success: result?.success });
 
         if (result?.success && result?.user) {
           const userData = result.user;
@@ -176,7 +177,7 @@ const useUser = () => {
       setLoading(false);
       return userData;
     } catch (err) {
-      console.error('Login error:', err);
+      logger.error('Login failed', err);
       setError(err.message);
       setLoading(false);
       throw err;
@@ -210,7 +211,7 @@ const useUser = () => {
         try { await window.electronAPI.logout(); } catch {}
       }
     } catch (err) {
-      console.error('Logout failed:', err);
+      logger.error('Logout failed', err);
     } finally {
       localStorage.removeItem('currentUser');
       setUser(null);

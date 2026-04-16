@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import logger from '../../utils/logger';
 import { CLIENT_DATA } from '../../utils/constants'
 import { DeleteIcon, EditIcon, ViewIcon } from '../Icons';
 import ClientDetailContent from '../../pages/ClientDetailContent';
@@ -99,7 +100,7 @@ const DashboardContent = ({ activeSection }) => {
 
   // Handle save from patient detail - not used since we navigate
   const handleClientSave = (updatedClient) => {
-    console.log('Client update triggered:', updatedClient);
+    logger.debug('Client update triggered', { clientId: updatedClient?.id });
   };
 
   // Handle back from client detail

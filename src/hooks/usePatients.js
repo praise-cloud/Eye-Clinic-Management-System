@@ -1,7 +1,8 @@
-// src/hooks/usePatients.js
+﻿// src/hooks/usePatients.js
 // React hook for patient CRUD/search using patientService
-import { useState, useCallback, useEffect } from 'react';
-import * as patientService from '../services/patientService';
+import { useState, useCallback, useEffect } from '\''react'\'';
+import * as patientService from '\''../services/patientService'\'';
+import logger from '\''../utils/logger'\'';
 
 export default function usePatients() {
   const [patients, setPatients] = useState([]);
@@ -9,15 +10,15 @@ export default function usePatients() {
   const [error, setError] = useState(null);
 
   const fetchPatients = useCallback(async (filters = {}) => {
-    console.log('fetchPatients called with filters:', filters);
+    logger.debug('\''Fetching patients'\'', { filters });
     setLoading(true);
     setError(null);
     try {
       const data = await patientService.getAllPatients(filters);
-      console.log('Patients fetched:', data);
+      logger.debug('\''Patients fetched'\'', { count: data?.length });
       setPatients(data);
     } catch (err) {
-      console.error('Error fetching patients:', err);
+      logger.error('\''Failed to fetch patients'\'', err);
       setError(err);
     }
     setLoading(false);
@@ -82,8 +83,8 @@ export default function usePatients() {
 
   useEffect(() => {
     if (window.electronAPI?.onIpcEvent) {
-      const unsubscribe = window.electronAPI.onIpcEvent('data:update', (payload) => {
-        if (payload && payload.table === 'patients') {
+      const unsubscribe = window.electronAPI.onIpcEvent('\''data:update'\'', (payload) => {
+        if (payload && payload.table === '\''patients'\'') {
           fetchPatients();
         }
       });
@@ -94,10 +95,10 @@ export default function usePatients() {
   useEffect(() => {
     const handler = (e) => {
       const data = e.detail;
-      if (data && data.table === 'patients') fetchPatients();
+      if (data && data.table === '\''patients'\'') fetchPatients();
     };
-    window.addEventListener('server:dataUpdate', handler);
-    return () => window.removeEventListener('server:dataUpdate', handler);
+    window.addEventListener('\''server:dataUpdate'\'', handler);
+    return () => window.removeEventListener('\''server:dataUpdate'\'', handler);
   }, [fetchPatients]);
 
   return {
@@ -109,6 +110,6 @@ export default function usePatients() {
     editPatient,
     removePatient,
     searchPatients,
-    setPatients // for manual override if needed
+    setPatients
   };
 }
