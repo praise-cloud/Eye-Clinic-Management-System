@@ -1,4 +1,6 @@
 // src/services/reminderService.js
+import logger from '../utils/logger';
+
 const getServerUrl = () => localStorage.getItem('serverUrl');
 const isServerMode = () => !!getServerUrl();
 
@@ -29,7 +31,7 @@ export const getAllReminders = async (filters = {}) => {
         const res = await window.electronAPI?.getAllReminders?.(filters);
         return res?.success ? res.reminders : [];
     } catch (err) {
-        console.error('getAllReminders error:', err);
+        logger.error('reminderService: getAllReminders error', { error: err.message });
         return [];
     }
 };
@@ -43,7 +45,7 @@ export const createReminder = async (reminderData) => {
         const res = await window.electronAPI?.createReminder?.(reminderData);
         return res?.success ? res.reminder : null;
     } catch (err) {
-        console.error('createReminder error:', err);
+        logger.error('reminderService: createReminder error', { error: err.message });
         return null;
     }
 };
@@ -57,7 +59,7 @@ export const getUpcomingReminders = async () => {
         const res = await window.electronAPI?.getUpcomingReminders?.();
         return res?.success ? res.reminders : [];
     } catch (err) {
-        console.error('getUpcomingReminders error:', err);
+        logger.error('reminderService: getUpcomingReminders error', { error: err.message });
         return [];
     }
 };

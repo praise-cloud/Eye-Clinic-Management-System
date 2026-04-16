@@ -4,6 +4,7 @@ import { DeleteIcon, EditIcon, ViewIcon, DrugIcon } from '../../components/Icons
 import PatientQuickViewModal from '../../components/modals/PatientQuickViewModal';
 import PrescribeModal from '../../components/modals/PrescribeModal';
 import useUser from '../../hooks/useUser';
+import logger from '../../utils/logger';
 
 const DoctorsDashboard = ({ activeSection }) => {
   const { user } = useUser();
@@ -65,7 +66,7 @@ const DoctorsDashboard = ({ activeSection }) => {
         setError(result.error || 'Failed to load patients');
       }
     } catch (err) {
-      console.error('Failed to load patients:', err);
+      logger.error('DoctorsDashboard: Failed to load patients', { error: err.message });
       setError('Failed to load patients');
     } finally {
       setLoading(false);
@@ -83,7 +84,7 @@ const DoctorsDashboard = ({ activeSection }) => {
         }));
       }
     } catch (err) {
-      console.error('Error fetching dashboard stats:', err);
+      logger.error('DoctorsDashboard: Error fetching dashboard stats', { error: err.message });
     }
   };
 

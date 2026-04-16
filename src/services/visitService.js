@@ -1,4 +1,6 @@
 // src/services/visitService.js
+import logger from '../utils/logger';
+
 const getServerUrl = () => localStorage.getItem('serverUrl');
 const isServerMode = () => !!getServerUrl();
 
@@ -29,7 +31,7 @@ export const getAllVisits = async (filters = {}) => {
         const res = await window.electronAPI?.getAllVisits?.(filters);
         return res?.success ? res.visits : [];
     } catch (err) {
-        console.error('getAllVisits error:', err);
+        logger.error('visitService: getAllVisits error', { error: err.message });
         return [];
     }
 };
@@ -43,7 +45,7 @@ export const getVisitById = async (id) => {
         const res = await window.electronAPI?.getVisitById?.(id);
         return res?.success ? res.visit : null;
     } catch (err) {
-        console.error('getVisitById error:', err);
+        logger.error('visitService: getVisitById error', { error: err.message });
         return null;
     }
 };
@@ -57,7 +59,7 @@ export const createVisit = async (visitData) => {
         const res = await window.electronAPI?.createVisit?.(visitData);
         return res?.success ? res.visit : null;
     } catch (err) {
-        console.error('createVisit error:', err);
+        logger.error('visitService: createVisit error', { error: err.message });
         return null;
     }
 };
@@ -71,7 +73,7 @@ export const getVisitsByPatient = async (patientId) => {
         const res = await window.electronAPI?.getVisitsByPatient?.(patientId);
         return res?.success ? res.visits : [];
     } catch (err) {
-        console.error('getVisitsByPatient error:', err);
+        logger.error('visitService: getVisitsByPatient error', { error: err.message });
         return [];
     }
 };

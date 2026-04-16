@@ -5,6 +5,7 @@ import AddPatientModal from '../../components/modals/AddPatientModal';
 import PatientQuickViewModal from '../../components/modals/PatientQuickViewModal';
 import useUser from '../../hooks/useUser';
 import usePrescriptions from '../../hooks/usePrescriptions';
+import logger from '../../utils/logger';
 
 const AssistantDashboardScreen = () => {
     const { user } = useUser();
@@ -96,7 +97,7 @@ const AssistantDashboardScreen = () => {
                 ]);
             }
         } catch (error) {
-            console.error('Failed to load dashboard stats:', error);
+            logger.error('AssistantDashboard: Failed to load dashboard stats', { error: error.message });
         }
     };
 

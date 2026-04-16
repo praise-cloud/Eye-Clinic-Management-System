@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
+import logger from '../utils/logger';
 
 export default function useNotifications(userId) {
     const [notifications, setNotifications] = useState([]);
@@ -61,7 +62,7 @@ export default function useNotifications(userId) {
                         unread_messages: unread.length
                     });
                 } catch (chatErr) {
-                    console.error('Error fetching chat unread notifications:', chatErr);
+                    logger.error('useNotifications: Error fetching chat unread notifications', { error: chatErr.message });
                 }
             }
 
@@ -71,7 +72,7 @@ export default function useNotifications(userId) {
             setNotifications(merged);
             setUnreadCount(merged.filter(n => n.status === 'unread').length);
         } catch (err) {
-            console.error('Error fetching notifications:', err);
+            logger.error('useNotifications: Error fetching notifications', { error: err.message });
             setError(err.message);
         } finally {
             setLoading(false);
@@ -87,7 +88,7 @@ export default function useNotifications(userId) {
                 return true;
             }
         } catch (err) {
-            console.error('Error marking notification as read:', err);
+            logger.error('useNotifications: Error marking notification as read', { error: err.message });
         }
         return false;
     }, []);
@@ -102,7 +103,7 @@ export default function useNotifications(userId) {
                 return true;
             }
         } catch (err) {
-            console.error('Error marking all notifications as read:', err);
+            logger.error('useNotifications: Error marking all notifications as read', { error: err.message });
         }
         return false;
     }, [userId]);

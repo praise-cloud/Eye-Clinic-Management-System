@@ -1,4 +1,6 @@
 // src/services/backupService.js
+import logger from '../utils/logger';
+
 const getServerUrl = () => localStorage.getItem('serverUrl');
 const isServerMode = () => !!getServerUrl();
 
@@ -27,7 +29,7 @@ export const createBackup = async (options = {}) => {
         const res = await window.electronAPI?.backupCreate?.(options);
         return res?.success ? res.backup : null;
     } catch (err) {
-        console.error('createBackup error:', err);
+        logger.error('BackupService: createBackup error', { error: err.message });
         return null;
     }
 };
@@ -41,7 +43,7 @@ export const listBackups = async () => {
         const res = await window.electronAPI?.backupList?.();
         return res?.success ? res.backups : [];
     } catch (err) {
-        console.error('listBackups error:', err);
+        logger.error('BackupService: listBackups error', { error: err.message });
         return [];
     }
 };
@@ -55,7 +57,7 @@ export const restoreBackup = async (fileName) => {
         const res = await window.electronAPI?.backupRestore?.(fileName);
         return !!res?.success;
     } catch (err) {
-        console.error('restoreBackup error:', err);
+        logger.error('BackupService: restoreBackup error', { error: err.message });
         return false;
     }
 };

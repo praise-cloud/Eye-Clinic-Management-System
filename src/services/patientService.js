@@ -1,5 +1,6 @@
 // src/services/patientService.js
 // Abstracts all patient CRUD/search logic via IPC using window.electronAPI
+import logger from '../utils/logger';
 
 const getServerUrl = () => localStorage.getItem('serverUrl');
 const isServerMode = () => !!getServerUrl();
@@ -22,7 +23,7 @@ const serverApiCall = async (endpoint, method = 'GET', body = null) => {
 
 const getApi = () => {
   if (!window.electronAPI) {
-    console.error('Electron API not found in window');
+    logger.error('patientService: Electron API not found in window');
     return null;
   }
   return window.electronAPI;
@@ -50,7 +51,7 @@ export const getAllPatients = async (filters = {}) => {
     const res = await api.getPatients(filters);
     return res?.success ? res.patients : [];
   } catch (err) {
-    console.error('getAllPatients error:', err);
+    logger.error('patientService: getAllPatients error', { error: err.message });
     return [];
   }
 };
@@ -66,7 +67,7 @@ export const getPatientById = async (id) => {
     const res = await api.getPatient(id);
     return res?.success ? res.patient : null;
   } catch (err) {
-    console.error('getPatientById error:', err);
+    logger.error('patientService: getPatientById error', { error: err.message });
     return null;
   }
 };
@@ -82,7 +83,7 @@ export const createPatient = async (patientData) => {
     const res = await api.createPatient(patientData);
     return res?.success ? res.patient : null;
   } catch (err) {
-    console.error('createPatient error:', err);
+    logger.error('patientService: createPatient error', { error: err.message });
     return null;
   }
 };
@@ -98,7 +99,7 @@ export const updatePatient = async (id, patientData) => {
     const res = await api.updatePatient(id, patientData);
     return res?.success ? res.patient : null;
   } catch (err) {
-    console.error('updatePatient error:', err);
+    logger.error('patientService: updatePatient error', { error: err.message });
     return null;
   }
 };
@@ -114,7 +115,7 @@ export const deletePatient = async (id) => {
     const res = await api.deletePatient(id);
     return !!res?.success;
   } catch (err) {
-    console.error('deletePatient error:', err);
+    logger.error('patientService: deletePatient error', { error: err.message });
     return false;
   }
 };
@@ -130,7 +131,7 @@ export const searchPatients = async (searchTerm) => {
     const res = await api.getPatients({ search: searchTerm });
     return res?.success ? res.patients : [];
   } catch (err) {
-    console.error('searchPatients error:', err);
+    logger.error('patientService: searchPatients error', { error: err.message });
     return [];
   }
 };

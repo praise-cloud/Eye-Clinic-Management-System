@@ -1,4 +1,6 @@
 // src/services/caseNoteService.js
+import logger from '../utils/logger';
+
 const getServerUrl = () => localStorage.getItem('serverUrl');
 const isServerMode = () => !!getServerUrl();
 
@@ -29,7 +31,7 @@ export const getAllCaseNotes = async (filters = {}) => {
         const res = await window.electronAPI?.getAllCaseNotes?.(filters);
         return res?.success ? res.caseNotes : [];
     } catch (err) {
-        console.error('getAllCaseNotes error:', err);
+        logger.error('caseNoteService: getAllCaseNotes error', { error: err.message });
         return [];
     }
 };
@@ -43,7 +45,7 @@ export const getCaseNoteById = async (id) => {
         const res = await window.electronAPI?.getCaseNoteById?.(id);
         return res?.success ? res.caseNote : null;
     } catch (err) {
-        console.error('getCaseNoteById error:', err);
+        logger.error('caseNoteService: getCaseNoteById error', { error: err.message });
         return null;
     }
 };
@@ -57,7 +59,7 @@ export const createCaseNote = async (caseNoteData) => {
         const res = await window.electronAPI?.createCaseNote?.(caseNoteData);
         return res?.success ? res.caseNote : null;
     } catch (err) {
-        console.error('createCaseNote error:', err);
+        logger.error('caseNoteService: createCaseNote error', { error: err.message });
         return null;
     }
 };
@@ -71,7 +73,7 @@ export const updateCaseNote = async (id, caseNoteData) => {
         const res = await window.electronAPI?.updateCaseNote?.({ id, caseNoteData });
         return res?.success ? res.caseNote : null;
     } catch (err) {
-        console.error('updateCaseNote error:', err);
+        logger.error('caseNoteService: updateCaseNote error', { error: err.message });
         return null;
     }
 };
@@ -85,7 +87,7 @@ export const signCaseNote = async (id, doctorId) => {
         const res = await window.electronAPI?.signCaseNote?.({ id, signed_off_by: doctorId });
         return res?.success ? res.caseNote : null;
     } catch (err) {
-        console.error('signCaseNote error:', err);
+        logger.error('caseNoteService: signCaseNote error', { error: err.message });
         return null;
     }
 };
@@ -99,7 +101,7 @@ export const getCaseNotesByPatient = async (patientId) => {
         const res = await window.electronAPI?.getCaseNotesByPatient?.(patientId);
         return res?.success ? res.caseNotes : [];
     } catch (err) {
-        console.error('getCaseNotesByPatient error:', err);
+        logger.error('caseNoteService: getCaseNotesByPatient error', { error: err.message });
         return [];
     }
 };

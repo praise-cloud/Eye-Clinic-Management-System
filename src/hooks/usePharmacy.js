@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import * as pharmacyService from '../services/pharmacyService';
+import logger from '../utils/logger';
 
 export default function usePharmacy() {
   const [drugs, setDrugs] = useState([]);
@@ -13,7 +14,7 @@ export default function usePharmacy() {
       const data = await pharmacyService.getPharmacyDrugs(filters);
       setDrugs(data);
     } catch (err) {
-      console.error('Error fetching pharmacy drugs:', err);
+      logger.error('usePharmacy: Error fetching pharmacy drugs', { error: err.message });
       setError(err);
     } finally {
       setLoading(false);

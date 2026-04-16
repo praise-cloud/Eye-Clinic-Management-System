@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import * as inventoryService from '../services/inventoryService';
+import logger from '../utils/logger';
 
 export default function useInventory() {
     const [inventoryItems, setInventoryItems] = useState([]);
@@ -13,7 +14,7 @@ export default function useInventory() {
             const data = await inventoryService.getInventoryItems(filters);
             setInventoryItems(data);
         } catch (err) {
-            console.error('Error fetching inventory:', err);
+            logger.error('useInventory: Error fetching inventory', { error: err.message });
             setError(err);
         } finally {
             setLoading(false);
