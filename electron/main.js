@@ -66,9 +66,9 @@ function loadURL(win) {
 
 function loadAuthURL(win) {
   if (process.env.NODE_ENV === 'development') {
-    win.loadURL('http://localhost:5173/auth.html');
+    win.loadURL('http://localhost:5173');
   } else {
-    win.loadFile(path.join(__dirname, '../dist/auth.html'));
+    win.loadFile(path.join(__dirname, '../dist/index.html'));
   }
 }
 
