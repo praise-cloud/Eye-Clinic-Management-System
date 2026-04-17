@@ -1,6 +1,6 @@
 const { ipcMain } = require('electron');
 const DatabaseService = require('../../../src/services/DatabaseService');
-const { buildErrorResponse } = require('./utils');
+const { buildErrorResponse, safeHandle } = require('./utils');
 const http = require('http');
 
 let _currentUser = null;
@@ -41,7 +41,7 @@ module.exports = function registerSettingsHandlers(ctx) {
         ctx._setCurrentUser = (u) => { _currentUser = u; };
     }
 
-    ipcMain.handle('settings:get', async (event, key) => {
+    safeHandle('settings:get', async (event, key) => {
         try {
             const serverUrl = ctx.appConfig?.serverUrl;
             const token = ctx._authUtils?.getAccessToken?.();
@@ -56,7 +56,7 @@ module.exports = function registerSettingsHandlers(ctx) {
         }
     });
 
-    ipcMain.handle('settings:getAll', async () => {
+    safeHandle('settings:getAll', async () => {
         try {
             const serverUrl = ctx.appConfig?.serverUrl;
             const token = ctx._authUtils?.getAccessToken?.();
@@ -71,7 +71,7 @@ module.exports = function registerSettingsHandlers(ctx) {
         }
     });
 
-    ipcMain.handle('settings:set', async (event, { key, value }) => {
+    safeHandle('settings:set', async (event, { key, value }) => {
         try {
             const serverUrl = ctx.appConfig?.serverUrl;
             const token = ctx._authUtils?.getAccessToken?.();
@@ -86,3 +86,4 @@ module.exports = function registerSettingsHandlers(ctx) {
         }
     });
 };
+

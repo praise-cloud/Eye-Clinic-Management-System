@@ -1,6 +1,6 @@
 const { ipcMain, BrowserWindow } = require('electron');
 const DatabaseService = require('../../../src/services/DatabaseService');
-const { buildErrorResponse } = require('./utils');
+const { buildErrorResponse, safeHandle } = require('./utils');
 const http = require('http');
 
 let _currentUser = null;
@@ -49,7 +49,7 @@ module.exports = function registerCaseNoteHandlers(ctx) {
         return null;
     }
 
-    ipcMain.handle('caseNotes:getAll', async (event, filters = {}) => {
+    safeHandle('caseNotes:getAll', async (event, filters = {}) => {
         try {
             const serverUrl = ctx.appConfig?.serverUrl;
             if (serverUrl) {
@@ -64,7 +64,7 @@ module.exports = function registerCaseNoteHandlers(ctx) {
         } catch (error) { return buildErrorResponse(error, { scope: 'caseNotes', action: 'getAll' }); }
     });
 
-    ipcMain.handle('caseNotes:getById', async (event, id) => {
+    safeHandle('caseNotes:getById', async (event, id) => {
         try {
             if (!id) return { success: false, error: 'Case note ID required' };
             const serverUrl = ctx.appConfig?.serverUrl;
@@ -78,7 +78,7 @@ module.exports = function registerCaseNoteHandlers(ctx) {
         } catch (error) { return buildErrorResponse(error, { scope: 'caseNotes', action: 'getById' }); }
     });
 
-    ipcMain.handle('caseNotes:create', async (event, caseNoteData) => {
+    safeHandle('caseNotes:create', async (event, caseNoteData) => {
         try {
             const authErr = requireDoctor(); if (authErr) return authErr;
             if (!caseNoteData.patient_id) return { success: false, error: 'patient_id required' };
@@ -99,7 +99,7 @@ module.exports = function registerCaseNoteHandlers(ctx) {
         } catch (error) { return buildErrorResponse(error, { scope: 'caseNotes', action: 'create' }); }
     });
 
-    ipcMain.handle('caseNotes:update', async (event, { id, caseNoteData }) => {
+    safeHandle('caseNotes:update', async (event, { id, caseNoteData }) => {
         try {
             const authErr = requireDoctor(); if (authErr) return authErr;
             if (!id) return { success: false, error: 'Case note ID required' };
@@ -163,7 +163,7 @@ module.exports = function registerCaseNoteHandlers(ctx) {
         } catch (error) { return buildErrorResponse(error, { scope: 'caseNotes', action: 'update' }); }
     });
 
-    ipcMain.handle('caseNotes:sign', async (event, { id, signed_off_by }) => {
+    safeHandle('caseNotes:sign', async (event, { id, signed_off_by }) => {
         try {
             const authErr = requireDoctor(); if (authErr) return authErr;
             if (!id) return { success: false, error: 'Case note ID required' };
@@ -186,7 +186,7 @@ module.exports = function registerCaseNoteHandlers(ctx) {
         } catch (error) { return buildErrorResponse(error, { scope: 'caseNotes', action: 'sign' }); }
     });
 
-    ipcMain.handle('caseNotes:getByPatient', async (event, patientId) => {
+    safeHandle('caseNotes:getByPatient', async (event, patientId) => {
         try {
             if (!patientId) return { success: false, error: 'Patient ID required' };
             const serverUrl = ctx.appConfig?.serverUrl;
@@ -198,3 +198,4 @@ module.exports = function registerCaseNoteHandlers(ctx) {
         } catch (error) { return buildErrorResponse(error, { scope: 'caseNotes', action: 'getByPatient' }); }
     });
 };
+

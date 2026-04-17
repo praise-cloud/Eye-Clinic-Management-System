@@ -1,6 +1,6 @@
 const { ipcMain, BrowserWindow } = require('electron');
 const DatabaseService = require('../../../src/services/DatabaseService');
-const { buildErrorResponse } = require('./utils');
+const { buildErrorResponse, safeHandle } = require('./utils');
 const http = require('http');
 
 let _currentUser = null;
@@ -43,7 +43,7 @@ module.exports = function registerReminderHandlers(ctx) {
         return _accessToken || ctx._authUtils?.getAccessToken?.() || null;
     }
 
-    ipcMain.handle('reminders:getAll', async (event, filters = {}) => {
+    safeHandle('reminders:getAll', async (event, filters = {}) => {
         try {
             const serverUrl = ctx.appConfig?.serverUrl;
             if (serverUrl) {
@@ -57,7 +57,7 @@ module.exports = function registerReminderHandlers(ctx) {
         } catch (error) { return buildErrorResponse(error, { scope: 'reminders', action: 'getAll' }); }
     });
 
-    ipcMain.handle('reminders:create', async (event, reminderData) => {
+    safeHandle('reminders:create', async (event, reminderData) => {
         try {
             if (!_currentUser) return { success: false, error: 'Authentication required' };
             if (!reminderData.patient_id) return { success: false, error: 'patient_id required' };
@@ -75,7 +75,7 @@ module.exports = function registerReminderHandlers(ctx) {
         } catch (error) { return buildErrorResponse(error, { scope: 'reminders', action: 'create' }); }
     });
 
-    ipcMain.handle('reminders:getUpcoming', async (event) => {
+    safeHandle('reminders:getUpcoming', async (event) => {
         try {
             const serverUrl = ctx.appConfig?.serverUrl;
             if (serverUrl) {
@@ -97,3 +97,4 @@ module.exports = function registerReminderHandlers(ctx) {
         } catch (error) { return buildErrorResponse(error, { scope: 'reminders', action: 'getUpcoming' }); }
     });
 };
+

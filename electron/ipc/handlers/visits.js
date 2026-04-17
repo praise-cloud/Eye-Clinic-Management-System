@@ -1,6 +1,6 @@
 const { ipcMain, BrowserWindow } = require('electron');
 const DatabaseService = require('../../../src/services/DatabaseService');
-const { buildErrorResponse } = require('./utils');
+const { buildErrorResponse, safeHandle } = require('./utils');
 const http = require('http');
 
 let _currentUser = null;
@@ -49,7 +49,7 @@ module.exports = function registerVisitHandlers(ctx) {
         return null;
     }
 
-    ipcMain.handle('visits:getAll', async (event, filters = {}) => {
+    safeHandle('visits:getAll', async (event, filters = {}) => {
         try {
             const serverUrl = ctx.appConfig?.serverUrl;
             if (serverUrl) {
@@ -64,7 +64,7 @@ module.exports = function registerVisitHandlers(ctx) {
         } catch (error) { return buildErrorResponse(error, { scope: 'visits', action: 'getAll' }); }
     });
 
-    ipcMain.handle('visits:getById', async (event, id) => {
+    safeHandle('visits:getById', async (event, id) => {
         try {
             if (!id) return { success: false, error: 'Visit ID required' };
             const serverUrl = ctx.appConfig?.serverUrl;
@@ -77,7 +77,7 @@ module.exports = function registerVisitHandlers(ctx) {
         } catch (error) { return buildErrorResponse(error, { scope: 'visits', action: 'getById' }); }
     });
 
-    ipcMain.handle('visits:create', async (event, visitData) => {
+    safeHandle('visits:create', async (event, visitData) => {
         try {
             const authErr = requireAuth(); if (authErr) return authErr;
             if (!visitData.patient_id) return { success: false, error: 'patient_id required' };
@@ -98,7 +98,7 @@ module.exports = function registerVisitHandlers(ctx) {
         } catch (error) { return buildErrorResponse(error, { scope: 'visits', action: 'create' }); }
     });
 
-    ipcMain.handle('visits:getByPatient', async (event, patientId) => {
+    safeHandle('visits:getByPatient', async (event, patientId) => {
         try {
             if (!patientId) return { success: false, error: 'Patient ID required' };
             const serverUrl = ctx.appConfig?.serverUrl;
@@ -110,3 +110,4 @@ module.exports = function registerVisitHandlers(ctx) {
         } catch (error) { return buildErrorResponse(error, { scope: 'visits', action: 'getByPatient' }); }
     });
 };
+

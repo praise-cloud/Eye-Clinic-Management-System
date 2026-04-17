@@ -1,7 +1,7 @@
 const { ipcMain, BrowserWindow } = require('electron');
 const DatabaseService = require('../../../src/services/DatabaseService');
 const FileService = require('../../../src/services/FileService');
-const { buildErrorResponse } = require('./utils');
+const { buildErrorResponse, safeHandle } = require('./utils');
 const http = require('http');
 
 let _currentUser = null;
@@ -61,7 +61,7 @@ module.exports = function registerReportsHandlers(ctx) {
         });
     }
 
-    ipcMain.handle('reports:getAll', async (event, filters = {}) => {
+    safeHandle('reports:getAll', async (event, filters = {}) => {
         try {
             const serverUrl = ctx.appConfig?.serverUrl;
             if (serverUrl) {
@@ -79,7 +79,7 @@ module.exports = function registerReportsHandlers(ctx) {
         }
     });
 
-    ipcMain.handle('reports:getById', async (event, id) => {
+    safeHandle('reports:getById', async (event, id) => {
         try {
             if (!id) return { success: false, error: 'Report ID required' };
             const serverUrl = ctx.appConfig?.serverUrl;
@@ -94,7 +94,7 @@ module.exports = function registerReportsHandlers(ctx) {
         }
     });
 
-    ipcMain.handle('reports:generate', async (event, { patientId, testIds, title, reportType }) => {
+    safeHandle('reports:generate', async (event, { patientId, testIds, title, reportType }) => {
         try {
             if (!patientId) return { success: false, error: 'Patient ID required' };
             const serverUrl = ctx.appConfig?.serverUrl;
@@ -134,7 +134,7 @@ module.exports = function registerReportsHandlers(ctx) {
         }
     });
 
-    ipcMain.handle('reports:export', async (event, { reportId, format }) => {
+    safeHandle('reports:export', async (event, { reportId, format }) => {
         try {
             if (!reportId) return { success: false, error: 'Report ID required' };
             const report = await DatabaseService.getReportById(reportId);
@@ -152,7 +152,7 @@ module.exports = function registerReportsHandlers(ctx) {
         }
     });
 
-    ipcMain.handle('reports:delete', async (event, id) => {
+    safeHandle('reports:delete', async (event, id) => {
         try {
             if (!id) return { success: false, error: 'Report ID required' };
             const serverUrl = ctx.appConfig?.serverUrl;
@@ -168,3 +168,4 @@ module.exports = function registerReportsHandlers(ctx) {
         }
     });
 };
+

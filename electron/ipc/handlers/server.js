@@ -1,5 +1,5 @@
 const { ipcMain } = require('electron');
-const { buildErrorResponse } = require('./utils');
+const { buildErrorResponse, safeHandle } = require('./utils');
 
 let _currentUser = null;
 function setCurrentUser(u) { _currentUser = u; }
@@ -13,7 +13,7 @@ module.exports = function registerServerHandlers(ctx) {
     ctx._setCurrentUser = (u) => { _currentUser = u; };
   }
 
-  ipcMain.handle('server:start', async (event, serverConfig = {}) => {
+  safeHandle('server:start', async (event, serverConfig = {}) => {
     try {
       const ServerManager = require('../server/ServerManager');
       if (ServerManager.isRunning) {
@@ -32,7 +32,7 @@ module.exports = function registerServerHandlers(ctx) {
     }
   });
 
-  ipcMain.handle('server:stop', async () => {
+  safeHandle('server:stop', async () => {
     try {
       const ServerManager = require('../server/ServerManager');
       if (!ServerManager.isRunning) {
@@ -50,7 +50,7 @@ module.exports = function registerServerHandlers(ctx) {
     }
   });
 
-  ipcMain.handle('server:status', async () => {
+  safeHandle('server:status', async () => {
     try {
       const ServerManager = require('../server/ServerManager');
       return {
@@ -61,17 +61,17 @@ module.exports = function registerServerHandlers(ctx) {
     } catch (error) { return { success: false, error: error.message }; }
   });
 
-  ipcMain.handle('server:connect', async (event, url) => {
+  safeHandle('server:connect', async (event, url) => {
     try {
       return { success: true, message: 'Server connection initiated', url };
     } catch (error) { return { success: false, error: error.message }; }
   });
 
-  ipcMain.handle('server:disconnect', async () => {
+  safeHandle('server:disconnect', async () => {
     try { return { success: true }; } catch (error) { return { success: false, error: error.message }; }
   });
 
-  ipcMain.handle('server:getStatus', async () => {
+  safeHandle('server:getStatus', async () => {
     try {
       const ServerManager = require('../server/ServerManager');
       const status = ServerManager.getStatus ? ServerManager.getStatus() : { running: false, port: 3001 };
@@ -79,13 +79,13 @@ module.exports = function registerServerHandlers(ctx) {
     } catch (error) { return { success: false, error: error.message }; }
   });
 
-  ipcMain.handle('serverConfig:get', async () => {
+  safeHandle('serverConfig:get', async () => {
     try {
       return { success: true, config: ctx.appConfig || {} };
     } catch (error) { return { success: false, error: error.message }; }
   });
 
-  ipcMain.handle('serverConfig:set', async (event, partialConfig) => {
+  safeHandle('serverConfig:set', async (event, partialConfig) => {
     try {
       if (!ctx._saveAppConfig) return { success: false, error: 'Save not available' };
       const newConfig = { ...ctx.appConfig, ...partialConfig };
@@ -95,13 +95,13 @@ module.exports = function registerServerHandlers(ctx) {
     } catch (error) { return { success: false, error: error.message }; }
   });
 
-  ipcMain.handle('serverConfig:getSqlServer', async () => {
+  safeHandle('serverConfig:getSqlServer', async () => {
     try {
       return { success: true, config: ctx.appConfig?.sql_server || {} };
     } catch (error) { return { success: false, error: error.message }; }
   });
 
-  ipcMain.handle('serverConfig:setSqlServer', async (event, sqlConfig) => {
+  safeHandle('serverConfig:setSqlServer', async (event, sqlConfig) => {
     try {
       if (!ctx._saveAppConfig) return { success: false, error: 'Save not available' };
       const newConfig = { ...ctx.appConfig, sql_server: { ...ctx.appConfig?.sql_server, ...sqlConfig } };
@@ -111,3 +111,4 @@ module.exports = function registerServerHandlers(ctx) {
     } catch (error) { return { success: false, error: error.message }; }
   });
 };
+

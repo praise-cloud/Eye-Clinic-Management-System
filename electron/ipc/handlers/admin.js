@@ -1,6 +1,6 @@
 const { ipcMain, BrowserWindow } = require('electron');
 const DatabaseService = require('../../../src/services/DatabaseService');
-const { buildErrorResponse, getTimeAgo } = require('./utils');
+const { buildErrorResponse, getTimeAgo, safeHandle } = require('./utils');
 const http = require('http');
 
 async function serverApiCall(serverUrl, endpoint, method, body, token) {
@@ -41,7 +41,7 @@ module.exports = function registerAdminHandlers(ctx) {
     ctx._setCurrentUser = (u) => { _currentUser = u; };
   }
 
-  ipcMain.handle('admin:getAllUsers', async () => {
+  safeHandle('admin:getAllUsers', async () => {
     try {
       const serverUrl = ctx.appConfig?.serverUrl;
       const token = ctx._authUtils?.getAccessToken?.();
@@ -71,7 +71,7 @@ module.exports = function registerAdminHandlers(ctx) {
     }
   });
 
-  ipcMain.handle('admin:createUser', async (event, { userData, createdBy }) => {
+  safeHandle('admin:createUser', async (event, { userData, createdBy }) => {
     try {
       const serverUrl = ctx.appConfig?.serverUrl;
       const token = ctx._authUtils?.getAccessToken?.();
@@ -115,7 +115,7 @@ module.exports = function registerAdminHandlers(ctx) {
     }
   });
 
-  ipcMain.handle('admin:updateUserStatus', async (event, { userId, isActive, updatedBy }) => {
+  safeHandle('admin:updateUserStatus', async (event, { userId, isActive, updatedBy }) => {
     try {
       if (!userId) return { success: false, error: 'User ID required' };
 
@@ -132,7 +132,7 @@ module.exports = function registerAdminHandlers(ctx) {
     }
   });
 
-  ipcMain.handle('admin:updateUser', async (event, { userId, userData, updatedBy }) => {
+  safeHandle('admin:updateUser', async (event, { userId, userData, updatedBy }) => {
     try {
       if (!userId) return { success: false, error: 'User ID required' };
 
@@ -192,7 +192,7 @@ module.exports = function registerAdminHandlers(ctx) {
     }
   });
 
-  ipcMain.handle('admin:deleteUser', async (event, { userId, deletedBy }) => {
+  safeHandle('admin:deleteUser', async (event, { userId, deletedBy }) => {
     try {
       if (!userId) return { success: false, error: 'User ID required' };
 
@@ -217,7 +217,7 @@ module.exports = function registerAdminHandlers(ctx) {
     }
   });
 
-  ipcMain.handle('admin:getActivityLogs', async (event, filters = {}) => {
+  safeHandle('admin:getActivityLogs', async (event, filters = {}) => {
     try {
       const logs = await DatabaseService.getActivityLogs(filters);
       return { success: true, logs };
@@ -226,7 +226,7 @@ module.exports = function registerAdminHandlers(ctx) {
     }
   });
 
-  ipcMain.handle('admin:getActivityStats', async () => {
+  safeHandle('admin:getActivityStats', async () => {
     try {
       const stats = await DatabaseService.getDashboardStats();
       return { success: true, stats };
@@ -235,7 +235,7 @@ module.exports = function registerAdminHandlers(ctx) {
     }
   });
 
-  ipcMain.handle('admin:logActivity', async (event, { userId, actionType, entityType, entityId, description, ipAddress, userAgent }) => {
+  safeHandle('admin:logActivity', async (event, { userId, actionType, entityType, entityId, description, ipAddress, userAgent }) => {
     try {
       if (!userId || !actionType || !entityType || !description) {
         return { success: false, error: 'Missing required activity fields' };
@@ -247,7 +247,7 @@ module.exports = function registerAdminHandlers(ctx) {
     }
   });
 
-  ipcMain.handle('admin:getUserStats', async (event, userId) => {
+  safeHandle('admin:getUserStats', async (event, userId) => {
     try {
       if (!_currentUser || String(_currentUser.role || '').toLowerCase() !== 'admin') {
         return { success: false, error: 'Admin access required' };
@@ -259,7 +259,7 @@ module.exports = function registerAdminHandlers(ctx) {
     }
   });
 
-  ipcMain.handle('admin:getActivityLogsFiltered', async (event, filters = {}) => {
+  safeHandle('admin:getActivityLogsFiltered', async (event, filters = {}) => {
     try {
       const { timeRange = '24h', userId = null, entityType = null, limit = 100 } = filters;
       const db = await DatabaseService.getDatabase();
@@ -322,7 +322,7 @@ module.exports = function registerAdminHandlers(ctx) {
     }
   });
 
-  ipcMain.handle('admin:getDoctorCaseStudies', async (event, options = {}) => {
+  safeHandle('admin:getDoctorCaseStudies', async (event, options = {}) => {
     try {
       if (!_currentUser || String(_currentUser.role || '').toLowerCase() !== 'admin') {
         return { success: false, error: 'Only admin can view case studies' };
@@ -394,7 +394,7 @@ module.exports = function registerAdminHandlers(ctx) {
     }
   });
 
-  ipcMain.handle('admin:getTableData', async (event, options = {}) => {
+  safeHandle('admin:getTableData', async (event, options = {}) => {
     try {
       const { tableName, limit = 25, offset = 0 } = options;
       if (!tableName || typeof tableName !== 'string') return { success: false, error: 'Table name required' };
@@ -416,3 +416,4 @@ module.exports = function registerAdminHandlers(ctx) {
     }
   });
 };
+

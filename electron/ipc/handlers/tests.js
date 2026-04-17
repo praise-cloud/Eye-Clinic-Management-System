@@ -1,6 +1,6 @@
 const { ipcMain, BrowserWindow } = require('electron');
 const DatabaseService = require('../../../src/services/DatabaseService');
-const { buildErrorResponse } = require('./utils');
+const { buildErrorResponse, safeHandle } = require('./utils');
 const http = require('http');
 
 let _currentUser = null;
@@ -66,7 +66,7 @@ module.exports = function registerTestHandlers(ctx) {
         });
     }
 
-    ipcMain.handle('tests:getAll', async (event, filters = {}) => {
+    safeHandle('tests:getAll', async (event, filters = {}) => {
         try {
             const serverUrl = ctx.appConfig?.serverUrl;
             if (serverUrl) {
@@ -82,7 +82,7 @@ module.exports = function registerTestHandlers(ctx) {
         } catch (error) { return buildErrorResponse(error, { scope: 'tests', action: 'getAll', entity: 'test' }); }
     });
 
-    ipcMain.handle('tests:getById', async (event, id) => {
+    safeHandle('tests:getById', async (event, id) => {
         try {
             const serverUrl = ctx.appConfig?.serverUrl;
             if (serverUrl) {
@@ -94,7 +94,7 @@ module.exports = function registerTestHandlers(ctx) {
         } catch (error) { return buildErrorResponse(error, { scope: 'tests', action: 'getById', entity: 'test' }); }
     });
 
-    ipcMain.handle('tests:create', async (event, testData) => {
+    safeHandle('tests:create', async (event, testData) => {
         try {
             const authErr = requireDoctor(); if (authErr) return authErr;
             if (!testData.patient_id) return { success: false, error: 'Patient ID required' };
@@ -113,7 +113,7 @@ module.exports = function registerTestHandlers(ctx) {
         } catch (error) { return buildErrorResponse(error, { scope: 'tests', action: 'create', entity: 'test' }); }
     });
 
-    ipcMain.handle('tests:update', async (event, { id, testData }) => {
+    safeHandle('tests:update', async (event, { id, testData }) => {
         try {
             const authErr = requireDoctor(); if (authErr) return authErr;
             if (!id) return { success: false, error: 'Test ID required' };
@@ -132,7 +132,7 @@ module.exports = function registerTestHandlers(ctx) {
         } catch (error) { return buildErrorResponse(error, { scope: 'tests', action: 'update', entity: 'test' }); }
     });
 
-    ipcMain.handle('tests:delete', async (event, id) => {
+    safeHandle('tests:delete', async (event, id) => {
         try {
             const authErr = requireDoctor(); if (authErr) return authErr;
             if (!id) return { success: false, error: 'Test ID required' };
@@ -150,7 +150,7 @@ module.exports = function registerTestHandlers(ctx) {
         } catch (error) { return buildErrorResponse(error, { scope: 'tests', action: 'delete', entity: 'test' }); }
     });
 
-    ipcMain.handle('tests:attachCvfToDocuments', async (event, { testId, options }) => {
+    safeHandle('tests:attachCvfToDocuments', async (event, { testId, options }) => {
         try {
             if (!_currentUser) return { success: false, error: 'Authentication required' };
 
@@ -170,3 +170,4 @@ module.exports = function registerTestHandlers(ctx) {
         } catch (error) { return buildErrorResponse(error, { scope: 'tests', action: 'attachCvf', entity: 'test' }); }
     });
 };
+

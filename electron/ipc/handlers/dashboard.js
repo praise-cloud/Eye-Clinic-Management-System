@@ -1,6 +1,6 @@
 const { ipcMain } = require('electron');
 const DatabaseService = require('../../../src/services/DatabaseService');
-const { buildErrorResponse } = require('./utils');
+const { buildErrorResponse, safeHandle } = require('./utils');
 const http = require('http');
 
 let _currentUser = null;
@@ -50,7 +50,7 @@ module.exports = function registerDashboardHandlers(ctx) {
         return _accessToken || ctx._authUtils?.getAccessToken?.() || null;
     }
 
-    ipcMain.handle('dashboard:getStats', async () => {
+    safeHandle('dashboard:getStats', async () => {
         try {
             const serverUrl = ctx.appConfig?.serverUrl;
             if (serverUrl) {
@@ -64,7 +64,7 @@ module.exports = function registerDashboardHandlers(ctx) {
         }
     });
 
-    ipcMain.handle('dashboard:getSalesRecords', async (event, filters = {}) => {
+    safeHandle('dashboard:getSalesRecords', async (event, filters = {}) => {
         try {
             const serverUrl = ctx.appConfig?.serverUrl;
             if (serverUrl) {
@@ -82,3 +82,4 @@ module.exports = function registerDashboardHandlers(ctx) {
         }
     });
 };
+

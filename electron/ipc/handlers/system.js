@@ -3,15 +3,10 @@ const path = require('path');
 const fs = require('fs');
 const dns = require('dns');
 const DatabaseService = require('../../../src/services/DatabaseService');
-const { buildErrorResponse } = require('./utils');
+const { buildErrorResponse, safeHandle } = require('./utils');
 
 let _currentUser = null;
 function setCurrentUser(u) { _currentUser = u; }
-
-const safeHandle = (channel, handler) => {
-  try { ipcMain.removeHandler(channel); } catch (err) { console.warn('[IPC] removeHandler warning:', err?.message); }
-  ipcMain.handle(channel, handler);
-};
 
 module.exports = function registerSystemHandlers(ctx) {
   _currentUser = ctx.currentUser;
@@ -89,3 +84,4 @@ module.exports = function registerSystemHandlers(ctx) {
     } catch (error) { return buildErrorResponse(error, { scope: 'system', action: 'saveServerConfig' }); }
   });
 };
+

@@ -1,6 +1,6 @@
 const { ipcMain, BrowserWindow } = require('electron');
 const DatabaseService = require('../../../src/services/DatabaseService');
-const { buildErrorResponse } = require('./utils');
+const { buildErrorResponse, safeHandle } = require('./utils');
 const http = require('http');
 
 let _currentUser = null;
@@ -50,7 +50,7 @@ module.exports = function registerNotificationHandlers(ctx) {
         return _accessToken || ctx._authUtils?.getAccessToken?.() || null;
     }
 
-    ipcMain.handle('notifications:getAll', async (event, userId) => {
+    safeHandle('notifications:getAll', async (event, userId) => {
         try {
             const id = userId || _currentUser?.id;
             if (!id) return { success: false, error: 'User ID required' };
@@ -66,7 +66,7 @@ module.exports = function registerNotificationHandlers(ctx) {
         }
     });
 
-    ipcMain.handle('notifications:markRead', async (event, id) => {
+    safeHandle('notifications:markRead', async (event, id) => {
         try {
             if (!id) return { success: false, error: 'Notification ID required' };
             const serverUrl = ctx.appConfig?.serverUrl;
@@ -80,7 +80,7 @@ module.exports = function registerNotificationHandlers(ctx) {
         }
     });
 
-    ipcMain.handle('notifications:markAllRead', async (event, userId) => {
+    safeHandle('notifications:markAllRead', async (event, userId) => {
         try {
             const id = userId || _currentUser?.id;
             if (!id) return { success: false, error: 'User ID required' };
@@ -96,3 +96,4 @@ module.exports = function registerNotificationHandlers(ctx) {
         }
     });
 };
+

@@ -1,6 +1,6 @@
 const { ipcMain, BrowserWindow } = require('electron');
 const DatabaseService = require('../../../src/services/DatabaseService');
-const { buildErrorResponse } = require('./utils');
+const { buildErrorResponse, safeHandle } = require('./utils');
 const http = require('http');
 
 let _currentUser = null;
@@ -60,7 +60,7 @@ module.exports = function registerInventoryHandlers(ctx) {
         });
     }
 
-    ipcMain.handle('inventory:getAll', async (event, filters = {}) => {
+    safeHandle('inventory:getAll', async (event, filters = {}) => {
         try {
             const serverUrl = ctx.appConfig?.serverUrl;
             if (serverUrl) {
@@ -78,7 +78,7 @@ module.exports = function registerInventoryHandlers(ctx) {
         }
     });
 
-    ipcMain.handle('inventory:getById', async (event, id) => {
+    safeHandle('inventory:getById', async (event, id) => {
         try {
             if (!id) return { success: false, error: 'Item ID required' };
             const serverUrl = ctx.appConfig?.serverUrl;
@@ -93,7 +93,7 @@ module.exports = function registerInventoryHandlers(ctx) {
         }
     });
 
-    ipcMain.handle('inventory:create', async (event, itemData) => {
+    safeHandle('inventory:create', async (event, itemData) => {
         try {
             const serverUrl = ctx.appConfig?.serverUrl;
             if (serverUrl) {
@@ -110,7 +110,7 @@ module.exports = function registerInventoryHandlers(ctx) {
         }
     });
 
-    ipcMain.handle('inventory:update', async (event, { id, itemData }) => {
+    safeHandle('inventory:update', async (event, { id, itemData }) => {
         try {
             if (!id) return { success: false, error: 'Item ID required' };
             const serverUrl = ctx.appConfig?.serverUrl;
@@ -128,7 +128,7 @@ module.exports = function registerInventoryHandlers(ctx) {
         }
     });
 
-    ipcMain.handle('inventory:delete', async (event, id) => {
+    safeHandle('inventory:delete', async (event, id) => {
         try {
             if (!id) return { success: false, error: 'Item ID required' };
             const serverUrl = ctx.appConfig?.serverUrl;
@@ -146,7 +146,7 @@ module.exports = function registerInventoryHandlers(ctx) {
         }
     });
 
-    ipcMain.handle('inventory:updateQuantity', async (event, { id, quantity, userId, notes }) => {
+    safeHandle('inventory:updateQuantity', async (event, { id, quantity, userId, notes }) => {
         try {
             if (!id || typeof quantity !== 'number') return { success: false, error: 'Item ID and quantity required' };
             const serverUrl = ctx.appConfig?.serverUrl;
@@ -164,7 +164,7 @@ module.exports = function registerInventoryHandlers(ctx) {
         }
     });
 
-    ipcMain.handle('inventory:getByCode', async (event, itemCode) => {
+    safeHandle('inventory:getByCode', async (event, itemCode) => {
         try {
             if (!itemCode) return { success: false, error: 'Item code required' };
             const serverUrl = ctx.appConfig?.serverUrl;
@@ -179,7 +179,7 @@ module.exports = function registerInventoryHandlers(ctx) {
         }
     });
 
-    ipcMain.handle('inventory:getStatistics', async () => {
+    safeHandle('inventory:getStatistics', async () => {
         try {
             const serverUrl = ctx.appConfig?.serverUrl;
             if (serverUrl) {
@@ -193,7 +193,7 @@ module.exports = function registerInventoryHandlers(ctx) {
         }
     });
 
-    ipcMain.handle('inventory:getLowStock', async () => {
+    safeHandle('inventory:getLowStock', async () => {
         try {
             const serverUrl = ctx.appConfig?.serverUrl;
             if (serverUrl) {
@@ -207,7 +207,7 @@ module.exports = function registerInventoryHandlers(ctx) {
         }
     });
 
-    ipcMain.handle('inventory:getExpiring', async (event, days = 30) => {
+    safeHandle('inventory:getExpiring', async (event, days = 30) => {
         try {
             const serverUrl = ctx.appConfig?.serverUrl;
             if (serverUrl) {
@@ -221,7 +221,7 @@ module.exports = function registerInventoryHandlers(ctx) {
         }
     });
 
-    ipcMain.handle('inventory:search', async (event, searchTerm) => {
+    safeHandle('inventory:search', async (event, searchTerm) => {
         try {
             if (!searchTerm) return { success: false, error: 'Search term required' };
             const serverUrl = ctx.appConfig?.serverUrl;
@@ -236,3 +236,4 @@ module.exports = function registerInventoryHandlers(ctx) {
         }
     });
 };
+

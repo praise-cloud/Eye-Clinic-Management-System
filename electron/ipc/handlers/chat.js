@@ -1,6 +1,6 @@
 const { ipcMain, BrowserWindow } = require('electron');
 const DatabaseService = require('../../../src/services/DatabaseService');
-const { buildErrorResponse } = require('./utils');
+const { buildErrorResponse, safeHandle } = require('./utils');
 const http = require('http');
 
 let _currentUser = null;
@@ -50,7 +50,7 @@ module.exports = function registerChatHandlers(ctx) {
         return _accessToken || ctx._authUtils?.getAccessToken?.() || null;
     }
 
-    ipcMain.handle('chat:getMessages', async (event, data = {}) => {
+    safeHandle('chat:getMessages', async (event, data = {}) => {
         try {
             const { userId, otherUserId, search = '', limit = 50, offset = 0 } = data || {};
             if (!userId) return { success: false, error: 'User ID required' };
@@ -68,7 +68,7 @@ module.exports = function registerChatHandlers(ctx) {
         }
     });
 
-    ipcMain.handle('chat:sendMessage', async (event, senderId, receiverId, messageText, attachment, replyToId) => {
+    safeHandle('chat:sendMessage', async (event, senderId, receiverId, messageText, attachment, replyToId) => {
         try {
             const serverUrl = ctx.appConfig?.serverUrl;
             if (serverUrl) {
@@ -87,7 +87,7 @@ module.exports = function registerChatHandlers(ctx) {
         }
     });
 
-    ipcMain.handle('chat:markMessageRead', async (event, data = {}) => {
+    safeHandle('chat:markMessageRead', async (event, data = {}) => {
         try {
             const { messageId, userId } = data || {};
             if (!messageId || !userId) return { success: false, error: 'messageId and userId required' };
@@ -101,7 +101,7 @@ module.exports = function registerChatHandlers(ctx) {
         }
     });
 
-    ipcMain.handle('chat:markAllAsRead', async (event, data = {}) => {
+    safeHandle('chat:markAllAsRead', async (event, data = {}) => {
         try {
             const { userId, otherUserId } = data || {};
             if (!userId || !otherUserId) return { success: false, error: 'userId and otherUserId required' };
@@ -115,7 +115,7 @@ module.exports = function registerChatHandlers(ctx) {
         }
     });
 
-    ipcMain.handle('chat:getUnreadCount', async (event, userId) => {
+    safeHandle('chat:getUnreadCount', async (event, userId) => {
         try {
             if (!userId) return { success: false, error: 'User ID required' };
             const serverUrl = ctx.appConfig?.serverUrl;
@@ -130,7 +130,7 @@ module.exports = function registerChatHandlers(ctx) {
         }
     });
 
-    ipcMain.handle('chat:deleteMessage', async (event, messageId) => {
+    safeHandle('chat:deleteMessage', async (event, messageId) => {
         try {
             if (!messageId || !_currentUser?.id) return { success: false, error: 'messageId and current user required' };
             const serverUrl = ctx.appConfig?.serverUrl;
@@ -143,3 +143,4 @@ module.exports = function registerChatHandlers(ctx) {
         }
     });
 };
+

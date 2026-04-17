@@ -1,6 +1,6 @@
 const { ipcMain, BrowserWindow } = require('electron');
 const DatabaseService = require('../../../src/services/DatabaseService');
-const { buildErrorResponse } = require('./utils');
+const { buildErrorResponse, safeHandle } = require('./utils');
 const http = require('http');
 
 let _currentUser = null;
@@ -66,7 +66,7 @@ module.exports = function registerPharmacyHandlers(ctx) {
         });
     }
 
-    ipcMain.handle('pharmacy:getDrugs', async (event, filters = {}) => {
+    safeHandle('pharmacy:getDrugs', async (event, filters = {}) => {
         try {
             const serverUrl = ctx.appConfig?.serverUrl;
             if (serverUrl) {
@@ -83,7 +83,7 @@ module.exports = function registerPharmacyHandlers(ctx) {
         }
     });
 
-    ipcMain.handle('pharmacy:getDrugById', async (event, id) => {
+    safeHandle('pharmacy:getDrugById', async (event, id) => {
         try {
             if (!id) return { success: false, error: 'Drug ID required' };
             const serverUrl = ctx.appConfig?.serverUrl;
@@ -98,7 +98,7 @@ module.exports = function registerPharmacyHandlers(ctx) {
         }
     });
 
-    ipcMain.handle('pharmacy:createDrug', async (event, drugData) => {
+    safeHandle('pharmacy:createDrug', async (event, drugData) => {
         try {
             const authErr = requireAdminOrDoctor(); if (authErr) return authErr;
             const required = ['drug_code', 'drug_name', 'drug_form', 'strength', 'pack_size', 'unit_price'];
@@ -120,7 +120,7 @@ module.exports = function registerPharmacyHandlers(ctx) {
         }
     });
 
-    ipcMain.handle('pharmacy:updateDrug', async (event, { id, drugData }) => {
+    safeHandle('pharmacy:updateDrug', async (event, { id, drugData }) => {
         try {
             const authErr = requireAdminOrDoctor(); if (authErr) return authErr;
             if (!id) return { success: false, error: 'Drug ID required' };
@@ -141,7 +141,7 @@ module.exports = function registerPharmacyHandlers(ctx) {
         }
     });
 
-    ipcMain.handle('pharmacy:deleteDrug', async (event, id) => {
+    safeHandle('pharmacy:deleteDrug', async (event, id) => {
         try {
             if (!_currentUser) return { success: false, error: 'Authentication required' };
             if (String(_currentUser.role || '').toLowerCase() !== 'admin') return { success: false, error: 'Access denied. Only admin can delete pharmacy drugs.' };
@@ -163,7 +163,7 @@ module.exports = function registerPharmacyHandlers(ctx) {
         }
     });
 
-    ipcMain.handle('pharmacy:dispense', async (event, { drugId, patientId, quantity, notes }) => {
+    safeHandle('pharmacy:dispense', async (event, { drugId, patientId, quantity, notes }) => {
         try {
             if (!_currentUser) return { success: false, error: 'Authentication required' };
             if (!['assistant'].includes(String(_currentUser.role || '').toLowerCase())) {
@@ -206,3 +206,4 @@ module.exports = function registerPharmacyHandlers(ctx) {
         }
     });
 };
+

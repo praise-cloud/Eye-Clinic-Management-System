@@ -1,6 +1,6 @@
 const { ipcMain, BrowserWindow } = require('electron');
 const DatabaseService = require('../../../src/services/DatabaseService');
-const { buildErrorResponse } = require('./utils');
+const { buildErrorResponse, safeHandle } = require('./utils');
 const http = require('http');
 
 let _currentUser = null;
@@ -39,13 +39,13 @@ module.exports = function registerAuthHandlers(ctx) {
     _currentUser = ctx.currentUser;
     ctx._authUtils = { setCurrentUser, setTokens, getAccessToken: () => _accessToken };
 
-    ipcMain.handle('auth:getCurrentUser', async () => {
+    safeHandle('auth:getCurrentUser', async () => {
         return _currentUser
             ? { success: true, user: _currentUser, hasServerToken: !!_accessToken }
             : { success: false, message: 'No user logged in' };
     });
 
-    ipcMain.handle('auth:logout', async (event, { userId } = {}) => {
+    safeHandle('auth:logout', async (event, { userId } = {}) => {
         try {
             const id = userId || _currentUser?.id;
             if (id) await DatabaseService.logActivity(id, 'logout', 'user', id, 'User logged out');
@@ -57,7 +57,7 @@ module.exports = function registerAuthHandlers(ctx) {
         }
     });
 
-    ipcMain.handle('auth:isFirstRun', async () => {
+    safeHandle('auth:isFirstRun', async () => {
         try {
             const db = await DatabaseService.getDatabase();
             const result = await db.get('SELECT COUNT(*) as count FROM users');
@@ -67,7 +67,7 @@ module.exports = function registerAuthHandlers(ctx) {
         }
     });
 
-    ipcMain.handle('auth:login', async (event, email, password) => {
+    safeHandle('auth:login', async (event, email, password) => {
         try {
             if (!email || !password) return { success: false, error: 'Email and password required' };
 
@@ -101,7 +101,7 @@ module.exports = function registerAuthHandlers(ctx) {
         }
     });
 
-    ipcMain.handle('auth:completeSetup', async (event, { clinicData, adminData }) => {
+    safeHandle('auth:completeSetup', async (event, { clinicData, adminData }) => {
         try {
             if (!adminData?.firstName || !adminData?.lastName || !adminData?.email || !adminData?.password || !adminData?.role) {
                 return { success: false, error: 'Missing required admin fields' };
@@ -154,7 +154,7 @@ module.exports = function registerAuthHandlers(ctx) {
         }
     });
 
-    ipcMain.handle('auth:createUser', async (event, userData) => {
+    safeHandle('auth:createUser', async (event, userData) => {
         try {
             const serverUrl = ctx.appConfig?.serverUrl;
             if (serverUrl) {
@@ -196,7 +196,7 @@ module.exports = function registerAuthHandlers(ctx) {
         }
     });
 
-    ipcMain.handle('auth:getAllUsers', async () => {
+    safeHandle('auth:getAllUsers', async () => {
         try {
             const users = await DatabaseService.getAllUsers();
             return { success: true, users };
@@ -205,9 +205,9 @@ module.exports = function registerAuthHandlers(ctx) {
         }
     });
 
-    ipcMain.handle('auth:isAuthenticated', async () => !!_currentUser);
+    safeHandle('auth:isAuthenticated', async () => !!_currentUser);
 
-    ipcMain.handle('auth:syncUser', async (event, { user, accessToken, refreshToken }) => {
+    safeHandle('auth:syncUser', async (event, { user, accessToken, refreshToken }) => {
         _currentUser = user || null;
         _accessToken = accessToken || null;
         _refreshToken = refreshToken || null;

@@ -1,6 +1,6 @@
 const { ipcMain, BrowserWindow } = require('electron');
 const DatabaseService = require('../../../src/services/DatabaseService');
-const { buildErrorResponse } = require('./utils');
+const { buildErrorResponse, safeHandle } = require('./utils');
 const http = require('http');
 
 let _currentUser = null;
@@ -57,7 +57,7 @@ module.exports = function registerPatientHandlers(ctx) {
         return _accessToken || ctx._authUtils?.getAccessToken?.() || null;
     }
 
-    ipcMain.handle('patients:getAll', async (event, filters = {}) => {
+    safeHandle('patients:getAll', async (event, filters = {}) => {
         try {
             const serverUrl = ctx.appConfig?.serverUrl;
             if (serverUrl) {
@@ -73,7 +73,7 @@ module.exports = function registerPatientHandlers(ctx) {
         catch (error) { return buildErrorResponse(error, { scope: 'patients', action: 'getAll', entity: 'patient' }); }
     });
 
-    ipcMain.handle('patients:getById', async (event, id) => {
+    safeHandle('patients:getById', async (event, id) => {
         try {
             if (!id) return { success: false, error: 'Patient ID required' };
             const serverUrl = ctx.appConfig?.serverUrl;
@@ -86,7 +86,7 @@ module.exports = function registerPatientHandlers(ctx) {
         } catch (error) { return buildErrorResponse(error, { scope: 'patients', action: 'getById', entity: 'patient' }); }
     });
 
-    ipcMain.handle('patients:create', async (event, patientData) => {
+    safeHandle('patients:create', async (event, patientData) => {
         try {
             const authErr = requireAuth(); if (authErr) return authErr;
             const required = ['first_name', 'last_name'];
@@ -110,7 +110,7 @@ module.exports = function registerPatientHandlers(ctx) {
         } catch (error) { return buildErrorResponse(error, { scope: 'patients', action: 'create', entity: 'patient' }); }
     });
 
-    ipcMain.handle('patients:update', async (event, { id, patientData }) => {
+    safeHandle('patients:update', async (event, { id, patientData }) => {
         try {
             const authErr = requireAuth(); if (authErr) return authErr;
             if (!id) return { success: false, error: 'Patient ID required' };
@@ -133,7 +133,7 @@ module.exports = function registerPatientHandlers(ctx) {
         } catch (error) { return buildErrorResponse(error, { scope: 'patients', action: 'update', entity: 'patient' }); }
     });
 
-    ipcMain.handle('patients:delete', async (event, id) => {
+    safeHandle('patients:delete', async (event, id) => {
         try {
             const authErr = requireAuth(['admin']); if (authErr) return authErr;
             if (!id) return { success: false, error: 'Patient ID required' };
@@ -154,7 +154,7 @@ module.exports = function registerPatientHandlers(ctx) {
         } catch (error) { return buildErrorResponse(error, { scope: 'patients', action: 'delete', entity: 'patient' }); }
     });
 
-    ipcMain.handle('patients:search', async (event, searchTerm) => {
+    safeHandle('patients:search', async (event, searchTerm) => {
         try {
             const serverUrl = ctx.appConfig?.serverUrl;
             if (serverUrl) {
@@ -166,7 +166,7 @@ module.exports = function registerPatientHandlers(ctx) {
         catch (error) { return buildErrorResponse(error, { scope: 'patients', action: 'search', entity: 'patient' }); }
     });
 
-    ipcMain.handle('patients:getHistory', async (event, patientId) => {
+    safeHandle('patients:getHistory', async (event, patientId) => {
         try {
             if (!patientId) return { success: false, error: 'Patient ID required' };
             const serverUrl = ctx.appConfig?.serverUrl;
@@ -187,3 +187,4 @@ module.exports = function registerPatientHandlers(ctx) {
         } catch (error) { return buildErrorResponse(error, { scope: 'patients', action: 'getHistory', entity: 'patient' }); }
     });
 };
+

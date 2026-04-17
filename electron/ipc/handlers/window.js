@@ -1,7 +1,7 @@
 const { ipcMain, BrowserWindow } = require('electron');
 const path = require('path');
 const fs = require('fs');
-const { buildErrorResponse } = require('./utils');
+const { buildErrorResponse, safeHandle } = require('./utils');
 
 let _currentUser = null;
 function setCurrentUser(u) { _currentUser = u; }
@@ -15,7 +15,7 @@ module.exports = function registerWindowHandlers(ctx) {
     ctx._setCurrentUser = (u) => { _currentUser = u; };
   }
 
-  ipcMain.handle('window:openMain', async () => {
+  safeHandle('window:openMain', async () => {
     try {
       const win = BrowserWindow.getFocusedWindow();
       if (win) {
@@ -27,7 +27,7 @@ module.exports = function registerWindowHandlers(ctx) {
     } catch (error) { return buildErrorResponse(error, { scope: 'window', action: 'openMain' }); }
   });
 
-  ipcMain.handle('window:closeAuth', async () => {
+  safeHandle('window:closeAuth', async () => {
     try {
       const win = BrowserWindow.getFocusedWindow();
       if (win) win.close();
@@ -35,7 +35,7 @@ module.exports = function registerWindowHandlers(ctx) {
     } catch (error) { return buildErrorResponse(error, { scope: 'window', action: 'closeAuth' }); }
   });
 
-  ipcMain.handle('file:save', async (event, options = {}) => {
+  safeHandle('file:save', async (event, options = {}) => {
     try {
       const { content, filename, contentType } = options;
       if (!content) return { success: false, error: 'Content required' };
@@ -52,5 +52,6 @@ module.exports = function registerWindowHandlers(ctx) {
     } catch (error) { return buildErrorResponse(error, { scope: 'file', action: 'save' }); }
   });
 
-  ipcMain.handle('app:checkUpdate', async () => ({ success: true, updateAvailable: false, message: 'Auto-update not configured' }));
+  safeHandle('app:checkUpdate', async () => ({ success: true, updateAvailable: false, message: 'Auto-update not configured' }));
 };
+

@@ -1,6 +1,6 @@
 const { ipcMain } = require('electron');
 const DatabaseService = require('../../../src/services/DatabaseService');
-const { buildErrorResponse } = require('./utils');
+const { buildErrorResponse, safeHandle } = require('./utils');
 const http = require('http');
 
 let _accessToken = null;
@@ -39,7 +39,7 @@ module.exports = function registerRevenueHandlers(ctx) {
         ctx._authUtils.setTokens = (access) => { _accessToken = access; if (origSetTokens) origSetTokens(access); };
     }
 
-    ipcMain.handle('revenue:getLogs', async (event, filters = {}) => {
+    safeHandle('revenue:getLogs', async (event, filters = {}) => {
         try {
             const serverUrl = ctx.appConfig?.serverUrl;
             if (serverUrl) {
@@ -58,7 +58,7 @@ module.exports = function registerRevenueHandlers(ctx) {
         }
     });
 
-    ipcMain.handle('revenue:getStats', async () => {
+    safeHandle('revenue:getStats', async () => {
         try {
             const serverUrl = ctx.appConfig?.serverUrl;
             if (serverUrl) {
@@ -72,3 +72,4 @@ module.exports = function registerRevenueHandlers(ctx) {
         }
     });
 };
+

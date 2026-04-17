@@ -1,5 +1,12 @@
 const { ipcMain } = require('electron');
 
+// Safe ipcMain.handle — removes existing handler before re-registering.
+// Prevents "handler already registered" crash on hot reload in dev mode.
+const safeHandle = (channel, handler) => {
+  try { ipcMain.removeHandler(channel); } catch { }
+  ipcMain.handle(channel, handler);
+};
+
 const mapDatabaseError = (error, context = {}) => {
   const rawMessage = String(error && error.message ? error.message : '').trim();
   const base = { code: 'error.generic', table: null, column: null, raw: rawMessage, message: rawMessage || 'An unexpected error occurred while accessing the database.' };
@@ -60,4 +67,4 @@ const getTimeAgo = (timestamp) => {
   return new Date(timestamp).toLocaleDateString();
 };
 
-module.exports = { mapDatabaseError, buildErrorResponse, getTimeAgo };
+module.exports = { mapDatabaseError, buildErrorResponse, getTimeAgo, safeHandle };

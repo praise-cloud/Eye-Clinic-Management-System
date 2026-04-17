@@ -1,5 +1,5 @@
 const { ipcMain, BrowserWindow } = require('electron');
-const { buildErrorResponse } = require('./utils');
+const { buildErrorResponse, safeHandle } = require('./utils');
 const http = require('http');
 const path = require('path');
 const fs = require('fs');
@@ -43,7 +43,7 @@ module.exports = function registerBackupHandlers(ctx) {
         ctx._authUtils.setTokens = (access) => { _accessToken = access; if (origSetTokens) origSetTokens(access); };
     }
 
-    ipcMain.handle('backup:create', async (event, options = {}) => {
+    safeHandle('backup:create', async (event, options = {}) => {
         try {
             const serverUrl = ctx.appConfig?.serverUrl;
             if (serverUrl) {
@@ -77,7 +77,7 @@ module.exports = function registerBackupHandlers(ctx) {
         } catch (error) { return buildErrorResponse(error, { scope: 'backup', action: 'create' }); }
     });
 
-    ipcMain.handle('backup:list', async (event) => {
+    safeHandle('backup:list', async (event) => {
         try {
             const serverUrl = ctx.appConfig?.serverUrl;
             if (serverUrl) {
@@ -106,7 +106,7 @@ module.exports = function registerBackupHandlers(ctx) {
         } catch (error) { return buildErrorResponse(error, { scope: 'backup', action: 'list' }); }
     });
 
-    ipcMain.handle('backup:restore', async (event, fileName) => {
+    safeHandle('backup:restore', async (event, fileName) => {
         try {
             if (!fileName) return { success: false, error: 'Backup file name required' };
 
@@ -136,3 +136,4 @@ module.exports = function registerBackupHandlers(ctx) {
         } catch (error) { return buildErrorResponse(error, { scope: 'backup', action: 'restore' }); }
     });
 };
+

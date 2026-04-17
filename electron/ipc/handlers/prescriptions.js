@@ -1,6 +1,6 @@
 const { ipcMain, BrowserWindow } = require('electron');
 const DatabaseService = require('../../../src/services/DatabaseService');
-const { buildErrorResponse } = require('./utils');
+const { buildErrorResponse, safeHandle } = require('./utils');
 const http = require('http');
 
 let _currentUser = null;
@@ -66,7 +66,7 @@ module.exports = function registerPrescriptionHandlers(ctx) {
         });
     }
 
-    ipcMain.handle('prescriptions:create', async (event, prescriptionData) => {
+    safeHandle('prescriptions:create', async (event, prescriptionData) => {
         try {
             const authErr = requireDoctor(); if (authErr) return authErr;
             const required = ['patientId', 'doctorId', 'drugId', 'quantity'];
@@ -104,7 +104,7 @@ module.exports = function registerPrescriptionHandlers(ctx) {
         }
     });
 
-    ipcMain.handle('prescriptions:createMultiple', async (event, { patientId, doctorId, items }) => {
+    safeHandle('prescriptions:createMultiple', async (event, { patientId, doctorId, items }) => {
         try {
             const authErr = requireDoctor(); if (authErr) return authErr;
             if (!patientId || !doctorId || !items || !Array.isArray(items)) {
@@ -145,7 +145,7 @@ module.exports = function registerPrescriptionHandlers(ctx) {
         }
     });
 
-    ipcMain.handle('prescriptions:getById', async (event, id) => {
+    safeHandle('prescriptions:getById', async (event, id) => {
         try {
             if (!id) return { success: false, error: 'Prescription ID required' };
             const serverUrl = ctx.appConfig?.serverUrl;
@@ -160,7 +160,7 @@ module.exports = function registerPrescriptionHandlers(ctx) {
         }
     });
 
-    ipcMain.handle('prescriptions:getByPatient', async (event, patientId) => {
+    safeHandle('prescriptions:getByPatient', async (event, patientId) => {
         try {
             if (!patientId) return { success: false, error: 'Patient ID required' };
             const serverUrl = ctx.appConfig?.serverUrl;
@@ -175,7 +175,7 @@ module.exports = function registerPrescriptionHandlers(ctx) {
         }
     });
 
-    ipcMain.handle('prescriptions:getPending', async () => {
+    safeHandle('prescriptions:getPending', async () => {
         try {
             const serverUrl = ctx.appConfig?.serverUrl;
             if (serverUrl) {
@@ -189,7 +189,7 @@ module.exports = function registerPrescriptionHandlers(ctx) {
         }
     });
 
-    ipcMain.handle('prescriptions:updateStatus', async (event, { id, status, userId }) => {
+    safeHandle('prescriptions:updateStatus', async (event, { id, status, userId }) => {
         try {
             if (!id || !status) return { success: false, error: 'ID and status required' };
 
@@ -218,3 +218,4 @@ module.exports = function registerPrescriptionHandlers(ctx) {
         }
     });
 };
+

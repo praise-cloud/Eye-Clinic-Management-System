@@ -5,15 +5,10 @@ const { spawn } = require('child_process');
 const DatabaseService = require('../../../src/services/DatabaseService');
 const FileService = require('../../../src/services/FileService');
 const HensonImportService = require('../../../src/services/HensonImportService');
-const { buildErrorResponse } = require('./utils');
+const { buildErrorResponse, safeHandle } = require('./utils');
 
 let _currentUser = null;
 function setCurrentUser(u) { _currentUser = u; }
-
-const safeHandle = (channel, handler) => {
-  try { ipcMain.removeHandler(channel); } catch (err) { console.warn('[IPC] removeHandler warning:', err?.message); }
-  ipcMain.handle(channel, handler);
-};
 
 const analyzeBakFile = async (filePath) => {
   try {
@@ -56,7 +51,7 @@ const analyzeBakFile = async (filePath) => {
             resolve({ success: false, error: stderr || `Conversion failed with code ${code}` });
           }
         });
-        setTimeout(() => { try { proc.kill(); } catch {} resolve({ success: false, error: 'Conversion timeout' }); }, 600000);
+        setTimeout(() => { try { proc.kill(); } catch { } resolve({ success: false, error: 'Conversion timeout' }); }, 600000);
       });
 
       if (result.success) {
@@ -87,7 +82,7 @@ const analyzeBakFile = async (filePath) => {
         });
       });
       return analysis;
-    } catch {}
+    } catch { }
 
     try {
       const content = fs.readFileSync(filePath, { encoding: 'utf-8', flag: 'r' }).substring(0, 5000);
@@ -330,3 +325,4 @@ module.exports = function registerFileHandlers(ctx) {
     } catch (error) { return buildErrorResponse(error, { scope: 'system', action: 'updateDatabase', entity: 'database' }); }
   });
 };
+

@@ -1,6 +1,6 @@
 const { ipcMain } = require('electron');
 const DatabaseService = require('../../../src/services/DatabaseService');
-const { buildErrorResponse } = require('./utils');
+const { buildErrorResponse, safeHandle } = require('./utils');
 const http = require('http');
 
 let _currentUser = null;
@@ -50,7 +50,7 @@ module.exports = function registerPresenceHandlers(ctx) {
         return _accessToken || ctx._authUtils?.getAccessToken?.() || null;
     }
 
-    ipcMain.handle('presence:setOnline', async (event, { userId }) => {
+    safeHandle('presence:setOnline', async (event, { userId }) => {
         try {
             const serverUrl = ctx.appConfig?.serverUrl;
             if (serverUrl) {
@@ -63,7 +63,7 @@ module.exports = function registerPresenceHandlers(ctx) {
         }
     });
 
-    ipcMain.handle('presence:setOffline', async (event, { userId }) => {
+    safeHandle('presence:setOffline', async (event, { userId }) => {
         try {
             const serverUrl = ctx.appConfig?.serverUrl;
             if (serverUrl) {
@@ -76,7 +76,7 @@ module.exports = function registerPresenceHandlers(ctx) {
         }
     });
 
-    ipcMain.handle('presence:getOnlineUsers', async () => {
+    safeHandle('presence:getOnlineUsers', async () => {
         try {
             const serverUrl = ctx.appConfig?.serverUrl;
             if (serverUrl) {
@@ -90,7 +90,7 @@ module.exports = function registerPresenceHandlers(ctx) {
         }
     });
 
-    ipcMain.handle('presence:getUsersWithPresence', async () => {
+    safeHandle('presence:getUsersWithPresence', async () => {
         try {
             const serverUrl = ctx.appConfig?.serverUrl;
             if (serverUrl) {
@@ -104,3 +104,4 @@ module.exports = function registerPresenceHandlers(ctx) {
         }
     });
 };
+

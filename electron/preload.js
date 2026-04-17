@@ -53,11 +53,11 @@ const importExternalBatchWithFallback = async (filePaths = []) => {
 
 const getDoctorCaseStudiesWithFallback = async (options = {}) => {
     try {
-        return await ipcRenderer.invoke('database:getDoctorCaseStudies', options);
+        return await ipcRenderer.invoke('admin:getDoctorCaseStudies', options);
     } catch (error) {
         if (!isMissingHandlerError(error)) throw error;
         const { limit = 50, offset = 0 } = options || {};
-        const fallback = await ipcRenderer.invoke('database:getTableData', {
+        const fallback = await ipcRenderer.invoke('admin:getTableData', {
             tableName: 'CaseHistory',
             limit,
             offset
@@ -205,7 +205,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // Comprehensive database import with auto-conversion and schema sync
     importExternalWithSync: (filePath) => importExternalWithFallback(filePath),
     importExternalBatchWithSync: (filePaths) => importExternalBatchWithFallback(filePaths),
-    getTableData: (options) => ipcRenderer.invoke('database:getTableData', options),
+    getTableData: (options) => ipcRenderer.invoke('admin:getTableData', options),
     getDoctorCaseStudies: (options) => getDoctorCaseStudiesWithFallback(options),
 
     // Utility APIs
