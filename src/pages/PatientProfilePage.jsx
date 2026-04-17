@@ -5,6 +5,7 @@ import useVisits from '../hooks/useVisits';
 import useCaseNotes from '../hooks/useCaseNotes';
 import usePrescriptions from '../hooks/usePrescriptions';
 import LoadingScreen from '../components/LoadingScreen';
+import logger from '../utils/logger';
 
 const PatientProfilePage = () => {
     const { id } = useParams();
@@ -50,7 +51,7 @@ const PatientProfilePage = () => {
                     setError(res.error || 'Patient not found');
                 }
             } catch (err) {
-                console.error('Error fetching patient:', err);
+                logger.error('PatientProfilePage: Error fetching patient', { error: err.message });
                 setError('Failed to load patient details');
             } finally {
                 setLoading(false);

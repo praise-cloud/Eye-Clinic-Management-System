@@ -7,6 +7,7 @@ import * as testService from '../services/testService';
 import EditTestModal from '../components/modals/EditTestModal';
 import LoadingScreen from '../components/LoadingScreen';
 import usePrescriptions from '../hooks/usePrescriptions';
+import logger from '../utils/logger';
 
 const PatientDetailsPage = () => {
     const { id } = useParams();
@@ -57,7 +58,7 @@ const PatientDetailsPage = () => {
                     setError(res.error || 'Client not found');
                 }
             } catch (err) {
-                console.error('Error fetching patient:', err);
+                logger.error('PatientDetailsPage: Error fetching patient', { error: err.message });
                 setError('Failed to load client details');
             } finally {
                 setLoading(false);
@@ -73,7 +74,7 @@ const PatientDetailsPage = () => {
                 const data = await testService.getAllTests({ patientId: id });
                 setTests(data || []);
             } catch (err) {
-                console.error('Error fetching tests for patient:', err);
+                logger.error('PatientDetailsPage: Error fetching tests for patient', { error: err.message });
             } finally {
                 setTestsLoading(false);
             }
@@ -107,7 +108,7 @@ const PatientDetailsPage = () => {
 
                 setDocuments(mapped);
             } catch (err) {
-                console.error('Error fetching patient documents:', err);
+                logger.error('PatientDetailsPage: Error fetching patient documents', { error: err.message });
                 setDocuments([]);
             } finally {
                 setDocumentsLoading(false);
@@ -157,7 +158,7 @@ const PatientDetailsPage = () => {
             const data = await testService.getAllTests({ patientId: id });
             setTests(data || []);
         } catch (err) {
-            console.error('Error refreshing tests for patient:', err);
+            logger.error('PatientDetailsPage: Error refreshing tests for patient', { error: err.message });
         }
     };
 
@@ -204,7 +205,7 @@ const PatientDetailsPage = () => {
                 alert('Update failed: ' + res.error);
             }
         } catch (err) {
-            console.error('Error updating client:', err);
+            logger.error('PatientDetailsPage: Error updating client', { error: err.message });
             alert('Error updating client');
         }
     };
@@ -252,7 +253,7 @@ const PatientDetailsPage = () => {
         try {
             await window.electronAPI.exportReport(doc.id, 'pdf');
         } catch (error) {
-            console.error('Failed to export document:', error);
+            logger.error('PatientDetailsPage: Failed to export document', { error: error.message });
             alert('Failed to export document');
         }
     };
