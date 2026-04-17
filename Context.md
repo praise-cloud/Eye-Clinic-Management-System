@@ -28,7 +28,7 @@ logger.warn('Component: Message', { error: err.message });
 logger.error('Component: Error description', { error: err.message });
 ```
 
-### Files Updated (Phase 2.2 - Committed)
+### Files Updated (Phase 2.2 - Completed)
 | File | Console Statements Replaced |
 |------|---------------------------|
 | `src/App.jsx` | 4 |
@@ -37,57 +37,60 @@ logger.error('Component: Error description', { error: err.message });
 | `src/services/reminderService.js` | 3 |
 | `src/services/caseNoteService.js` | 6 |
 | `src/services/visitService.js` | 4 |
+| `src/services/logoutService.js` | 10 |
 | `src/hooks/useNotifications.js` | 4 |
 | `src/hooks/usePharmacy.js` | 1 |
 | `src/hooks/useInventory.js` | 1 |
-| `src/pages/dashboard/DoctorsDashboard.jsx` | 2 |
-| `src/pages/dashboard/AssistantDashboardScreen.jsx` | 1 |
-| `src/components/content/SettingsContent.jsx` | 4 |
-| `src/hooks/usePatients.js` | (pending commit) |
-| `src/hooks/useVisits.js` | (pending commit) |
-| `src/hooks/useReminders.js` | (pending commit) |
+| `src/hooks/usePatients.js` | (from previous session) |
+| `src/hooks/useVisits.js` | (from previous session) |
+| `src/hooks/useReminders.js` | (from previous session) |
 | `src/hooks/usePrescriptions.js` | 6 |
 | `src/hooks/useUser.js` | 5 |
+| `src/hooks/useTests.js` | 0 (no console statements) |
+| `src/hooks/useCaseNotes.js` | 6 |
+| `src/hooks/useDataService.js` | 1 |
+| `src/pages/dashboard/DoctorsDashboard.jsx` | 2 |
+| `src/pages/dashboard/AssistantDashboardScreen.jsx` | 1 |
+| `src/pages/PatientDetailsPage.jsx` | 6 |
+| `src/pages/PatientProfilePage.jsx` | 1 |
+| `src/components/content/SettingsContent.jsx` | 4 |
 | `src/components/layout/Sidebar.jsx` | 1 |
 | `src/components/layout/Header.jsx` | 2 |
 | `src/components/content/MessagesContent.jsx` | 11 |
 | `src/components/content/DashboardContent.jsx` | 1 |
+| `src/components/content/CVFWorkspaceContent.jsx` | 5 |
+| `src/components/content/InventoryContent.jsx` | 5 |
+| `src/context/ThemeContext.jsx` | 5 |
+| `src/context/SystemConfigContext.jsx` | 3 |
 
 ### Git Commits (Phase 2.2)
 1. `014170f` - "refactor: replace console.log with logger in core components" (11 files)
 2. `43f1b24` - "refactor: replace console.log with logger in services and hooks" (10 files)
 3. `39004bf` - "refactor: replace console.log with logger in SettingsContent" (1 file)
+4. `cf7e318` - "refactor: replace console.log with logger in hooks and content components" (6 files)
+5. `d98afc9` - "refactor: replace console.log with logger in remaining hooks and components" (11 files)
+6. `4b4ce24` - "refactor: replace console.log with logger in pages and context" (2 files)
 
-### Remaining Files (~25 files, ~170 statements)
-- `src/hooks/useTests.js`
-- `src/hooks/useCaseNotes.js`
-- `src/hooks/useDataService.js`
-- `src/services/logoutService.js`
-- `src/services/FileService.js`
+### Remaining Files (~10 files)
+- `src/services/FileService.js` (main process - Node.js require syntax)
 - `src/services/DatabaseService.js` (main process - needs different approach)
-- `src/components/content/CVFWorkspaceContent.jsx`
-- `src/components/content/InventoryContent.jsx`
 - `src/components/content/TestsContent.jsx`
 - `src/components/modals/PrescribeModal.jsx`
 - `src/components/modals/DispenseModal.jsx`
 - `src/components/DynamicTableView.jsx`
 - `src/components/common/ErrorBoundary.jsx`
 - `src/components/LogoutTest.jsx`
-- `src/context/ThemeContext.jsx`
-- `src/context/SystemConfigContext.jsx`
-- `src/pages/PatientDetailsPage.jsx`
-- `src/pages/PatientProfilePage.jsx`
 - `src/pages/CaseNotesPage.jsx`
-- `src/pages/CreateInventoryItemScreen.jsx`
-- `src/pages/ViewInventoryItemScreen.jsx`
 - `src/pages/auth/SignupScreen.jsx`
 - `src/pages/dashboard/AdminDashboard.jsx`
+- `src/pages/CreateInventoryItemScreen.jsx`
+- `src/pages/ViewInventoryItemScreen.jsx`
 - `src/utils/sessionUtils.js`
 
 ### Notes
 - File corruption issue: When applying multiple edits in sequence, escaped quotes (`\'`) were corrupting files
 - Solution: Restored files from git and applied edits one at a time, verifying build after each file
-- Previous commit (`39004bf`) contained corrupted files that had to be restored from HEAD~1
+- Main process files (electron/ directory) need a different approach - they use electron's logging or a separate logger
 
 ## Changes (April 14, 2026) - ServerManager Modular Split & Drug Dispense Revenue Fix
 

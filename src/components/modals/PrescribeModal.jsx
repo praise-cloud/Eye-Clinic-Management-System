@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import usePharmacy from '../../hooks/usePharmacy'
 import usePrescriptions from '../../hooks/usePrescriptions'
+import logger from '../../utils/logger';
 
 const PrescribeModal = ({ onClose, currentUser, initialPatientId = '' }) => {
     const { drugs, fetchDrugs, loading: drugsLoading } = usePharmacy()
@@ -30,7 +31,7 @@ const PrescribeModal = ({ onClose, currentUser, initialPatientId = '' }) => {
                 setPatients(result.patients || [])
             }
         } catch (err) {
-            console.error('Failed to load clients:', err)
+            logger.error('PrescribeModal: Failed to load clients', { error: err.message })
         }
     }
 

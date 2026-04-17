@@ -4,6 +4,7 @@ import { DeleteIcon, EditIcon, ViewIcon, CloseIcon } from '../Icons';
 import useTests from '../../hooks/useTests';
 import useUser from '../../hooks/useUser';
 import UploadTestModal from '../modals/UploadTestModal';
+import logger from '../../utils/logger';
 
 const DEFAULT_ADDITIONAL_TESTS = [];
 
@@ -111,7 +112,7 @@ const TestsContent = ({ clientName, clientId, additionalTests = DEFAULT_ADDITION
         }
       }
     } catch (err) {
-      console.error('Delete error:', err);
+      logger.error('TestsContent: Delete error', { error: err.message });
       setNotification({ type: 'error', message: 'Error deleting result.' });
     }
   };
@@ -142,7 +143,7 @@ const TestsContent = ({ clientName, clientId, additionalTests = DEFAULT_ADDITION
         }
       }
     } catch (err) {
-      console.error('Update error:', err);
+      logger.error('TestsContent: Update error', { error: err.message });
       setNotification({ type: 'error', message: 'Error updating result.' });
     }
   };
