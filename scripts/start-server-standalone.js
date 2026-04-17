@@ -1,18 +1,11 @@
 const path = require('path');
 const fs = require('fs');
-const { app, Tray, Menu, nativeImage } = require('electron');
 const express = require('express');
 const cors = require('cors');
 const http = require('http');
 const WebSocket = require('ws');
 const { v4: uuidv4 } = require('uuid');
 const bcrypt = require('bcryptjs');
-
-// Prevent multiple instances
-const gotTheLock = app.requestSingleInstanceLock();
-if (!gotTheLock) {
-  process.exit(0);
-}
 
 // ── Parse args 
 const args = process.argv.slice(1);
@@ -36,7 +29,7 @@ function log(msg) {
   console.log(line);
   try {
     fs.appendFileSync(logFile, line + '\n');
-  } catch {}
+  } catch { }
 }
 
 // ── Database (shared with app) ─────────────────────────────
@@ -58,7 +51,7 @@ function broadcast(type, data) {
   const msg = JSON.stringify({ type, data });
   wss.clients.forEach(client => {
     if (client.readyState === WebSocket.OPEN) {
-      try { client.send(msg); } catch {}
+      try { client.send(msg); } catch { }
     }
   });
 }
@@ -67,7 +60,7 @@ function sendToUser(userId, type, data) {
   const msg = JSON.stringify({ type, data });
   for (const [ws, info] of clients.entries()) {
     if (info.userId === userId && ws.readyState === WebSocket.OPEN) {
-      try { ws.send(msg); } catch {}
+      try { ws.send(msg); } catch { }
     }
   }
 }
@@ -87,11 +80,10 @@ wss.on('connection', (ws, req) => {
         ws.send(JSON.stringify({ type: 'connected', timestamp: Date.now() }));
         broadcast('presence', { ...clientInfo, status: 'online' });
         log(`Client connected: ${msg.userName} (${msg.deviceName})`);
-        updateTrayMenu();
       } else if (msg.type === 'ping') {
         ws.send(JSON.stringify({ type: 'pong', timestamp: Date.now() }));
       }
-    } catch {}
+    } catch { }
   });
 
   ws.on('close', () => {
@@ -100,7 +92,6 @@ wss.on('connection', (ws, req) => {
     if (info) {
       broadcast('presence', { userId: info.userId, status: 'offline' });
       log(`Client disconnected: ${info.userName}`);
-      updateTrayMenu();
     }
   });
 
@@ -391,8 +382,8 @@ function registerRoutes(app) {
          cvf_analysis_od, cvf_analysis_os, diagnosis, recommendation, next_appointment, status)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [id, patient_id, visit_id, test_id, doctor_id, chief_complaint,
-         visual_acuity_od, visual_acuity_os, intraocular_pressure_od, intraocular_pressure_os,
-         cvf_analysis_od, cvf_analysis_os, diagnosis, recommendation, next_appointment, status || 'draft']
+          visual_acuity_od, visual_acuity_os, intraocular_pressure_od, intraocular_pressure_os,
+          cvf_analysis_od, cvf_analysis_os, diagnosis, recommendation, next_appointment, status || 'draft']
       );
       const caseNote = sqlGet('SELECT * FROM case_notes WHERE id = ?', [id]);
       broadcast('data:update', { table: 'case_notes', action: 'create', record: caseNote });
@@ -431,9 +422,9 @@ function registerRoutes(app) {
          diagnosis=?, recommendation=?, next_appointment=?, status=?, signed_off_by=?,
          signed_off_at=?, updated_at=CURRENT_TIMESTAMP WHERE id=?`,
         [chief_complaint, visual_acuity_od, visual_acuity_os,
-         intraocular_pressure_od, intraocular_pressure_os, cvf_analysis_od, cvf_analysis_os,
-         diagnosis, recommendation, next_appointment, newStatus,
-         newSignedOffBy, newSignedOffAt, req.params.id]
+          intraocular_pressure_od, intraocular_pressure_os, cvf_analysis_od, cvf_analysis_os,
+          diagnosis, recommendation, next_appointment, newStatus,
+          newSignedOffBy, newSignedOffAt, req.params.id]
       );
       const caseNote = sqlGet('SELECT * FROM case_notes WHERE id = ?', [req.params.id]);
       broadcast('data:update', { table: 'case_notes', action: 'update', record: caseNote });
@@ -470,16 +461,16 @@ function registerRoutes(app) {
   app.post('/api/prescriptions', (req, res) => {
     try {
       const { patient_id, visit_id, case_note_id, doctor_id, prescription_type, drug_id, quantity, instructions,
-              glasses_details, glasses_amount_adjusted, glasses_adjustment_notes } = req.body;
+        glasses_details, glasses_amount_adjusted, glasses_adjustment_notes } = req.body;
       const id = uuidv4();
       sqlRun(
         `INSERT INTO prescriptions (id, patient_id, visit_id, case_note_id, doctor_id, prescription_type,
          drug_id, quantity, instructions, glasses_details, glasses_amount_adjusted, glasses_adjustment_notes)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [id, patient_id, visit_id, case_note_id, doctor_id, prescription_type || 'drug',
-         drug_id, quantity || 1, instructions,
-         typeof glasses_details === 'string' ? glasses_details : JSON.stringify(glasses_details),
-         glasses_amount_adjusted || 0, glasses_adjustment_notes]
+          drug_id, quantity || 1, instructions,
+          typeof glasses_details === 'string' ? glasses_details : JSON.stringify(glasses_details),
+          glasses_amount_adjusted || 0, glasses_adjustment_notes]
       );
       const prescription = sqlGet('SELECT * FROM prescriptions WHERE id = ?', [id]);
       broadcast('data:update', { table: 'prescriptions', action: 'create', record: prescription });
@@ -490,7 +481,7 @@ function registerRoutes(app) {
   app.put('/api/prescriptions/:id/status', (req, res) => {
     try {
       const { status, dispensed_by, dispensed_at, visit_id, payment_received, payment_type,
-              glasses_amount_adjusted, glasses_adjustment_notes, notes } = req.body;
+        glasses_amount_adjusted, glasses_adjustment_notes, notes } = req.body;
 
       sqlRun('UPDATE prescriptions SET status=?, updated_at=CURRENT_TIMESTAMP WHERE id=?', [status, req.params.id]);
 
@@ -505,9 +496,9 @@ function registerRoutes(app) {
            dispensed_at, payment_received, payment_type, glasses_amount_adjusted, glasses_adjustment_notes, notes)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [dispId, req.params.id, prescription.patient_id, visit_id, dispensed_by,
-           dispensed_at || new Date().toISOString(),
-           payment_received || 0, payment_type || 'cash',
-           glasses_amount_adjusted || 0, glasses_adjustment_notes, notes]
+            dispensed_at || new Date().toISOString(),
+            payment_received || 0, payment_type || 'cash',
+            glasses_amount_adjusted || 0, glasses_adjustment_notes, notes]
         );
 
         // If it's a drug prescription, update pharmacy stock
@@ -524,7 +515,7 @@ function registerRoutes(app) {
              quantity, unit_price, total_amount, user_id)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [drugDispId, req.params.id, prescription.drug_id, prescription.patient_id, visit_id,
-             prescription.quantity || 1, drug?.unit_price || 0, (prescription.quantity || 1) * (drug?.unit_price || 0), dispensed_by]
+              prescription.quantity || 1, drug?.unit_price || 0, (prescription.quantity || 1) * (drug?.unit_price || 0), dispensed_by]
           );
         }
 
@@ -535,11 +526,11 @@ function registerRoutes(app) {
             `INSERT INTO revenue (id, source, source_id, amount, collected_by, patient_id, visit_id, description)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
             [revenueId, prescription.prescription_type === 'glasses' ? 'glasses' : 'pharmacy',
-             prescription.prescription_type === 'glasses' ? prescription.id : drugDispId,
-             payment_received, dispensed_by, prescription.patient_id, visit_id,
-             prescription.prescription_type === 'glasses'
-               ? `Glasses prescription - Patient ID ${prescription.patient_id}`
-               : `Pharmacy dispensation - Patient ID ${prescription.patient_id}`]
+              prescription.prescription_type === 'glasses' ? prescription.id : drugDispId,
+              payment_received, dispensed_by, prescription.patient_id, visit_id,
+              prescription.prescription_type === 'glasses'
+                ? `Glasses prescription - Patient ID ${prescription.patient_id}`
+                : `Pharmacy dispensation - Patient ID ${prescription.patient_id}`]
           );
         }
       }
@@ -626,8 +617,8 @@ function registerRoutes(app) {
   app.post('/api/inventory', (req, res) => {
     try {
       const { item_code, item_name, category, description, manufacturer, model_number, serial_number,
-              current_quantity, minimum_quantity, unit_cost, supplier_name, purchase_date, expiry_date,
-              location, notes, image_path, last_updated_by } = req.body;
+        current_quantity, minimum_quantity, unit_cost, supplier_name, purchase_date, expiry_date,
+        location, notes, image_path, last_updated_by } = req.body;
       const id = uuidv4();
       sqlRun(
         `INSERT INTO inventory (id, item_code, item_name, category, description, manufacturer, model_number,
@@ -635,8 +626,8 @@ function registerRoutes(app) {
          expiry_date, location, notes, image_path, last_updated_by)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [id, item_code, item_name, category, description, manufacturer, model_number, serial_number,
-         current_quantity || 0, minimum_quantity || 0, unit_cost || 0, supplier_name, purchase_date,
-         expiry_date, location, notes, image_path, last_updated_by]
+          current_quantity || 0, minimum_quantity || 0, unit_cost || 0, supplier_name, purchase_date,
+          expiry_date, location, notes, image_path, last_updated_by]
       );
       const item = sqlGet('SELECT * FROM inventory WHERE id = ?', [id]);
       broadcast('data:update', { table: 'inventory', action: 'create', record: item });
@@ -647,13 +638,13 @@ function registerRoutes(app) {
   app.put('/api/inventory/:id', (req, res) => {
     try {
       const { item_name, category, description, current_quantity, minimum_quantity, unit_cost,
-              supplier_name, expiry_date, location, notes, last_updated_by } = req.body;
+        supplier_name, expiry_date, location, notes, last_updated_by } = req.body;
       sqlRun(
         `UPDATE inventory SET item_name=?, category=?, description=?, current_quantity=?, minimum_quantity=?,
          unit_cost=?, supplier_name=?, expiry_date=?, location=?, notes=?, last_updated_by=?,
          updated_at=CURRENT_TIMESTAMP WHERE id=?`,
         [item_name, category, description, current_quantity, minimum_quantity, unit_cost,
-         supplier_name, expiry_date, location, notes, last_updated_by, req.params.id]
+          supplier_name, expiry_date, location, notes, last_updated_by, req.params.id]
       );
       const item = sqlGet('SELECT * FROM inventory WHERE id = ?', [req.params.id]);
       broadcast('data:update', { table: 'inventory', action: 'update', record: item });
@@ -918,9 +909,9 @@ function registerRoutes(app) {
           `INSERT INTO notifications (id, user_id, title, message, type, related_id)
            VALUES (?, ?, ?, ?, ?, ?)`,
           [notifId, reminder.notified_to,
-           'Patient Appointment Reminder',
-           `Reminder: A patient has an appointment today. Please reach out to confirm.`,
-           'reminder', reminder.id]
+            'Patient Appointment Reminder',
+            `Reminder: A patient has an appointment today. Please reach out to confirm.`,
+            'reminder', reminder.id]
         );
         sendToUser(reminder.notified_to, 'notifications:new', { id: notifId, title: 'Patient Appointment Reminder' });
       }
@@ -1004,132 +995,45 @@ function registerRoutes(app) {
 
 registerRoutes(expressApp);
 
-// ── System Tray ────────────────────────────────────────────
-let tray = null;
-let serverStatus = 'starting';
-
-function createTray() {
-  // Create a simple colored icon for the tray
-  const iconSize = 16;
-  const icon = nativeImage.createEmpty();
-
-  tray = new Tray(icon.isEmpty() ? nativeImage.createFromBuffer(Buffer.alloc(0)) : icon);
-
-  updateTrayMenu();
-  tray.setToolTip('KORENE Server - Starting...');
-}
-
-function updateTrayMenu() {
-  if (!tray) return;
-  const connectedClients = clients.size;
-
-  const contextMenu = Menu.buildFromTemplate([
-    { label: `KORENE Server`, enabled: false },
-    { type: 'separator' },
-    { label: `Status: ${serverStatus === 'running' ? '🟢 ONLINE' : '🔴 ' + serverStatus.toUpperCase()}`, enabled: false },
-    { label: `Port: ${PORT}`, enabled: false },
-    { label: `Clients Connected: ${connectedClients}`, enabled: false },
-    { label: `Database: ${dbPath.split(path.sep).slice(-2).join(path.sep)}`, enabled: false },
-    { type: 'separator' },
-    {
-      label: 'Open Server Info',
-      click: () => {
-        const { shell } = require('electron');
-        shell.openPath(logFile);
-      }
-    },
-    { type: 'separator' },
-    {
-      label: 'Stop Server',
-      click: () => {
-        log('Server stopped by user from tray.');
-        server.close(() => {
-          Database.close();
-          app.quit();
-        });
-      }
-    },
-    {
-      label: 'Exit',
-      click: () => {
-        log('Server exiting...');
-        server.close(() => {
-          Database.close();
-          app.quit();
-        });
-      }
-    }
-  ]);
-
-  tray.setContextMenu(contextMenu);
-  tray.setToolTip(`KORENE Server - ${connectedClients} clients - Port ${PORT}`);
-}
-
-// ── Second instance lock ───────────────────────────────────
-app.on('second-instance', () => {
-  // Another instance tried to start, focus this one
-});
-
 // ── Start ─────────────────────────────────────────────────
 const PORT = parseInt(process.env.SERVER_PORT || '3001');
 
-app.whenReady().then(() => {
-  log('KORENE Server starting...');
-  log(`Database: ${dbPath}`);
+log('KORENE Server starting...');
+log(`Database: ${dbPath}`);
 
-  // Initialize database
-  try {
-    Database.initialize();
-    log('Database initialized.');
-  } catch (err) {
-    log('FATAL: Could not initialize database: ' + err.message);
-    console.error('FATAL: Could not initialize database:', err);
-    app.quit();
-    return;
-  }
+// Initialize database
+try {
+  Database.initialize();
+  log('Database initialized.');
+} catch (err) {
+  log('FATAL: Could not initialize database: ' + err.message);
+  console.error('FATAL: Could not initialize database:', err);
+  process.exit(1);
+}
 
-  // Start server
-  server.listen(PORT, '0.0.0.0', () => {
-    serverStatus = 'running';
-    log(`KORENE Server ONLINE on port ${PORT}`);
-    log(`WebSocket ready`);
-    log(`Server ready to accept connections`);
-    console.log(`\n[KORENE Server] 🟢 ONLINE on port ${PORT}`);
-    console.log(`[KORENE Server] Database: ${dbPath}`);
-    console.log(`[KORENE Server] WebSocket: enabled`);
-    console.log(`[KORENE Server] Clients: 0 connected\n`);
-
-    if (!startMinimized) {
-      console.log('Press Ctrl+C to stop the server.\n');
-    }
-  });
-
-  // Create tray (if electron can load it)
-  try {
-    createTray();
-    log('System tray initialized.');
-  } catch (err) {
-    log('Tray init warning (non-fatal): ' + err.message);
-  }
-
-  updateTrayMenu();
+// Start server
+server.listen(PORT, '0.0.0.0', () => {
+  log(`KORENE Server ONLINE on port ${PORT}`);
+  console.log(`\n[KORENE Server] 🟢 ONLINE on port ${PORT}`);
+  console.log(`[KORENE Server] Database: ${dbPath}`);
+  console.log(`[KORENE Server] WebSocket: enabled`);
+  console.log(`[KORENE Server] Clients: 0 connected`);
+  console.log(`Press Ctrl+C to stop the server.\n`);
 });
 
-app.on('window-all-closed', () => {
-  // Don't quit on window close for server app
-});
-
-app.on('before-quit', () => {
-  log('Server shutting down...');
-  server.close();
-  Database.close();
-});
-
-// Handle SIGINT for clean shutdown
+// Handle clean shutdown
 process.on('SIGINT', () => {
   log('Received SIGINT, shutting down...');
   server.close(() => {
     Database.close();
-    app.quit();
+    process.exit(0);
+  });
+});
+
+process.on('SIGTERM', () => {
+  log('Received SIGTERM, shutting down...');
+  server.close(() => {
+    Database.close();
+    process.exit(0);
   });
 });
