@@ -71,26 +71,26 @@ logger.error('Component: Error description', { error: err.message });
 5. `d98afc9` - "refactor: replace console.log with logger in remaining hooks and components" (11 files)
 6. `4b4ce24` - "refactor: replace console.log with logger in pages and context" (2 files)
 
-### Remaining Files (~10 files)
+### Remaining Files (~5 files)
 - `src/services/FileService.js` (main process - Node.js require syntax)
 - `src/services/DatabaseService.js` (main process - needs different approach)
-- `src/components/content/TestsContent.jsx`
-- `src/components/modals/PrescribeModal.jsx`
-- `src/components/modals/DispenseModal.jsx`
 - `src/components/DynamicTableView.jsx`
-- `src/components/common/ErrorBoundary.jsx`
 - `src/components/LogoutTest.jsx`
-- `src/pages/CaseNotesPage.jsx`
-- `src/pages/auth/SignupScreen.jsx`
-- `src/pages/dashboard/AdminDashboard.jsx`
 - `src/pages/CreateInventoryItemScreen.jsx`
 - `src/pages/ViewInventoryItemScreen.jsx`
 - `src/utils/sessionUtils.js`
+
+### Git Commits (Phase 2.2 - Updated)
+7. `409e765` - "refactor: replace console.log with logger in remaining pages" (2 files)
+8. `8c2f9e0` - "refactor: replace console.log with logger in modals, error boundary, and case notes page" (3 files)
+9. `d3145cc` - "refactor: replace console.log with logger in content and modal components" (3 files)
+10. `4b4ce24` - "refactor: replace console.log with logger in pages and context" (2 files)
 
 ### Notes
 - File corruption issue: When applying multiple edits in sequence, escaped quotes (`\'`) were corrupting files
 - Solution: Restored files from git and applied edits one at a time, verifying build after each file
 - Main process files (electron/ directory) need a different approach - they use electron's logging or a separate logger
+- Build verification after each file to ensure no regressions
 
 ## Changes (April 14, 2026) - ServerManager Modular Split & Drug Dispense Revenue Fix
 
