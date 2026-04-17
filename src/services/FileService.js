@@ -2,6 +2,14 @@ const { dialog, shell } = require('electron');
 const fs = require('fs-extra');
 const path = require('path');
 
+// Simple logger wrapper for CommonJS context
+const logger = {
+    debug: (msg, data) => console.debug(`[${new Date().toISOString()}] [DEBUG] ${msg}`, data ?? ''),
+    info: (msg, data) => console.info(`[${new Date().toISOString()}] [INFO] ${msg}`, data ?? ''),
+    warn: (msg, data) => console.warn(`[${new Date().toISOString()}] [WARN] ${msg}`, data ?? ''),
+    error: (msg, data) => console.error(`[${new Date().toISOString()}] [ERROR] ${msg}`, data ?? ''),
+};
+
 class FileService {
     // Select file dialog
     async selectFile(options = {}) {
@@ -23,7 +31,7 @@ class FileService {
             const filePath = result.filePaths[0];
             return { success: true, filePath, filePaths: result.filePaths || [] };
         } catch (error) {
-            console.error('File select error:', error);
+            logger.error('FileService: File select error', { error: error.message });
             return { error: error.message };
         }
     }
@@ -50,7 +58,7 @@ class FileService {
 
             return { success: true, filePath };
         } catch (error) {
-            console.error('File save error:', error);
+            logger.error('FileService: File save error', { error: error.message });
             return { error: error.message };
         }
     }
@@ -61,7 +69,7 @@ class FileService {
             const data = await fs.readFile(filePath, encoding);
             return { success: true, data };
         } catch (error) {
-            console.error('File read error:', error);
+            logger.error('FileService: File read error', { error: error.message });
             return { error: error.message };
         }
     }
@@ -71,7 +79,7 @@ class FileService {
         try {
             const data = await fs.readFile(filePath, 'utf8');
             const lines = data.split('\n').filter(line => line.trim());
-            
+
             if (lines.length === 0) {
                 return { error: 'Empty file' };
             }
@@ -89,7 +97,7 @@ class FileService {
 
             return { success: true, data: rows, headers };
         } catch (error) {
-            console.error('CSV parse error:', error);
+            logger.error('FileService: CSV parse error', { error: error.message });
             return { error: error.message };
         }
     }
@@ -100,7 +108,7 @@ class FileService {
             await shell.openPath(filePath);
             return { success: true };
         } catch (error) {
-            console.error('File open error:', error);
+            logger.error('FileService: File open error', { error: error.message });
             return { error: error.message };
         }
     }
@@ -124,7 +132,7 @@ class FileService {
                 fileName
             };
         } catch (error) {
-            console.error('Report generation error:', error);
+            logger.error('FileService: Report generation error', { error: error.message });
             return { error: error.message };
         }
     }

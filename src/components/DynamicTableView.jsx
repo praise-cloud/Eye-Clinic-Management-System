@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import logger from '../utils/logger';
 
 /**
  * DynamicTableView Component
@@ -47,7 +48,7 @@ const DynamicTableView = ({ tableName, metadata, onClose }) => {
         setTotalRows(Number(result.total || 0));
       }
     } catch (err) {
-      console.error('Error loading table data:', err);
+      logger.error('DynamicTableView: Error loading table data', { error: err.message });
       setError(err.message || 'Failed to load table data');
     } finally {
       setLoading(false);
@@ -162,27 +163,27 @@ const DynamicTableView = ({ tableName, metadata, onClose }) => {
             const rowCount = Number(metadata?.rowCount ?? totalRows ?? 0);
             return (
               <>
-          <div className="text-sm text-slate-600 dark:text-slate-400">
-            Showing {pagination.page * pagination.pageSize + 1} to{' '}
-            {Math.min((pagination.page + 1) * pagination.pageSize, rowCount)} of{' '}
-            {rowCount} rows
-          </div>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setPagination({ ...pagination, page: Math.max(0, pagination.page - 1) })}
-              disabled={pagination.page === 0}
-              className="px-3 py-1 text-sm border border-slate-200 dark:border-slate-800 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors"
-            >
-              Previous
-            </button>
-            <button
-              onClick={() => setPagination({ ...pagination, page: pagination.page + 1 })}
-              disabled={(pagination.page + 1) * pagination.pageSize >= rowCount}
-              className="px-3 py-1 text-sm border border-slate-200 dark:border-slate-800 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors"
-            >
-              Next
-            </button>
-          </div>
+                <div className="text-sm text-slate-600 dark:text-slate-400">
+                  Showing {pagination.page * pagination.pageSize + 1} to{' '}
+                  {Math.min((pagination.page + 1) * pagination.pageSize, rowCount)} of{' '}
+                  {rowCount} rows
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setPagination({ ...pagination, page: Math.max(0, pagination.page - 1) })}
+                    disabled={pagination.page === 0}
+                    className="px-3 py-1 text-sm border border-slate-200 dark:border-slate-800 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors"
+                  >
+                    Previous
+                  </button>
+                  <button
+                    onClick={() => setPagination({ ...pagination, page: pagination.page + 1 })}
+                    disabled={(pagination.page + 1) * pagination.pageSize >= rowCount}
+                    className="px-3 py-1 text-sm border border-slate-200 dark:border-slate-800 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors"
+                  >
+                    Next
+                  </button>
+                </div>
               </>
             );
           })()}

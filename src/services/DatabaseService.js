@@ -5,6 +5,14 @@ const path = require('path');
 const bcrypt = require('bcryptjs');
 const { app } = require('electron');
 const { exec } = require('child_process');
+
+// Simple logger wrapper for CommonJS context
+const logger = {
+    debug: (msg, data) => console.debug(`[${new Date().toISOString()}] [DEBUG] ${msg}`, data ?? ''),
+    info: (msg, data) => console.info(`[${new Date().toISOString()}] [INFO] ${msg}`, data ?? ''),
+    warn: (msg, data) => console.warn(`[${new Date().toISOString()}] [WARN] ${msg}`, data ?? ''),
+    error: (msg, data) => console.error(`[${new Date().toISOString()}] [ERROR] ${msg}`, data ?? ''),
+};
 const ALLOWED_TABLE_NAMES = new Set([
     'users', 'staff', 'admins', 'employees',
     'patients', 'clients', 'client', 'customer',
@@ -52,7 +60,7 @@ class DatabaseService {
             );
             return true;
         } catch (error) {
-            console.warn('[SyncQueue] enqueue failed:', error.message);
+            logger.warn('[SyncQueue] enqueue failed', { error: error.message });
             return false;
         }
     }
@@ -72,7 +80,7 @@ class DatabaseService {
                 await this.enqueueSyncChange('users', 'upsert', stored.id, stored);
             }
         } catch (err) {
-            console.warn('[DatabaseService] createUser sync enqueue failed:', err?.message);
+            logger.warn('[DatabaseService] createUser sync enqueue failed', { error: err?.message });
         }
         return user;
     }
@@ -91,7 +99,7 @@ class DatabaseService {
                 await this.enqueueSyncChange('users', 'upsert', stored.id, stored);
             }
         } catch (err) {
-            console.warn('[DatabaseService] updateUser sync enqueue failed:', err?.message);
+            logger.warn('[DatabaseService] updateUser sync enqueue failed', { error: err?.message });
         }
         return result;
     }
@@ -105,7 +113,7 @@ class DatabaseService {
                 await this.enqueueSyncChange('users', 'upsert', stored.id, stored);
             }
         } catch (err) {
-            console.warn('[DatabaseService] updateUserStatus sync enqueue failed:', err?.message);
+            logger.warn('[DatabaseService] updateUserStatus sync enqueue failed', { error: err?.message });
         }
         return result;
     }
@@ -322,21 +330,21 @@ class DatabaseService {
                 return { success: false, error: 'A client with this phone number already exists.' };
             }
         }
-        
+
         const columns = ['id', 'patient_id', 'first_name', 'last_name', 'dob', 'gender', 'contact'];
         const placeholders = ['?', '?', '?', '?', '?', '?', '?'];
         const values = [id, patient_id, first_name, last_name, dob, gender, contact];
-        
+
         if (existingCols.has('email')) { columns.push('email'); placeholders.push('?'); values.push(email || null); }
         if (existingCols.has('address')) { columns.push('address'); placeholders.push('?'); values.push(address || null); }
         if (existingCols.has('reason_for_visit')) { columns.push('reason_for_visit'); placeholders.push('?'); values.push(reason_for_visit || null); }
         if (existingCols.has('client_type')) { columns.push('client_type'); placeholders.push('?'); values.push(client_type || null); }
         if (existingCols.has('marital_status')) { columns.push('marital_status'); placeholders.push('?'); values.push(marital_status || null); }
         if (existingCols.has('intake_date')) { columns.push('intake_date'); placeholders.push('?'); values.push(intake_date || null); }
-        
+
         columns.push('created_at', 'updated_at');
         placeholders.push('CURRENT_TIMESTAMP', 'CURRENT_TIMESTAMP');
-        
+
         const query = `INSERT INTO patients (${columns.join(', ')}) VALUES (${placeholders.join(', ')})`;
         await db.run(query, values);
         const record = {
@@ -396,17 +404,17 @@ class DatabaseService {
                 return { success: false, error: 'A client with this phone number already exists.' };
             }
         }
-        
+
         const setClauses = ['patient_id = ?', 'first_name = ?', 'last_name = ?', 'dob = ?', 'gender = ?', 'contact = ?', 'updated_at = CURRENT_TIMESTAMP'];
         const values = [patient_id, first_name, last_name, dob, gender, contact];
-        
+
         if (existingCols.has('email')) { setClauses.push('email = ?'); values.push(email || null); }
         if (existingCols.has('address')) { setClauses.push('address = ?'); values.push(address || null); }
         if (existingCols.has('reason_for_visit')) { setClauses.push('reason_for_visit = ?'); values.push(reason_for_visit || null); }
         if (existingCols.has('client_type')) { setClauses.push('client_type = ?'); values.push(client_type || null); }
         if (existingCols.has('marital_status')) { setClauses.push('marital_status = ?'); values.push(marital_status || null); }
         if (existingCols.has('intake_date')) { setClauses.push('intake_date = ?'); values.push(intake_date || null); }
-        
+
         values.push(id);
         const query = `UPDATE patients SET ${setClauses.join(', ')} WHERE id = ?`;
         await db.run(query, values);
@@ -519,7 +527,7 @@ class DatabaseService {
             await this.enqueueSyncChange('tests', 'upsert', id, record);
             return { id, ...testData, patient_id: patientId };
         } catch (error) {
-            console.error('Database createTest error:', error);
+            logger.error('DatabaseService: createTest error', { error: error.message });
             throw error;
         }
     }
@@ -793,19 +801,19 @@ class DatabaseService {
         };
 
         const items = await db.all('SELECT current_quantity, minimum_quantity, unit_cost, expiry_date, category FROM inventory');
-        
+
         for (const item of items) {
             stats.total++;
             const qty = Number(item.current_quantity || 0);
             const minQty = Number(item.minimum_quantity || 0);
             const cost = Number(item.unit_cost || 0);
-            
+
             stats.totalValue += qty * cost;
-            
+
             if (minQty > 0 && qty <= minQty) {
                 stats.lowStock++;
             }
-            
+
             if (item.expiry_date) {
                 const expiry = new Date(item.expiry_date);
                 const now = new Date();
@@ -814,7 +822,7 @@ class DatabaseService {
                     stats.expiring++;
                 }
             }
-            
+
             const cat = item.category || 'Uncategorized';
             stats.categories[cat] = (stats.categories[cat] || 0) + 1;
         }
@@ -836,7 +844,7 @@ class DatabaseService {
         const db = await this.getDatabase();
         const futureDate = new Date();
         futureDate.setDate(futureDate.getDate() + days);
-        
+
         const query = `
             SELECT * FROM inventory 
             WHERE expiry_date IS NOT NULL AND expiry_date != '' AND expiry_date <= ?
@@ -1063,7 +1071,7 @@ class DatabaseService {
             try {
                 await db.run('ROLLBACK');
             } catch (err) {
-                console.warn('[DatabaseService] dispense rollback failed:', err?.message);
+                logger.warn('[DatabaseService] dispense rollback failed', { error: err?.message });
             }
             throw error;
         }
@@ -1264,11 +1272,11 @@ class DatabaseService {
                 await db.run('COMMIT');
                 return { id, status, success: true };
             } catch (error) {
-                console.error('Dispensing transaction failed:', error);
+                logger.error('DatabaseService: Dispensing transaction failed', { error: error.message });
                 try {
                     await db.run('ROLLBACK');
                 } catch (rbError) {
-                    console.error('Rollback failed:', rbError);
+                    logger.error('DatabaseService: Rollback failed', { error: rbError.message });
                 }
                 throw error;
             }
@@ -1377,7 +1385,7 @@ class DatabaseService {
                     await db.run('ALTER TABLE activity_logs ADD COLUMN ip_address TEXT');
                     await db.run('ALTER TABLE activity_logs ADD COLUMN user_agent TEXT');
                 } catch (err) {
-                    console.warn('[DatabaseService] logActivity migration failed:', err?.message);
+                    logger.warn('[DatabaseService] logActivity migration failed', { error: err?.message });
                 }
                 await db.run(query, [id, userId, actionType, entityType, entityId, description, ipAddress, userAgent]);
             } else {
@@ -1549,7 +1557,7 @@ class DatabaseService {
                 const amount = Number(data.amount || data.fee || 0);
                 if (!isNaN(amount)) monthlyRevenue += amount;
             } catch (err) {
-                console.warn('[DatabaseService] getDashboardStats JSON parse failed:', err?.message);
+                logger.warn('[DatabaseService] getDashboardStats JSON parse failed', { error: err?.message });
             }
         }
 
@@ -1861,7 +1869,7 @@ class DatabaseService {
                         const db = await this.getDatabase();
                         await db.run('ROLLBACK');
                     } catch (err) {
-                        console.warn('[DatabaseService] importExternalDatabase rollback failed:', err?.message);
+                        logger.warn('[DatabaseService] importExternalDatabase rollback failed', { error: err?.message });
                     }
                     return { success: false, error: e.message };
                 }
@@ -1917,13 +1925,13 @@ class DatabaseService {
                     try {
                         existing = JSON.parse(fs.readFileSync(cfgPath, 'utf-8'));
                     } catch (err) {
-                        console.warn('[DatabaseService] Config parse failed:', err?.message);
+                        logger.warn('[DatabaseService] Config parse failed', { error: err?.message });
                     }
                 }
                 const data = { ...existing, network_db_path: externalPath };
                 fs.writeFileSync(cfgPath, JSON.stringify(data));
                 try { extDb.close(); } catch (err) {
-                    console.warn('[DatabaseService] extDb.close() failed:', err?.message);
+                    logger.warn('[DatabaseService] extDb.close() failed', { error: err?.message });
                 }
                 return { success: true, mode: 'switch', path: externalPath };
             }
@@ -2129,7 +2137,7 @@ class DatabaseService {
 
             await appDb.run('COMMIT');
             try { extDb.close(); } catch (err) {
-                console.warn('[DatabaseService] extDb.close() failed:', err?.message);
+                logger.warn('[DatabaseService] extDb.close() failed', { error: err?.message });
             }
             return {
                 success: true,
@@ -2143,7 +2151,7 @@ class DatabaseService {
                 const db = await this.getDatabase();
                 await db.run('ROLLBACK');
             } catch (err) {
-                console.warn('[DatabaseService] ROLLBACK failed:', err?.message);
+                logger.warn('[DatabaseService] ROLLBACK failed', { error: err?.message });
             }
             return { success: false, error: error.message };
         }
@@ -2194,23 +2202,20 @@ class DatabaseService {
         const pythonScript = path.join(appRoot, 'scripts', 'convert_bak_to_sqlite.py');
         const outputFilePath = filePath.replace('.bak', '.sqlite');
 
-        console.log(`Running Python script to convert .bak file: ${filePath}`);
-        console.log(`App root: ${appRoot}`);
-        console.log(`Python script path: ${pythonScript}`);
-        console.log(`Output file path: ${outputFilePath}`);
+        logger.info(`DatabaseService: Running Python script to convert .bak file`, { filePath });
+        logger.debug('DatabaseService: restoreBackup paths', { appRoot, pythonScript, outputFilePath });
 
         const command = `python "${pythonScript}" "${filePath}" "${outputFilePath}"`;
-        console.log(`Command: ${command}`);
+        logger.debug(`DatabaseService: restoreBackup command`, { command });
 
         return new Promise((resolve, reject) => {
             exec(command, (error, stdout, stderr) => {
                 if (error) {
-                    console.error(`Error running Python script: ${stderr}`);
-                    console.error(`Error message: ${error.message}`);
+                    logger.error('DatabaseService: Python script error', { error: error.message, stderr });
                     return reject(new Error(`Failed to convert .bak file: ${stderr || error.message}`));
                 }
-                console.log(`Python script output: ${stdout}`);
-                console.log(`Restored file path: ${outputFilePath}`);
+                logger.info('DatabaseService: Python script output', { stdout });
+                logger.debug('DatabaseService: restoreBackup output path', { outputFilePath });
                 resolve({ success: true, restoredFilePath: outputFilePath });
             });
         });
@@ -2259,7 +2264,7 @@ class DatabaseService {
             `INSERT INTO visits (id, patient_id, visit_date, visit_type, reason, payment_status, amount_paid, linked_prescription_id, created_by)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [id, visitData.patient_id, visitData.visit_date, visitData.visit_type || 'follow_up', visitData.reason,
-             visitData.payment_status || 'pending', visitData.amount_paid || 0, visitData.linked_prescription_id, visitData.created_by]
+                visitData.payment_status || 'pending', visitData.amount_paid || 0, visitData.linked_prescription_id, visitData.created_by]
         );
         return { id, ...visitData };
     }
@@ -2294,8 +2299,8 @@ class DatabaseService {
                      payment_received, payment_type, glasses_amount_adjusted, glasses_adjustment_notes, notes)
                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                     [dispId, id, prescription.patient_id, userId, new Date().toISOString(),
-                     extraData.payment_received || 0, extraData.payment_type || 'cash',
-                     extraData.glasses_amount_adjusted || 0, extraData.glasses_adjustment_notes || '', extraData.notes || '']
+                        extraData.payment_received || 0, extraData.payment_type || 'cash',
+                        extraData.glasses_amount_adjusted || 0, extraData.glasses_adjustment_notes || '', extraData.notes || '']
                 );
                 // Update drug stock
                 if (prescription.drug_id) {
@@ -2308,8 +2313,8 @@ class DatabaseService {
                             `INSERT INTO pharmacy_dispensations (id, prescription_id, drug_id, patient_id, quantity, unit_price, total_amount, user_id)
                              VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
                             [drugDispId, id, prescription.drug_id, prescription.patient_id,
-                             prescription.quantity || 1, drug.unit_price || 0,
-                             (prescription.quantity || 1) * (drug.unit_price || 0), userId]
+                                prescription.quantity || 1, drug.unit_price || 0,
+                                (prescription.quantity || 1) * (drug.unit_price || 0), userId]
                         );
                     }
                 }
@@ -2320,8 +2325,8 @@ class DatabaseService {
                         `INSERT INTO revenue (id, source, source_id, amount, collected_by, patient_id, description)
                          VALUES (?, ?, ?, ?, ?, ?, ?)`,
                         [revenueId, prescription.prescription_type === 'glasses' ? 'glasses' : 'pharmacy',
-                         id, extraData.payment_received, userId, prescription.patient_id,
-                         `Prescription dispensed - Patient ID ${prescription.patient_id}`]
+                            id, extraData.payment_received, userId, prescription.patient_id,
+                            `Prescription dispensed - Patient ID ${prescription.patient_id}`]
                     );
                 }
             }
@@ -2339,11 +2344,11 @@ class DatabaseService {
              cvf_analysis_od, cvf_analysis_os, diagnosis, recommendation, next_appointment, status)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [id, caseNoteData.patient_id, caseNoteData.visit_id, caseNoteData.test_id, caseNoteData.doctor_id,
-             caseNoteData.chief_complaint, caseNoteData.visual_acuity_od, caseNoteData.visual_acuity_os,
-             caseNoteData.intraocular_pressure_od, caseNoteData.intraocular_pressure_os,
-             caseNoteData.cvf_analysis_od, caseNoteData.cvf_analysis_os,
-             caseNoteData.diagnosis, caseNoteData.recommendation, caseNoteData.next_appointment,
-             caseNoteData.status || 'draft']
+                caseNoteData.chief_complaint, caseNoteData.visual_acuity_od, caseNoteData.visual_acuity_os,
+                caseNoteData.intraocular_pressure_od, caseNoteData.intraocular_pressure_os,
+                caseNoteData.cvf_analysis_od, caseNoteData.cvf_analysis_os,
+                caseNoteData.diagnosis, caseNoteData.recommendation, caseNoteData.next_appointment,
+                caseNoteData.status || 'draft']
         );
         return { id, ...caseNoteData };
     }
@@ -2382,8 +2387,8 @@ class DatabaseService {
              reminder_for, status, notified_to, notes)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [id, reminderData.patient_id, reminderData.case_note_id, reminderData.visit_id,
-             reminderData.appointment_date, reminderData.reminder_for,
-             reminderData.status || 'pending', reminderData.notified_to, reminderData.notes || '']
+                reminderData.appointment_date, reminderData.reminder_for,
+                reminderData.status || 'pending', reminderData.notified_to, reminderData.notes || '']
         );
         return { id, ...reminderData };
     }
@@ -2401,11 +2406,11 @@ class DatabaseService {
             try {
                 await db.run(query);
             } catch (error) {
-                console.error('Schema validation error:', error);
+                logger.error('DatabaseService: Schema validation error', { error: error.message });
             }
         }
 
-        console.log('Schema validation and updates completed.');
+        logger.info('DatabaseService: Schema validation and updates completed');
     }
 }
 

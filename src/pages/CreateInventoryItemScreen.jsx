@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import logger from '../utils/logger'
 
 const CreateInventoryItemScreen = () => {
   const navigate = useNavigate()
@@ -48,7 +49,7 @@ const CreateInventoryItemScreen = () => {
         }
       }
     } catch (error) {
-      console.error('Error loading item:', error)
+      logger.error('CreateInventoryItemScreen: Error loading item', { error: error.message });
     }
   }
 
@@ -112,7 +113,7 @@ const CreateInventoryItemScreen = () => {
         setNotification({ type: 'error', message: result.error || 'Failed to save item' })
       }
     } catch (error) {
-      console.error('Error saving item:', error)
+      logger.error('CreateInventoryItemScreen: Error saving item', { error: error.message });
       setNotification({ type: 'error', message: 'Failed to save item' })
     } finally {
       setLoading(false)
@@ -137,8 +138,8 @@ const CreateInventoryItemScreen = () => {
         {/* Notification */}
         {notification && (
           <div className={`mb-6 p-4 rounded-xl flex items-center gap-3 animate-premium-fade ${notification.type === 'success'
-              ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 border border-emerald-100 dark:border-emerald-900/30'
-              : 'bg-rose-50 dark:bg-rose-900/20 text-rose-600 border border-rose-100 dark:border-rose-900/30'
+            ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 border border-emerald-100 dark:border-emerald-900/30'
+            : 'bg-rose-50 dark:bg-rose-900/20 text-rose-600 border border-rose-100 dark:border-rose-900/30'
             }`}>
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               {notification.type === 'success' ? (

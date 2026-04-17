@@ -1,4 +1,5 @@
 // Session management utilities
+import logger from './logger';
 
 export const clearUserSession = () => {
   try {
@@ -6,10 +7,10 @@ export const clearUserSession = () => {
     localStorage.removeItem('currentUser');
     localStorage.removeItem('authToken');
     localStorage.removeItem('sessionData');
-    
+
     // Clear sessionStorage
     sessionStorage.clear();
-    
+
     // Clear any other app-specific storage
     const keysToRemove = [];
     for (let i = 0; i < localStorage.length; i++) {
@@ -19,10 +20,10 @@ export const clearUserSession = () => {
       }
     }
     keysToRemove.forEach(key => localStorage.removeItem(key));
-    
-    console.log('User session cleared successfully');
+
+    logger.info('sessionUtils: User session cleared successfully');
   } catch (error) {
-    console.error('Error clearing user session:', error);
+    logger.error('sessionUtils: Error clearing user session', { error: error.message });
   }
 };
 
@@ -30,11 +31,11 @@ export const isSessionValid = () => {
   try {
     const user = localStorage.getItem('currentUser');
     if (!user) return false;
-    
+
     const userData = JSON.parse(user);
     return userData && userData.id;
   } catch (error) {
-    console.error('Error validating session:', error);
+    logger.error('sessionUtils: Error validating session', { error: error.message });
     return false;
   }
 };
@@ -44,7 +45,7 @@ export const getStoredUser = () => {
     const user = localStorage.getItem('currentUser');
     return user ? JSON.parse(user) : null;
   } catch (error) {
-    console.error('Error getting stored user:', error);
+    logger.error('sessionUtils: Error getting stored user', { error: error.message });
     return null;
   }
 };

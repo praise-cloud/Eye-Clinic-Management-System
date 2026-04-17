@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import logger from '../utils/logger'
 
 const ViewInventoryItemScreen = () => {
   const navigate = useNavigate()
@@ -18,7 +19,7 @@ const ViewInventoryItemScreen = () => {
         setItem(result.item)
       }
     } catch (error) {
-      console.error('Error loading item:', error)
+      logger.error('ViewInventoryItemScreen: Error loading item', { error: error.message });
     } finally {
       setLoading(false)
     }
@@ -35,7 +36,7 @@ const ViewInventoryItemScreen = () => {
         alert(result.error || 'Failed to delete item')
       }
     } catch (error) {
-      console.error('Error deleting item:', error)
+      logger.error('ViewInventoryItemScreen: Error deleting item', { error: error.message });
       alert('Failed to delete item')
     }
   }

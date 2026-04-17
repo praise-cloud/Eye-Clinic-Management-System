@@ -1,18 +1,18 @@
 import React from 'react';
 import useUser from '../hooks/useUser';
+import logger from '../utils/logger';
 
 const LogoutTest = () => {
   const { user, logout, loading } = useUser();
 
   const handleTestLogout = async () => {
-    console.log('Testing logout...');
-    console.log('Current user:', user);
-    
+    logger.debug('LogoutTest: Testing logout', { user });
+
     try {
       await logout();
-      console.log('Logout completed');
+      logger.info('LogoutTest: Logout completed');
     } catch (error) {
-      console.error('Logout failed:', error);
+      logger.error('LogoutTest: Logout failed', { error: error.message });
     }
   };
 
@@ -21,7 +21,7 @@ const LogoutTest = () => {
       <h3 className="font-bold">Logout Test Component</h3>
       <p>Current user: {user ? user.name || user.email : 'No user'}</p>
       <p>Loading: {loading ? 'Yes' : 'No'}</p>
-      <button 
+      <button
         onClick={handleTestLogout}
         disabled={loading}
         className="mt-2 px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 disabled:opacity-50"
