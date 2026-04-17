@@ -1,9 +1,93 @@
-﻿# Context
+# Context
 
-Last updated: 2026-04-14 (evening)
+Last updated: 2026-04-17
 
 ## Purpose
 This file consolidates all markdown documentation for this project and will be updated whenever changes are made to the application.
+
+## Changes (April 17, 2026) - Phase 2.2: Logger Refactoring (Production-Ready Logging)
+
+### Overview
+Replacing all `console.log/warn/error` statements with the production `logger` utility throughout the codebase to enable proper log management in production environments.
+
+### Logger Utility
+- **File**: `src/utils/logger.js`
+- Features:
+  - Configurable log levels (debug, info, warn, error)
+  - Sensitive data redaction (passwords, tokens, emails, phone numbers)
+  - Production mode support (logs to file, hides debug in production)
+  - Prefixes: `[DEBUG]`, `[INFO]`, `[WARN]`, `[ERROR]`
+
+### Import Pattern
+```javascript
+import logger from '../utils/logger';
+// Usage:
+logger.debug('Component: Message', { metadata });
+logger.info('Component: Message', { metadata });
+logger.warn('Component: Message', { error: err.message });
+logger.error('Component: Error description', { error: err.message });
+```
+
+### Files Updated (Phase 2.2 - Committed)
+| File | Console Statements Replaced |
+|------|---------------------------|
+| `src/App.jsx` | 4 |
+| `src/services/patientService.js` | 7 |
+| `src/services/BackupService.js` | 3 |
+| `src/services/reminderService.js` | 3 |
+| `src/services/caseNoteService.js` | 6 |
+| `src/services/visitService.js` | 4 |
+| `src/hooks/useNotifications.js` | 4 |
+| `src/hooks/usePharmacy.js` | 1 |
+| `src/hooks/useInventory.js` | 1 |
+| `src/pages/dashboard/DoctorsDashboard.jsx` | 2 |
+| `src/pages/dashboard/AssistantDashboardScreen.jsx` | 1 |
+| `src/components/content/SettingsContent.jsx` | 4 |
+| `src/hooks/usePatients.js` | (pending commit) |
+| `src/hooks/useVisits.js` | (pending commit) |
+| `src/hooks/useReminders.js` | (pending commit) |
+| `src/hooks/usePrescriptions.js` | 6 |
+| `src/hooks/useUser.js` | 5 |
+| `src/components/layout/Sidebar.jsx` | 1 |
+| `src/components/layout/Header.jsx` | 2 |
+| `src/components/content/MessagesContent.jsx` | 11 |
+| `src/components/content/DashboardContent.jsx` | 1 |
+
+### Git Commits (Phase 2.2)
+1. `014170f` - "refactor: replace console.log with logger in core components" (11 files)
+2. `43f1b24` - "refactor: replace console.log with logger in services and hooks" (10 files)
+3. `39004bf` - "refactor: replace console.log with logger in SettingsContent" (1 file)
+
+### Remaining Files (~25 files, ~170 statements)
+- `src/hooks/useTests.js`
+- `src/hooks/useCaseNotes.js`
+- `src/hooks/useDataService.js`
+- `src/services/logoutService.js`
+- `src/services/FileService.js`
+- `src/services/DatabaseService.js` (main process - needs different approach)
+- `src/components/content/CVFWorkspaceContent.jsx`
+- `src/components/content/InventoryContent.jsx`
+- `src/components/content/TestsContent.jsx`
+- `src/components/modals/PrescribeModal.jsx`
+- `src/components/modals/DispenseModal.jsx`
+- `src/components/DynamicTableView.jsx`
+- `src/components/common/ErrorBoundary.jsx`
+- `src/components/LogoutTest.jsx`
+- `src/context/ThemeContext.jsx`
+- `src/context/SystemConfigContext.jsx`
+- `src/pages/PatientDetailsPage.jsx`
+- `src/pages/PatientProfilePage.jsx`
+- `src/pages/CaseNotesPage.jsx`
+- `src/pages/CreateInventoryItemScreen.jsx`
+- `src/pages/ViewInventoryItemScreen.jsx`
+- `src/pages/auth/SignupScreen.jsx`
+- `src/pages/dashboard/AdminDashboard.jsx`
+- `src/utils/sessionUtils.js`
+
+### Notes
+- File corruption issue: When applying multiple edits in sequence, escaped quotes (`\'`) were corrupting files
+- Solution: Restored files from git and applied edits one at a time, verifying build after each file
+- Previous commit (`39004bf`) contained corrupted files that had to be restored from HEAD~1
 
 ## Changes (April 14, 2026) - ServerManager Modular Split & Drug Dispense Revenue Fix
 
