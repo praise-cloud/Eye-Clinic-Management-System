@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import * as messageService from '../services/messageService';
+import logger from '../utils/logger';
 
 export default function useMessages() {
     const [messages, setMessages] = useState([]);
@@ -13,7 +14,7 @@ export default function useMessages() {
             const data = await messageService.getMessages(filters);
             setMessages(data);
         } catch (err) {
-            console.error('Error fetching messages:', err);
+            logger.error('useMessages: Error fetching messages', { error: err.message });
             setError(err);
         } finally {
             setLoading(false);

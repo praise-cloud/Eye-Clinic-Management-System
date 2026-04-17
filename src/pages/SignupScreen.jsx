@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import AssistantForm from '../../components/forms/AssistantForm'
 import DoctorForm from '../../components/forms/DoctorForm'
 import AdminForm from '../../components/forms/AdminForm'
+import logger from '../utils/logger';
 
 const SignupScreen = ({ selectedRole, onComplete, onBack, onBackToWelcome }) => {
   const [formData, setFormData] = useState({
@@ -27,13 +28,13 @@ const SignupScreen = ({ selectedRole, onComplete, onBack, onBackToWelcome }) => 
     : null
 
   // Default props
-  const handleBack = onBack || (() => console.warn('onBack not provided'))
-  const handleBackToWelcome = onBackToWelcome || (() => console.warn('onBackToWelcome not provided'))
+  const handleBack = onBack || (() => logger.warn('SignupScreen: onBack not provided'))
+  const handleBackToWelcome = onBackToWelcome || (() => logger.warn('SignupScreen: onBackToWelcome not provided'))
 
   // One-time log on mount/update
   useEffect(() => {
     if (currentRole) {
-      console.log('Raw selectedRole:', selectedRole, 'Normalized:', normalizedRole);
+      logger.debug('SignupScreen: Raw selectedRole', { selectedRole, normalized: normalizedRole });
     }
   }, [selectedRole, normalizedRole, currentRole]);
 
@@ -70,7 +71,7 @@ const SignupScreen = ({ selectedRole, onComplete, onBack, onBackToWelcome }) => 
       if (!formData.gender) errors.push('Gender is required')
       if (!formData.phoneNumber) errors.push('Phone Number is required')
     } else {
-      console.warn('Fallback validation for unknown role:', normalizedRole)
+      logger.warn('SignupScreen: Fallback validation for unknown role', { normalizedRole })
     }
 
     if (errors.length > 0) {
@@ -106,7 +107,7 @@ const SignupScreen = ({ selectedRole, onComplete, onBack, onBackToWelcome }) => 
       case 'Admin':
         return <AdminForm formData={formData} onChange={handleChange} />
       default:
-        console.error('Render error: Unknown role', normalizedRole)  // Log for debug
+        logger.error('SignupScreen: Render error: Unknown role', { normalizedRole })
         return <p>Invalid role: {normalizedRole}. Please go back and select again.</p>
     }
   }

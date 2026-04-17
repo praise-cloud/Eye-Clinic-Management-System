@@ -1,5 +1,6 @@
 // src/hooks/useBackup.js
 import { useState, useCallback } from 'react';
+import logger from '../utils/logger';
 
 const getServerUrl = () => localStorage.getItem('serverUrl');
 const isServerMode = () => !!getServerUrl();
@@ -43,7 +44,7 @@ export default function useBackup() {
                 setError(result?.error);
             }
         } catch (err) {
-            console.error('Error fetching backups:', err);
+            logger.error('useBackup: Error fetching backups', { error: err.message });
             setError(err.message);
         } finally {
             setLoading(false);
@@ -68,7 +69,7 @@ export default function useBackup() {
                 return null;
             }
         } catch (err) {
-            console.error('Error creating backup:', err);
+            logger.error('useBackup: Error creating backup', { error: err.message });
             setError(err.message);
             return null;
         } finally {
@@ -93,7 +94,7 @@ export default function useBackup() {
                 return false;
             }
         } catch (err) {
-            console.error('Error restoring backup:', err);
+            logger.error('useBackup: Error restoring backup', { error: err.message });
             setError(err.message);
             return false;
         } finally {
