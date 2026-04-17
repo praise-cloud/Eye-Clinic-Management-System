@@ -14,7 +14,7 @@
     "setup:server": "node scripts/setup-server.js",
     "start:server": "electron scripts/start-server-standalone.js",
     "rebuild": "electron-rebuild",
-    "postinstall": "electron-builder install-app-deps",
+    "postinstall": "electron-builder install-app-deps && electron-rebuild",
     "build:app": "vite build && electron-builder --win --publish=never --config electron-builder.yml",
     "build:server": "electron-builder --win --publish=never --config electron-builder-server.yml",
     "build:all": "npm run build:app && npm run build:server",

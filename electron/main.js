@@ -125,6 +125,16 @@ function createMainWindow() {
 function buildContext() {
   const config = loadConfig();
   return {
+    config,
+    saveConfig: (newConfig) => {
+      const fs = require('fs');
+      const cfgPath = path.join(app.getPath('userData'), 'config.json');
+      try {
+        fs.writeFileSync(cfgPath, JSON.stringify({ ...loadConfig(), ...newConfig }, null, 2));
+      } catch (e) {
+        console.warn('[Config] Could not save config:', e.message);
+      }
+    },
     getDatabase: () => database,
     getCurrentUser: () => currentUser,
     setCurrentUser: (u) => { currentUser = u; },
