@@ -38,12 +38,15 @@ async function initializeDatabase() {
     console.log('[Main] SQLite ready');
   } catch (error) {
     console.error('[Main] Database init failed:', error);
-    dialog.showErrorBox(
-      'Database Error',
-      'Could not initialize local database.\n\n' + error.message +
-      '\n\nIf you are connecting to a server, please configure your server URL in Settings.'
-    );
-    // Don't quit — allow server mode config
+    // Non-fatal — app can still run in server-client mode
+    // Show dialog only if not in server mode
+    if (!loadConfig().serverUrl) {
+      dialog.showErrorBox(
+        'Database Error',
+        'Could not initialize local database.\n\n' + error.message +
+        '\n\nIf you are connecting to a server, please configure your server URL in Settings.'
+      );
+    }
   }
 }
 
@@ -148,15 +151,17 @@ function buildContext() {
 
 // ── App lifecycle ─────────────────────────────────────────────
 app.whenReady().then(async () => {
-  await initializeDatabase();
-
-  // Register IPC handlers — pass context so handlers can access db
+  // Register IPC handlers FIRST — before database init
+  // so handlers are always available even if DB fails
   try {
     const IPCHandlers = require('./ipc/handlers');
     new IPCHandlers(buildContext());
+    console.log('[Main] IPC handlers registered');
   } catch (err) {
     console.error('[Main] IPC handlers failed to load:', err);
   }
+
+  await initializeDatabase();
 
   // Decide which window to open
   let isFirstRun = true;

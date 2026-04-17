@@ -1,6 +1,8 @@
 const fs = require('fs');
 const path = require('path');
-const sqlite3 = require('sqlite3').verbose();
+
+let BetterSqlite3;
+try { BetterSqlite3 = require('better-sqlite3'); } catch { BetterSqlite3 = null; }
 
 const createId = () => {
     if (globalThis.crypto && typeof globalThis.crypto.randomUUID === 'function') {
@@ -330,7 +332,7 @@ class HensonImportService {
             await db.run('COMMIT');
             return { success: true, stats };
         } catch (error) {
-            try { await db.run('ROLLBACK'); } catch {}
+            try { await db.run('ROLLBACK'); } catch { }
             return { success: false, error: error.message, stats };
         }
     }
@@ -339,22 +341,19 @@ class HensonImportService {
         const warnings = [];
         const candidates = [];
 
-        const db = await new Promise((resolve, reject) => {
-            const sqlite = new sqlite3.Database(sqlitePath, (err) => {
-                if (err) reject(err);
-                else resolve(sqlite);
-            });
-        });
+        if (!BetterSqlite3) {
+            return { candidates, warnings: ['better-sqlite3 not available'] };
+        }
 
-        const all = (sql, params = []) => new Promise((resolve, reject) => {
-            db.all(sql, params, (err, rows) => {
-                if (err) reject(err);
-                else resolve(rows || []);
-            });
-        });
+        let db;
+        try {
+            db = new BetterSqlite3(sqlitePath, { readonly: true });
+        } catch (err) {
+            return { candidates, warnings: [`Failed to open SQLite file: ${err.message}`] };
+        }
 
         try {
-            const tables = await all("SELECT name FROM sqlite_master WHERE type='table'");
+            const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all();
             const names = tables
                 .map((t) => String(t.name || ''))
                 .filter((n) => n && !n.startsWith('sqlite_'));
@@ -362,7 +361,7 @@ class HensonImportService {
             for (const tableName of names) {
                 let rows = [];
                 try {
-                    rows = await all(`SELECT * FROM "${tableName.replace(/"/g, '""')}" LIMIT ?`, [limit]);
+                    rows = db.prepare(`SELECT * FROM "${tableName.replace(/"/g, '""')}" LIMIT ?`).all(limit);
                 } catch (tableErr) {
                     warnings.push(`Failed reading table ${tableName}: ${tableErr.message}`);
                     continue;
@@ -377,7 +376,7 @@ class HensonImportService {
             }
             return { candidates, warnings };
         } finally {
-            try { db.close(); } catch {}
+            try { db.close(); } catch { }
         }
     }
 
