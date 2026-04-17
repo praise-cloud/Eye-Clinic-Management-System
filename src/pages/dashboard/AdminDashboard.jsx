@@ -10,6 +10,7 @@ import * as testService from '../../services/testService';
 import * as revenueService from '../../services/revenueService';
 import DynamicTableView from '../../components/DynamicTableView';
 import MessagesContent from '../../components/content/MessagesContent';
+import logger from '../../utils/logger';
 
 const AdminDashboard = () => {
   const { user, logout } = useUser();
@@ -96,7 +97,7 @@ const AdminDashboard = () => {
         }));
       }
     } catch (error) {
-      console.error('Error loading dashboard stats:', error);
+      logger.error('AdminDashboard: Error loading dashboard stats', { error: error.message });
     }
   };
 
@@ -121,7 +122,7 @@ const AdminDashboard = () => {
         setSystemLogs(mapped);
       }
     } catch (error) {
-      console.error('Error loading activity logs:', error);
+      logger.error('AdminDashboard: Error loading activity logs', { error: error.message });
     }
   };
 
@@ -132,7 +133,7 @@ const AdminDashboard = () => {
         setRevenueLog(logs);
       }
     } catch (error) {
-      console.error('Error loading revenue logs:', error);
+      logger.error('AdminDashboard: Error loading revenue logs', { error: error.message });
     }
   };
 
@@ -149,7 +150,7 @@ const AdminDashboard = () => {
         }));
       }
     } catch (error) {
-      console.error('Error loading revenue stats:', error);
+      logger.error('AdminDashboard: Error loading revenue stats', { error: error.message });
     }
   };
 
@@ -161,7 +162,7 @@ const AdminDashboard = () => {
         setOnlineUsers(res.users || []);
       }
     } catch (error) {
-      console.error('Error loading online users:', error);
+      logger.error('AdminDashboard: Error loading online users', { error: error.message });
     }
   };
 
@@ -173,7 +174,7 @@ const AdminDashboard = () => {
         setFilteredLogs(res.logs);
       }
     } catch (error) {
-      console.error('Error loading filtered activity logs:', error);
+      logger.error('AdminDashboard: Error loading filtered activity logs', { error: error.message });
     }
   };
 
@@ -187,7 +188,7 @@ const AdminDashboard = () => {
         password: formData.password,
         role: formData.role
       }, user?.id);
-      console.log('Create user response:', res);
+      logger.info('AdminDashboard: Create user response', { success: res?.success });
       if (res.success) {
         alert('User created successfully!');
         setShowUserModal(false);
@@ -199,7 +200,7 @@ const AdminDashboard = () => {
         alert(res.error || res.message || 'Failed to add user.');
       }
     } catch (error) {
-      console.error('Error adding user:', error);
+      logger.error('AdminDashboard: Error adding user', { error: error.message });
       alert('Error adding user: ' + error.message);
     }
   };
@@ -231,7 +232,7 @@ const AdminDashboard = () => {
         alert(res.message || 'Failed to update user.');
       }
     } catch (error) {
-      console.error('Error updating user:', error);
+      logger.error('AdminDashboard: Error updating user', { error: error.message });
       alert('Error updating user: ' + error.message);
     }
   };
@@ -249,7 +250,7 @@ const AdminDashboard = () => {
         alert(res.message || 'Failed to delete user.');
       }
     } catch (error) {
-      console.error('Error deleting user:', error);
+      logger.error('AdminDashboard: Error deleting user', { error: error.message });
       alert('Error deleting user: ' + error.message);
     }
   };
@@ -270,7 +271,7 @@ const AdminDashboard = () => {
         alert(res.message || 'Failed to update user status.');
       }
     } catch (error) {
-      console.error('Error toggling user status:', error);
+      logger.error('AdminDashboard: Error toggling user status', { error: error.message });
       alert('Error toggling user status: ' + error.message);
     }
   };
@@ -295,10 +296,10 @@ const AdminDashboard = () => {
           gender: u.gender // Keep for editing
         })));
       } else {
-        console.error('Failed to fetch users:', res.error);
+        logger.error('AdminDashboard: Failed to fetch users', { error: res.error });
       }
     } catch (error) {
-      console.error('Error fetching users:', error);
+      logger.error('AdminDashboard: Error fetching users', { error: error.message });
     }
   };
 
@@ -403,7 +404,7 @@ const AdminDashboard = () => {
         setAdminMessage('Database clear functionality not available.');
       }
     } catch (error) {
-      console.error('Error clearing database:', error);
+      logger.error('AdminDashboard: Error clearing database', { error: error.message });
       setAdminMessage('Error clearing database: ' + error.message);
     } finally {
       setAdminLoading(false);
@@ -431,7 +432,7 @@ const AdminDashboard = () => {
       setCaseStudiesTotal(Number(res.total || 0));
       setCaseStudiesDoctors(Array.isArray(res.doctors) ? res.doctors : []);
     } catch (err) {
-      console.error('Failed to load doctor case studies:', err);
+      logger.error('AdminDashboard: Failed to load doctor case studies', { error: err.message });
     }
   };
 
