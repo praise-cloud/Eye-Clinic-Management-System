@@ -37,31 +37,6 @@ module.exports = function registerSystemHandlers(ctx) {
     }
   });
 
-  safeHandle('system:setCvfWatchPath', async (event, payload = {}) => {
-    try {
-      if (!_currentUser) return { success: false, error: 'Authentication required' };
-      const dir = app.getPath('userData');
-      const cfgPath = path.join(dir, 'config.json');
-      let existing = {};
-      if (fs.existsSync(cfgPath)) {
-        try { existing = JSON.parse(fs.readFileSync(cfgPath, 'utf-8')); } catch {}
-      }
-      const data = { ...existing, cvf_watch_path: payload?.path || '' };
-      fs.writeFileSync(cfgPath, JSON.stringify(data));
-      return { success: true, path: data.cvf_watch_path };
-    } catch (error) { return buildErrorResponse(error, { scope: 'system', action: 'setCvfWatchPath' }); }
-  });
-
-  safeHandle('system:getCvfWatchPath', async () => {
-    try {
-      const dir = app.getPath('userData');
-      const cfgPath = path.join(dir, 'config.json');
-      if (!fs.existsSync(cfgPath)) return { success: true, path: null };
-      const data = JSON.parse(fs.readFileSync(cfgPath, 'utf-8'));
-      return { success: true, path: data.cvf_watch_path || null };
-    } catch (error) { return { success: false, error: error.message, path: null }; }
-  });
-
   safeHandle('system:getNetworkDbPath', async () => {
     try {
       const dir = app.getPath('userData');
@@ -79,7 +54,7 @@ module.exports = function registerSystemHandlers(ctx) {
       const cfgPath = path.join(dir, 'config.json');
       let existing = {};
       if (fs.existsSync(cfgPath)) {
-        try { existing = JSON.parse(fs.readFileSync(cfgPath, 'utf-8')); } catch {}
+        try { existing = JSON.parse(fs.readFileSync(cfgPath, 'utf-8')); } catch { }
       }
       const data = { ...existing, network_db_path: payload?.path || '' };
       fs.writeFileSync(cfgPath, JSON.stringify(data));
@@ -93,7 +68,7 @@ module.exports = function registerSystemHandlers(ctx) {
       const cfgPath = path.join(dir, 'config.json');
       let config = { isServerMode: false, serverUrl: '', autoConnect: true, deviceName: '', serverPort: 3001 };
       if (fs.existsSync(cfgPath)) {
-        try { config = { ...config, ...JSON.parse(fs.readFileSync(cfgPath, 'utf-8')) }; } catch {}
+        try { config = { ...config, ...JSON.parse(fs.readFileSync(cfgPath, 'utf-8')) }; } catch { }
       }
       return { success: true, config };
     } catch (error) { return { success: false, error: error.message }; }
@@ -106,7 +81,7 @@ module.exports = function registerSystemHandlers(ctx) {
       const cfgPath = path.join(dir, 'config.json');
       let existing = {};
       if (fs.existsSync(cfgPath)) {
-        try { existing = JSON.parse(fs.readFileSync(cfgPath, 'utf-8')); } catch {}
+        try { existing = JSON.parse(fs.readFileSync(cfgPath, 'utf-8')); } catch { }
       }
       const data = { ...existing, ...config };
       fs.writeFileSync(cfgPath, JSON.stringify(data));

@@ -205,9 +205,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // Comprehensive database import with auto-conversion and schema sync
     importExternalWithSync: (filePath) => importExternalWithFallback(filePath),
     importExternalBatchWithSync: (filePaths) => importExternalBatchWithFallback(filePaths),
-    analyzeHensonExport: (filePath) => ipcRenderer.invoke('henson:analyzeExport', filePath),
-    importHensonExport: (payload) => ipcRenderer.invoke('henson:importExport', payload),
-    importHensonFolder: (payload) => ipcRenderer.invoke('henson:importFolder', payload),
     getTableData: (options) => ipcRenderer.invoke('database:getTableData', options),
     getDoctorCaseStudies: (options) => getDoctorCaseStudiesWithFallback(options),
 
@@ -215,10 +212,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getCurrentUser: () => ipcRenderer.invoke('auth:getCurrentUser'),
     checkUpdate: () => ipcRenderer.invoke('app:checkUpdate'),
     checkOnlineStatus: () => ipcRenderer.invoke('system:checkOnline'),
-    setCvfWatchPath: (path) => ipcRenderer.invoke('system:setCvfWatchPath', { path }),
-    getCvfWatchPath: () => ipcRenderer.invoke('system:getCvfWatchPath'),
-    listCvfIncomingFiles: (payload) => ipcRenderer.invoke('cvf:listIncomingFiles', payload),
-    attachCvfPdfToPatient: (payload) => ipcRenderer.invoke('cvf:attachPdfToPatient', payload),
     setUserOnline: (userId) => ipcRenderer.invoke('presence:setOnline', { userId }),
     setUserOffline: (userId) => ipcRenderer.invoke('presence:setOffline', { userId }),
     getOnlineUsers: () => ipcRenderer.invoke('presence:getOnlineUsers'),

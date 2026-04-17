@@ -16,7 +16,6 @@ const registerChatHandlers = require('./handlers/chat');
 const registerPresenceHandlers = require('./handlers/presence');
 const registerSettingsHandlers = require('./handlers/settings');
 const registerSystemHandlers = require('./handlers/system');
-const registerCvfHandlers = require('./handlers/cvf');
 const registerWindowHandlers = require('./handlers/window');
 const registerDashboardHandlers = require('./handlers/dashboard');
 const registerServerHandlers = require('./handlers/server');
@@ -66,7 +65,6 @@ class IPCHandlers {
     registerPresenceHandlers(ctx);
     registerSettingsHandlers(ctx);
     registerSystemHandlers(ctx);
-    registerCvfHandlers(ctx);
     registerWindowHandlers(ctx);
     registerDashboardHandlers(ctx);
     registerServerHandlers(ctx);
