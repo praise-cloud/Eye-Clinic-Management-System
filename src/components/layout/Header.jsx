@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import logger from '../../utils/logger';
 import useUser from '../../hooks/useUser';
 import useNotifications from '../../hooks/useNotifications';
 import LogoutModal from '../modals/LogoutModal';
@@ -32,7 +33,7 @@ const Header = ({ activeSection, currentUser, searchTerm, onSearchChange, onSect
       await logout();
       setShowLogoutModal(false);
     } catch (error) {
-      console.error('Logout error:', error);
+      logger.error('Header: Logout error', { error: error.message });
       alert('Failed to logout. Please try again.');
     }
   };
@@ -52,7 +53,7 @@ const Header = ({ activeSection, currentUser, searchTerm, onSearchChange, onSect
           sessionStorage.setItem('pendingChatUserId', String(n.related_id));
         }
       } catch (err) {
-        console.error('Failed to mark chat as read from notification:', err);
+        logger.error('Header: Failed to mark chat as read from notification', { error: err.message });
       }
       if (onSectionClick) onSectionClick('messages');
       fetchNotifications();

@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import ChatInputActions from './ChatInputActions';
 import useUser from '../../hooks/useUser';
+import logger from '../../utils/logger';
 
 const electronAPI = window.electronAPI;
 
@@ -95,7 +96,7 @@ const MessagesContent = () => {
         }
         setUnreadCounts(counts);
       } catch (e) {
-        console.error(e);
+        logger.error('MessagesContent: Load users error', { error: e.message });
       }
     };
     load();
@@ -144,7 +145,7 @@ const MessagesContent = () => {
       // Prevent duplicate: check if message ID already exists
       setMessages(prev => {
         if (prev.some(existing => existing.id === msg.id)) {
-          console.log('Duplicate prevented:', msg.id);
+          logger.debug('MessagesContent: Duplicate message prevented', { messageId: msg.id });
           return prev;
         }
         return [...prev, msg];
@@ -167,7 +168,7 @@ const MessagesContent = () => {
       return;
     }
     try {
-      console.log('Loading messages for:', {
+      logger.debug('MessagesContent: Loading messages', {
         currentUserId: currentUser.id,
         otherUserId: otherUser.id
       });
@@ -179,7 +180,7 @@ const MessagesContent = () => {
         offset: 0,
       });
 
-      console.log('Get messages response:', res);
+      logger.debug('MessagesContent: Get messages response', { success: res?.success });
 
       if (res.success) {
         setMessages(res.messages);
@@ -188,13 +189,13 @@ const MessagesContent = () => {
         try {
           await electronAPI.markAllAsRead(currentUser.id, otherUser.id);
         } catch (error) {
-          console.warn('Failed to mark messages as read:', error);
+          logger.warn('MessagesContent: Failed to mark messages as read', { error: error.message });
         }
       } else {
-        console.error('Failed to load messages:', res.error);
+        logger.error('MessagesContent: Failed to load messages', { error: res.error });
       }
     } catch (e) {
-      console.error('Load messages error:', e);
+      logger.error('MessagesContent: Load messages error', { error: e.message });
     }
   }, [currentUser?.id, otherUser?.id]);
 
@@ -268,7 +269,7 @@ const MessagesContent = () => {
             await electronAPI.sendMessage(currentUser.id, otherUser.id, 'Image', attachmentData);
             // Don't manually add to state - let the real-time handler do it
           } catch (err) {
-            console.error('Send image error:', err);
+            logger.error('MessagesContent: Send image error', { error: err.message });
           } finally {
             setSendingMessage(false);
           }
@@ -297,7 +298,7 @@ const MessagesContent = () => {
           type: file.type,
           data: ev.target.result
         };
-        console.log('File attachment created:', attachment);
+        logger.debug('MessagesContent: File attachment created', { name: attachment.name, type: attachment.type });
         await sendMessage(attachment);
         setFile(null);
         setInput('');
@@ -331,7 +332,7 @@ const MessagesContent = () => {
         // console.log('Message sent — waiting for real-time broadcast');
       }
     } catch (err) {
-      console.error('Send message error:', err);
+      logger.error('MessagesContent: Send message error', { error: err.message });
     }
   };
   // Fetch messages with optional search
@@ -350,7 +351,7 @@ const MessagesContent = () => {
         setMessages(res.messages);
       }
     } catch (e) {
-      console.error(e);
+      logger.error('MessagesContent: Fetch messages error', { error: e.message });
     } finally {
       setLoading(false);
     }
@@ -372,7 +373,7 @@ const MessagesContent = () => {
         setDeleteConfirm(null);
       }
     } catch (e) {
-      console.error('Delete error:', e);
+      logger.error('MessagesContent: Delete error', { error: e.message });
     }
   };
 

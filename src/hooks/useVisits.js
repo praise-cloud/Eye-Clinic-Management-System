@@ -1,5 +1,6 @@
 // src/hooks/useVisits.js
 import { useState, useCallback, useEffect } from 'react';
+import logger from '../utils/logger';
 
 const getServerUrl = () => localStorage.getItem('serverUrl');
 const isServerMode = () => !!getServerUrl();
@@ -43,7 +44,7 @@ export default function useVisits() {
                 setError(result?.error);
             }
         } catch (err) {
-            console.error('Error fetching visits:', err);
+            logger.error('useVisits: Error fetching visits', { error: err.message });
             setError(err.message);
         } finally {
             setLoading(false);
@@ -67,7 +68,7 @@ export default function useVisits() {
                 setError(result?.error);
             }
         } catch (err) {
-            console.error('Error fetching patient visits:', err);
+            logger.error('useVisits: Error fetching patient visits', { error: err.message });
             setError(err.message);
         } finally {
             setLoading(false);
@@ -92,7 +93,7 @@ export default function useVisits() {
                 return null;
             }
         } catch (err) {
-            console.error('Error creating visit:', err);
+            logger.error('useVisits: Error creating visit', { error: err.message });
             setError(err.message);
             return null;
         }
@@ -115,7 +116,7 @@ export default function useVisits() {
                 return null;
             }
         } catch (err) {
-            console.error('Error fetching visit:', err);
+            logger.error('useVisits: Error fetching visit', { error: err.message });
             setError(err.message);
             return null;
         } finally {

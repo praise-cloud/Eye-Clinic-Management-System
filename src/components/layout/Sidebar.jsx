@@ -1,4 +1,5 @@
-import React, { useState } from 'react'
+import React, { useState } from 'react';
+import logger from '../../utils/logger';
 import {
   Logo,
   UsersIcon,
@@ -26,7 +27,7 @@ const Sidebar = ({ activeSection, onSectionClick, currentUser }) => {
       await logout();
       setShowLogoutModal(false);
     } catch (error) {
-      console.error('Logout error:', error);
+      logger.error('Sidebar: Logout error', { error: error.message });
       alert('Failed to logout. Please try again.');
     }
   };

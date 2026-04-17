@@ -1,5 +1,6 @@
 // src/hooks/useReminders.js
 import { useState, useCallback, useEffect } from 'react';
+import logger from '../utils/logger';
 
 const getServerUrl = () => localStorage.getItem('serverUrl');
 const isServerMode = () => !!getServerUrl();
@@ -43,7 +44,7 @@ export default function useReminders() {
                 setError(result?.error);
             }
         } catch (err) {
-            console.error('Error fetching reminders:', err);
+            logger.error('useReminders: Error fetching reminders', { error: err.message });
             setError(err.message);
         } finally {
             setLoading(false);
@@ -66,7 +67,7 @@ export default function useReminders() {
                 setError(result?.error);
             }
         } catch (err) {
-            console.error('Error fetching upcoming reminders:', err);
+            logger.error('useReminders: Error fetching upcoming reminders', { error: err.message });
             setError(err.message);
         } finally {
             setLoading(false);
@@ -91,7 +92,7 @@ export default function useReminders() {
                 return null;
             }
         } catch (err) {
-            console.error('Error creating reminder:', err);
+            logger.error('useReminders: Error creating reminder', { error: err.message });
             setError(err.message);
             return null;
         }

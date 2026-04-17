@@ -2,6 +2,7 @@
 // React hook for patient CRUD/search using patientService
 import { useState, useCallback, useEffect } from 'react';
 import * as patientService from '../services/patientService';
+import logger from '../utils/logger';
 
 export default function usePatients() {
   const [patients, setPatients] = useState([]);
@@ -9,15 +10,15 @@ export default function usePatients() {
   const [error, setError] = useState(null);
 
   const fetchPatients = useCallback(async (filters = {}) => {
-    console.log('fetchPatients called with filters:', filters);
+    logger.debug('usePatients: fetchPatients called', { filters });
     setLoading(true);
     setError(null);
     try {
       const data = await patientService.getAllPatients(filters);
-      console.log('Patients fetched:', data);
+      logger.debug('usePatients: Patients fetched', { count: data?.length });
       setPatients(data);
     } catch (err) {
-      console.error('Error fetching patients:', err);
+      logger.error('usePatients: Error fetching patients', { error: err.message });
       setError(err);
     }
     setLoading(false);

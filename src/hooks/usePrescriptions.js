@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
+import logger from '../utils/logger';
 
 const getServerUrl = () => localStorage.getItem('serverUrl');
 const isServerMode = () => !!getServerUrl();
@@ -41,7 +42,7 @@ export default function usePrescriptions() {
                 setError(result.error);
             }
         } catch (err) {
-            console.error('Error fetching patient prescriptions:', err);
+            logger.error('usePrescriptions: Error fetching patient prescriptions', { error: err.message });
             setError(err.message);
         } finally {
             setLoading(false);
@@ -64,7 +65,7 @@ export default function usePrescriptions() {
                 setError(result.error);
             }
         } catch (err) {
-            console.error('Error fetching pending prescriptions:', err);
+            logger.error('usePrescriptions: Error fetching pending prescriptions', { error: err.message });
             setError(err.message);
         } finally {
             setLoading(false);
@@ -88,7 +89,7 @@ export default function usePrescriptions() {
                 return null;
             }
         } catch (err) {
-            console.error('Error fetching prescription by ID:', err);
+            logger.error('usePrescriptions: Error fetching prescription by ID', { error: err.message });
             setError(err.message);
             return null;
         } finally {
@@ -112,7 +113,7 @@ export default function usePrescriptions() {
                 return null;
             }
         } catch (err) {
-            console.error('Error creating prescription:', err);
+            logger.error('usePrescriptions: Error creating prescription', { error: err.message });
             setError(err.message);
             return null;
         }
@@ -135,7 +136,7 @@ export default function usePrescriptions() {
                 return null;
             }
         } catch (err) {
-            console.error('Error creating multiple prescriptions:', err);
+            logger.error('usePrescriptions: Error creating multiple prescriptions', { error: err.message });
             setError(err.message);
             return null;
         } finally {
@@ -160,7 +161,7 @@ export default function usePrescriptions() {
                 return false;
             }
         } catch (err) {
-            console.error('Error updating prescription status:', err);
+            logger.error('usePrescriptions: Error updating prescription status', { error: err.message });
             setError(err.message);
             return false;
         }
