@@ -1,4 +1,5 @@
 import { clearUserSession } from '../utils/sessionUtils';
+import logger from '../utils/logger';
 
 class LogoutService {
   constructor() {
@@ -21,14 +22,14 @@ class LogoutService {
   // Perform logout with all cleanup
   async performLogout() {
     try {
-      console.log('Starting logout process...');
+      logger.info('LogoutService: Starting logout process');
 
       // Call all registered logout callbacks
       for (const callback of this.logoutCallbacks) {
         try {
           await callback();
         } catch (error) {
-          console.error('Error in logout callback:', error);
+          logger.error('LogoutService: Error in logout callback', { error: error.message });
         }
       }
 
@@ -36,9 +37,9 @@ class LogoutService {
       if (window.electronAPI?.logout) {
         try {
           await window.electronAPI.logout();
-          console.log('Electron logout completed');
+          logger.info('LogoutService: Electron logout completed');
         } catch (error) {
-          console.error('Electron logout error:', error);
+          logger.error('LogoutService: Electron logout error', { error: error.message });
         }
       }
 
@@ -48,10 +49,10 @@ class LogoutService {
       // Additional cleanup
       this.clearApplicationState();
 
-      console.log('Logout process completed successfully');
+      logger.info('LogoutService: Logout process completed successfully');
       return { success: true };
     } catch (error) {
-      console.error('Logout process failed:', error);
+      logger.error('LogoutService: Logout process failed', { error: error.message });
       return { success: false, error: error.message };
     }
   }
@@ -71,15 +72,15 @@ class LogoutService {
       // Clear any timers or intervals that might be running
       // This would be application-specific
       
-      console.log('Application state cleared');
+      logger.info('LogoutService: Application state cleared');
     } catch (error) {
-      console.error('Error clearing application state:', error);
+      logger.error('LogoutService: Error clearing application state', { error: error.message });
     }
   }
 
   // Force logout (for security purposes)
   forceLogout(reason = 'Session expired') {
-    console.warn(`Force logout triggered: ${reason}`);
+    logger.warn(`LogoutService: Force logout triggered: ${reason}`);
     this.performLogout().then(() => {
       // Reload the page to ensure clean state
       window.location.reload();

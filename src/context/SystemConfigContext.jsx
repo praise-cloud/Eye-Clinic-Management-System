@@ -1,11 +1,12 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import logger from '../utils/logger';
 
 const SystemConfigContext = createContext();
 
 export const useSystemConfig = () => {
   const context = useContext(SystemConfigContext);
   if (!context) {
-    console.warn('useSystemConfig used outside SystemConfigProvider, using defaults');
+    logger.warn('SystemConfigContext: useSystemConfig used outside SystemConfigProvider, using defaults');
     return {
       config: {
         autoBackups: true,
@@ -72,7 +73,7 @@ export const SystemConfigProvider = ({ children }) => {
           }
         }
       } catch (err) {
-        console.error('Failed to load system config:', err);
+        logger.error('SystemConfigContext: Failed to load system config', { error: err.message });
       }
     };
     loadConfig();
@@ -104,7 +105,7 @@ export const SystemConfigProvider = ({ children }) => {
       try {
         await window.electronAPI.setSetting('systemConfig', JSON.stringify(newConfig));
       } catch (err) {
-        console.error('Failed to save config to DB:', err);
+        logger.error('SystemConfigContext: Failed to save config to DB', { error: err.message });
       }
     }
   };

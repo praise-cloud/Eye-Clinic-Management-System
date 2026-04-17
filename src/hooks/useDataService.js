@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import logger from '../utils/logger';
 
 const DEFAULT_SERVER_URL = 'http://localhost:3001';
 
@@ -132,7 +133,7 @@ export default function useDataService() {
         if (window.electronAPI?.[method]) {
             return await window.electronAPI[method](...args);
         }
-        console.warn(`Method ${method} not available on electronAPI`);
+        logger.warn(`useDataService: Method ${method} not available on electronAPI`);
         return { success: false, error: `Method ${method} not available` };
     }, []);
 

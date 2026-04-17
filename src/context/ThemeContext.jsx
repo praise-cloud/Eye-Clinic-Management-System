@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import logger from '../utils/logger';
 
 const ThemeContext = createContext();
 
@@ -16,20 +17,20 @@ export const ThemeProvider = ({ children }) => {
 
   useEffect(() => {
     const root = document.documentElement;
-    console.log('Theme changed:', isDark ? 'dark' : 'light');
+    logger.debug('ThemeContext: Theme changed', { theme: isDark ? 'dark' : 'light' });
     if (isDark) {
       root.classList.add('dark');
       localStorage.setItem('theme', 'dark');
-      console.log('Dark mode enabled, classes:', root.className);
+      logger.debug('ThemeContext: Dark mode enabled', { classes: root.className });
     } else {
       root.classList.remove('dark');
       localStorage.setItem('theme', 'light');
-      console.log('Light mode enabled, classes:', root.className);
+      logger.debug('ThemeContext: Light mode enabled', { classes: root.className });
     }
   }, [isDark]);
 
   const toggleTheme = () => {
-    console.log('Toggle theme clicked, current:', isDark);
+    logger.debug('ThemeContext: Toggle theme clicked', { currentTheme: isDark });
     setIsDark(!isDark);
   };
 

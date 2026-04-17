@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import useUser from '../../hooks/useUser'
 import * as inventoryService from '../../services/inventoryService'
+import logger from '../../utils/logger';
 
 const InventoryContent = () => {
   const navigate = useNavigate()
@@ -42,7 +43,7 @@ const InventoryContent = () => {
         setNotification({ type: 'error', message: result.error })
       }
     } catch (error) {
-      console.error('Error loading inventory:', error)
+      logger.error('InventoryContent: Error loading inventory', { error: error.message })
       setNotification({ type: 'error', message: 'Failed to load inventory. Please try again.' })
     } finally {
       setLoading(false)
@@ -62,7 +63,7 @@ const InventoryContent = () => {
         setNotification({ type: 'error', message: result.error || 'Failed to delete item' })
       }
     } catch (error) {
-      console.error('Error deleting item:', error)
+      logger.error('InventoryContent: Error deleting item', { error: error.message })
       setNotification({ type: 'error', message: 'Failed to delete item' })
     }
   }
@@ -87,7 +88,7 @@ const InventoryContent = () => {
       setBuyQuantity(1)
       loadInventory()
     } catch (error) {
-      console.error('Error updating quantity:', error)
+      logger.error('InventoryContent: Error updating quantity', { error: error.message })
       setNotification({ type: 'error', message: 'Failed to complete purchase.' })
     }
   }
@@ -163,7 +164,7 @@ const InventoryContent = () => {
         setNotification({ type: 'error', message: result.error || 'Failed to load item for editing.' })
       }
     } catch (error) {
-      console.error('Error loading item for edit:', error)
+      logger.error('InventoryContent: Error loading item for edit', { error: error.message })
       setNotification({ type: 'error', message: 'Failed to load item for editing.' })
     } finally {
       setEditLoading(false)
@@ -229,7 +230,7 @@ const InventoryContent = () => {
         setEditError(result.error || 'Failed to update item')
       }
     } catch (error) {
-      console.error('Error saving edited item:', error)
+      logger.error('InventoryContent: Error saving edited item', { error: error.message })
       setEditError('Failed to update item')
     } finally {
       setEditSaving(false)

@@ -1,5 +1,6 @@
 // src/hooks/useCaseNotes.js
 import { useState, useCallback, useEffect } from 'react';
+import logger from '../utils/logger';
 
 const getServerUrl = () => localStorage.getItem('serverUrl');
 const isServerMode = () => !!getServerUrl();
@@ -43,7 +44,7 @@ export default function useCaseNotes() {
                 setError(result?.error);
             }
         } catch (err) {
-            console.error('Error fetching case notes:', err);
+            logger.error('useCaseNotes: Error fetching case notes', { error: err.message });
             setError(err.message);
         } finally {
             setLoading(false);
@@ -67,7 +68,7 @@ export default function useCaseNotes() {
                 setError(result?.error);
             }
         } catch (err) {
-            console.error('Error fetching patient case notes:', err);
+            logger.error('useCaseNotes: Error fetching patient case notes', { error: err.message });
             setError(err.message);
         } finally {
             setLoading(false);
@@ -92,7 +93,7 @@ export default function useCaseNotes() {
                 return null;
             }
         } catch (err) {
-            console.error('Error creating case note:', err);
+            logger.error('useCaseNotes: Error creating case note', { error: err.message });
             setError(err.message);
             return null;
         }
@@ -116,7 +117,7 @@ export default function useCaseNotes() {
                 return null;
             }
         } catch (err) {
-            console.error('Error updating case note:', err);
+            logger.error('useCaseNotes: Error updating case note', { error: err.message });
             setError(err.message);
             return null;
         }
@@ -140,7 +141,7 @@ export default function useCaseNotes() {
                 return null;
             }
         } catch (err) {
-            console.error('Error signing case note:', err);
+            logger.error('useCaseNotes: Error signing case note', { error: err.message });
             setError(err.message);
             return null;
         }
@@ -163,7 +164,7 @@ export default function useCaseNotes() {
                 return null;
             }
         } catch (err) {
-            console.error('Error fetching case note:', err);
+            logger.error('useCaseNotes: Error fetching case note', { error: err.message });
             setError(err.message);
             return null;
         } finally {

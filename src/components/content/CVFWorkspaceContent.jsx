@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import useUser from '../../hooks/useUser';
+import logger from '../../utils/logger';
 
 const RESULT_OPTIONS = ['Pending', 'Normal', 'Abnormal', 'Needs Review'];
 
@@ -190,7 +191,7 @@ const CVFWorkspaceContent = () => {
         return next;
       });
     } catch (error) {
-      console.error('CVF load error:', error);
+      logger.error('CVFWorkspaceContent: CVF load error', { error: error.message });
       setMessage('Failed to load CVF records: ' + error.message);
     } finally {
       setLoading(false);
@@ -267,7 +268,7 @@ const CVFWorkspaceContent = () => {
       setMessage('Case study updated successfully.');
       await loadCvfRecords();
     } catch (error) {
-      console.error('CVF update error:', error);
+      logger.error('CVFWorkspaceContent: CVF update error', { error: error.message });
       setMessage('Failed to update case study: ' + error.message);
     } finally {
       setSaving(false);
@@ -320,7 +321,7 @@ const CVFWorkspaceContent = () => {
       setMessage(shouldSignOff ? 'Case study signed off.' : 'Case study sign-off revoked.');
       await loadCvfRecords();
     } catch (error) {
-      console.error('CVF sign-off error:', error);
+      logger.error('CVFWorkspaceContent: CVF sign-off error', { error: error.message });
       setMessage('Failed to update sign-off: ' + error.message);
     } finally {
       setSigningOff(false);
@@ -374,7 +375,7 @@ const CVFWorkspaceContent = () => {
       setMessage(`Batch update complete. Updated: ${successCount}, Failed: ${failedCount}.`);
       await loadCvfRecords();
     } catch (error) {
-      console.error('CVF batch update error:', error);
+      logger.error('CVFWorkspaceContent: CVF batch update error', { error: error.message });
       setMessage('Batch update failed: ' + error.message);
     } finally {
       setBatchSaving(false);
@@ -411,7 +412,7 @@ const CVFWorkspaceContent = () => {
       }
       setMessage('CVF result attached to client documents successfully.');
     } catch (error) {
-      console.error('Attach CVF document error:', error);
+      logger.error('CVFWorkspaceContent: Attach CVF document error', { error: error.message });
       setMessage('Failed to attach CVF document: ' + error.message);
     } finally {
       setAttachingDocument(false);
