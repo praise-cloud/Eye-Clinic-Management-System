@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import useUser from '../hooks/useUser';
 import * as testService from '../services/testService';
+import logger from '../utils/logger';
 
 const CaseNotesPage = () => {
     const { user } = useUser();
@@ -44,7 +45,7 @@ const CaseNotesPage = () => {
             const data = await testService.getAllTests({ machineType: 'case_note' });
             setCaseNotes(data || []);
         } catch (err) {
-            console.error('Error loading case notes:', err);
+            logger.error('CaseNotesPage: Error loading case notes', { error: err.message });
         } finally {
             setLoading(false);
         }
@@ -61,7 +62,7 @@ const CaseNotesPage = () => {
                 })));
             }
         } catch (err) {
-            console.error('Error loading patients:', err);
+            logger.error('CaseNotesPage: Error loading patients', { error: err.message });
         }
     };
 

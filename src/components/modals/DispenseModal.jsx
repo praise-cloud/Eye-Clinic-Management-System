@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import usePrescriptions from '../../hooks/usePrescriptions';
 import useUser from '../../hooks/useUser';
+import logger from '../../utils/logger';
 
 const DispenseModal = ({ prescriptionId, prescription: initialPrescription, onClose, onDispensed }) => {
     const { fetchPrescriptionById, updateStatus, loading: hookLoading } = usePrescriptions();
@@ -22,7 +23,7 @@ const DispenseModal = ({ prescriptionId, prescription: initialPrescription, onCl
                     setError('Prescription not found');
                 }
             } catch (err) {
-                console.error('Error loading prescription:', err);
+                logger.error('DispenseModal: Error loading prescription', { error: err.message });
                 setError('Failed to load prescription data');
             } finally {
                 setLoading(false);
@@ -45,7 +46,7 @@ const DispenseModal = ({ prescriptionId, prescription: initialPrescription, onCl
                 setError('Failed to dispense. Please check inventory stock levels.');
             }
         } catch (err) {
-            console.error('Dispense error:', err);
+            logger.error('DispenseModal: Dispense error', { error: err.message });
             setError(err.message || 'System error during dispensation');
         } finally {
             setDispensing(false);
