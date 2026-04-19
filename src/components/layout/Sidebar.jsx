@@ -35,27 +35,42 @@ const Sidebar = ({ activeSection, onSectionClick, currentUser }) => {
   const adminSidebarItems = [
     { id: 'overview', name: 'Overview', icon: <ChartIcon className="w-5 h-5" /> },
     { id: 'messages', name: 'Messages', icon: <ChatIcon className="w-5 h-5" /> },
-    { id: 'users', name: 'User Management', icon: <UsersIcon className="w-5 h-5" /> },
+    { id: 'patients', name: 'Patients', icon: <UsersIcon className="w-5 h-5" /> },
+    { id: 'reports', name: 'Reports', icon: <DocumentIcon className="w-5 h-5" /> },
+    { id: 'case-notes', name: 'Case Notes', icon: <DocumentIcon className="w-5 h-5" />, roles: ['admin', 'doctor'] },
+    { id: 'inventory', name: 'Inventory', icon: <PackageIcon className="w-5 h-5" /> },
     { id: 'revenue-analysis', name: 'Financial Oversight', icon: <DrugIcon className="w-5 h-5" /> },
-    { id: 'doctor-case-studies', name: 'Doctor Case Studies', icon: <DocumentIcon className="w-5 h-5" /> },
     { id: 'system-settings', name: 'System Settings', icon: <GearIcon className="w-5 h-5" /> },
     { id: 'logout', name: 'Logout', icon: <LogoutIcon className="w-5 h-5" /> },
   ];
 
-  const regularSidebarItems = [
+  const doctorSidebarItems = [
     { id: 'dashboard', name: 'Dashboard', icon: <ChartIcon className="w-5 h-5" /> },
     { id: 'messages', name: 'Messages', icon: <ChatIcon className="w-5 h-5" /> },
-    { id: 'case-notes', name: 'Case Notes', icon: <DocumentIcon className="w-5 h-5" />, roles: ['doctor'] },
-    { id: 'reminders', name: 'Reminders', icon: <BellIcon className="w-5 h-5" />, roles: ['assistant'] },
-    { id: 'inventory', name: 'Inventory', icon: <PackageIcon className="w-5 h-5" />, roles: ['admin', 'assistant'] },
-    { id: 'pharmacy', name: 'Pharmacy', icon: <DrugIcon className="w-5 h-5" />, roles: ['assistant'] },
+    { id: 'patients', name: 'Patients', icon: <UsersIcon className="w-5 h-5" /> },
+    { id: 'reports', name: 'Reports', icon: <DocumentIcon className="w-5 h-5" /> },
+    { id: 'case-notes', name: 'Case Notes', icon: <DocumentIcon className="w-5 h-5" /> },
+    { id: 'inventory', name: 'Inventory', icon: <PackageIcon className="w-5 h-5" /> },
     { id: 'settings', name: 'Settings', icon: <GearIcon className="w-5 h-5" /> },
     { id: 'logout', name: 'Logout', icon: <LogoutIcon className="w-5 h-5" /> },
   ];
 
-  const allSidebarItems = user?.role === 'admin' ? adminSidebarItems : regularSidebarItems;
+  const assistantSidebarItems = [
+    { id: 'dashboard', name: 'Dashboard', icon: <ChartIcon className="w-5 h-5" /> },
+    { id: 'messages', name: 'Messages', icon: <ChatIcon className="w-5 h-5" /> },
+    { id: 'patients', name: 'Patients', icon: <UsersIcon className="w-5 h-5" /> },
+    { id: 'reports', name: 'Reports', icon: <DocumentIcon className="w-5 h-5" /> },
+    { id: 'inventory', name: 'Inventory', icon: <PackageIcon className="w-5 h-5" /> },
+    { id: 'pharmacy', name: 'Pharmacy', icon: <DrugIcon className="w-5 h-5" /> },
+    { id: 'reminders', name: 'Reminders', icon: <BellIcon className="w-5 h-5" /> },
+    { id: 'settings', name: 'Settings', icon: <GearIcon className="w-5 h-5" /> },
+    { id: 'logout', name: 'Logout', icon: <LogoutIcon className="w-5 h-5" /> },
+  ];
 
-  const sidebarItems = allSidebarItems.filter(item =>
+  const regularSidebarItems = user?.role === 'doctor' ? doctorSidebarItems : 
+                       user?.role === 'assistant' ? assistantSidebarItems : adminSidebarItems;
+
+  const sidebarItems = regularSidebarItems.filter(item =>
     !item.roles || item.roles.includes(user?.role)
   )
 

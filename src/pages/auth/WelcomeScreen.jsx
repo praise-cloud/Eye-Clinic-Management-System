@@ -1,8 +1,15 @@
-import React from 'react'
-import { UsersIcon, ChartIcon, DocumentIcon, ChatIcon, ArrowRightIcon } from '../../components/Icons'
+import React, { useState } from 'react'
+import { UsersIcon, ChartIcon, DocumentIcon, ChatIcon, ArrowRightIcon, WifiIcon } from '../../components/Icons'
 import logo from '../../assets/images/logo.png'
+import useServerConnection from '../../hooks/useServerConnection'
 
 const WelcomeScreen = ({ onGetStarted }) => {
+  const [showServerSetup, setShowServerSetup] = useState(false)
+  const [serverUrl, setServerUrl] = useState('')
+  const [testing, setTesting] = useState(false)
+  const [testResult, setTestResult] = useState(null)
+  const { connect } = useServerConnection()
+
   const features = [
     {
       icon: <UsersIcon className="w-8 h-8 text-blue-600" />,
@@ -25,6 +32,88 @@ const WelcomeScreen = ({ onGetStarted }) => {
       description: 'Secure doctor-assistant messaging'
     }
   ]
+
+  const handleTestConnection = async () => {
+    if (!serverUrl) return
+    setTesting(true)
+    setTestResult(null)
+    try {
+      const url = serverUrl.startsWith('http') ? serverUrl : `http://${serverUrl}`
+      const res = await fetch(`${url}/api/health`)
+      if (res.ok) {
+        setTestResult({ success: true, message: 'Connected!' })
+        // Save the URL
+        localStorage.setItem('serverUrl', url)
+      } else {
+        setTestResult({ success: false, error: 'Server not responding' })
+      }
+    } catch (err) {
+      setTestResult({ success: false, error: err.message })
+    }
+    setTesting(false)
+  }
+
+  if (showServerSetup) {
+    return (
+      <div className="relative flex items-center justify-center min-h-screen p-6 overflow-hidden bg-slate-50 dark:bg-slate-950">
+        <div className="w-full max-w-lg">
+          <div className="card-premium p-8">
+            <div className="flex items-center gap-3 mb-6">
+              <button onClick={() => setShowServerSetup(false)} className="text-slate-500 hover:text-slate-700">
+                <ArrowRightIcon className="w-5 h-5 rotate-180" />
+              </button>
+              <h2 className="text-xl font-black text-slate-900 dark:text-white">Connect to Server</h2>
+            </div>
+            
+            <p className="text-sm text-slate-500 mb-6">
+              Enter the server IP address/URL to connect to your clinic's server. 
+              Leave empty if running this app as the server.
+            </p>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  Server URL
+                </label>
+                <input
+                  type="text"
+                  value={serverUrl}
+                  onChange={(e) => setServerUrl(e.target.value)}
+                  placeholder="e.g., 192.168.1.100:3001"
+                  className="w-full px-4 py-3 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800"
+                />
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={handleTestConnection}
+                  disabled={testing || !serverUrl}
+                  className="flex-1 btn btn-secondary"
+                >
+                  {testing ? 'Testing...' : 'Test Connection'}
+                </button>
+                <button
+                  onClick={() => {
+                    localStorage.removeItem('serverUrl')
+                    onGetStarted()
+                  }}
+                  className="flex-1 btn btn-primary"
+                >
+                  Continue (Local)
+                </button>
+              </div>
+
+              {testResult && (
+                <div className={`p-3 rounded-lg ${testResult.success ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+                  {testResult.success ? testResult.message : testResult.error}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="relative flex items-center justify-center min-h-screen p-6 overflow-hidden bg-slate-50 dark:bg-slate-950">
@@ -51,18 +140,28 @@ const WelcomeScreen = ({ onGetStarted }) => {
             Streamline patient care with our professional medical management architecture.
           </p>
 
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-6">
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <button
               onClick={onGetStarted}
-              className="w-full sm:w-auto btn btn-primary px-10 py-5 text-base font-black tracking-widest uppercase shadow-2xl shadow-indigo-200 dark:shadow-none transition-all hover:scale-105 active:scale-95 group"
+              className="w-full sm:w-auto btn btn-primary px-8 py-4 text-base font-black tracking-widest uppercase shadow-2xl shadow-indigo-200 dark:shadow-none transition-all hover:scale-105 active:scale-95 group"
             >
               <span>Initialize System</span>
               <ArrowRightIcon className="ml-3 w-5 h-5 group-hover:translate-x-1 transition-transform" />
             </button>
-            <div className="flex items-center gap-3 px-6 py-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl">
-              <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-              <span className="text-xs font-black text-slate-600 dark:text-slate-400 uppercase tracking-widest">Enterprise v2.4.0 <span className="text-slate-300 dark:text-slate-700 mx-2">|</span> Stable</span>
-            </div>
+            <button
+              onClick={() => setShowServerSetup(true)}
+              className="w-full sm:w-auto px-8 py-4 text-base font-bold text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+            >
+              <span className="flex items-center gap-2">
+                <WifiIcon className="w-5 h-5" />
+                Connect to Server
+              </span>
+            </button>
+          </div>
+
+          <div className="flex items-center gap-3 px-6 py-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl mt-6">
+            <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+            <span className="text-xs font-black text-slate-600 dark:text-slate-400 uppercase tracking-widest">Enterprise v2.4.0 <span className="text-slate-300 dark:text-slate-700 mx-2">|</span> Stable</span>
           </div>
         </div>
 

@@ -1,8 +1,30 @@
 // electron/main.js
 const { app, BrowserWindow, Menu, ipcMain, dialog } = require('electron');
 const path = require('path');
+const fs = require('fs');
 
 let mainWindow = null;
+
+// ── File Logging Setup ────────────────────────────────────────────────
+const logDir = path.join(app.getPath('userData'), 'logs');
+function ensureLogDir() {
+  try {
+    if (!fs.existsSync(logDir)) {
+      fs.mkdirSync(logDir, { recursive: true });
+    }
+  } catch (e) { /* ignore */ }
+}
+
+function writeLog(filename, message) {
+  ensureLogDir();
+  const logPath = path.join(logDir, filename);
+  const timestamp = new Date().toISOString();
+  fs.appendFileSync(logPath, `${timestamp} - ${message}\n`);
+}
+
+// Write startup log
+writeLog('startup.log', '[Main] Application starting...');
+writeLog('startup.log', `[Main] UserData path: ${app.getPath('userData')}`);
 let authWindow = null;
 let database = null;
 let currentUser = null;
@@ -127,17 +149,24 @@ function createMainWindow() {
 // ── IPC: expose db and user to handlers ──────────────────────
 function buildContext() {
   const config = loadConfig();
+  
+  // Save config function
+  const saveConfigFn = (newConfig) => {
+    const fs = require('fs');
+    const cfgPath = path.join(app.getPath('userData'), 'config.json');
+    try {
+      fs.writeFileSync(cfgPath, JSON.stringify({ ...loadConfig(), ...newConfig }, null, 2));
+      return true;
+    } catch (e) {
+      console.warn('[Config] Could not save config:', e.message);
+      return false;
+    }
+  };
+  
   return {
-    config,
-    saveConfig: (newConfig) => {
-      const fs = require('fs');
-      const cfgPath = path.join(app.getPath('userData'), 'config.json');
-      try {
-        fs.writeFileSync(cfgPath, JSON.stringify({ ...loadConfig(), ...newConfig }, null, 2));
-      } catch (e) {
-        console.warn('[Config] Could not save config:', e.message);
-      }
-    },
+    config,                    // For IPCHandlers
+    saveConfig: saveConfigFn, // For IPCHandlers  
+    loadConfig: loadConfig,    // For IPCHandlers
     getDatabase: () => database,
     getCurrentUser: () => currentUser,
     setCurrentUser: (u) => { currentUser = u; },
@@ -146,19 +175,25 @@ function buildContext() {
     getAuthWindow: () => authWindow,
     openMainWindow: createMainWindow,
     openAuthWindow: createAuthWindow,
+    appConfig: config,        // For server handlers
+    _saveAppConfig: saveConfigFn, // For server handlers
   };
 }
 
 // ── App lifecycle ─────────────────────────────────────────────
 app.whenReady().then(async () => {
+  writeLog('startup.log', '[Main] App ready, registering handlers...');
+  
   // Register IPC handlers FIRST — before database init
   // so handlers are always available even if DB fails
   try {
     const IPCHandlers = require('./ipc/handlers');
     new IPCHandlers(buildContext());
     console.log('[Main] IPC handlers registered');
+    writeLog('startup.log', '[Main] IPC handlers registered successfully');
   } catch (err) {
     console.error('[Main] IPC handlers failed to load:', err);
+    writeLog('startup.log', `[Main] ERROR IPC handlers failed: ${err.message}\n${err.stack}`);
   }
 
   await initializeDatabase();

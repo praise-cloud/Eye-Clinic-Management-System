@@ -166,6 +166,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     updateUser: (userId, userData, updatedBy) => ipcRenderer.invoke('admin:updateUser', { userId, userData, updatedBy }),
     deleteUser: (userId, deletedBy) => ipcRenderer.invoke('admin:deleteUser', { userId, deletedBy }),
     getActivityLogs: (filters) => ipcRenderer.invoke('admin:getActivityLogs', filters),
+    getActivityLogsFiltered: (filters) => ipcRenderer.invoke('admin:getActivityLogsFiltered', filters),
     getActivityStatistics: () => ipcRenderer.invoke('admin:getActivityStats'),
     logActivity: (userId, actionType, entityType, entityId, description, ipAddress, userAgent) => ipcRenderer.invoke('admin:logActivity', { userId, actionType, entityType, entityId, description, ipAddress, userAgent }),
     createUserAdmin: (userData, createdBy) => ipcRenderer.invoke('admin:createUser', { userData, createdBy }),
@@ -216,6 +217,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     setUserOffline: (userId) => ipcRenderer.invoke('presence:setOffline', { userId }),
     getOnlineUsers: () => ipcRenderer.invoke('presence:getOnlineUsers'),
     getUsersWithPresence: () => ipcRenderer.invoke('presence:getUsersWithPresence'),
+    getOnlineUsersDetailed: () => ipcRenderer.invoke('presence:getUsersWithPresence'),
+
+    // System APIs
+    getNetworkDbPath: () => ipcRenderer.invoke('system:getNetworkDbPath'),
+    setNetworkDbPath: (path) => ipcRenderer.invoke('system:setNetworkDbPath', { path }),
+    deleteDatabase: () => ipcRenderer.invoke('db:delete'),
 
     // Prescription APIs
     getPrescriptionsByPatient: (patientId) => ipcRenderer.invoke('prescriptions:getByPatient', patientId),
@@ -238,6 +245,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     updateCaseNote: (data) => ipcRenderer.invoke('caseNotes:update', data),
     signCaseNote: (data) => ipcRenderer.invoke('caseNotes:sign', data),
     getCaseNotesByPatient: (patientId) => ipcRenderer.invoke('caseNotes:getByPatient', patientId),
+    deleteCaseNote: (id) => ipcRenderer.invoke('caseNotes:delete', id),
 
     // Reminder APIs
     getAllReminders: (filters) => ipcRenderer.invoke('reminders:getAll', filters),

@@ -4,6 +4,7 @@ export default function useServerConnection() {
     const [connected, setConnected] = useState(false);
     const [connecting, setConnecting] = useState(false);
     const [serverUrl, setServerUrl] = useState('');
+    const [serverPort, setServerPort] = useState(3001);
     const [error, setError] = useState(null);
     const [currentUser, setCurrentUser] = useState(null);
     const [onlineUsers, setOnlineUsers] = useState([]);
@@ -89,11 +90,13 @@ export default function useServerConnection() {
 
         try {
             const savedUrl = localStorage.getItem('serverUrl');
+            const savedPort = localStorage.getItem('serverPort');
             const savedAccess = sessionStorage.getItem('accessToken');
             const savedRefresh = sessionStorage.getItem('refreshToken');
             const savedUser = sessionStorage.getItem('serverUser');
 
             if (savedUrl) setServerUrl(savedUrl);
+            if (savedPort) setServerPort(parseInt(savedPort) || 3001);
             if (savedAccess) setAccessToken(savedAccess);
             if (savedRefresh) setRefreshToken(savedRefresh);
             if (savedUser) setCurrentUser(JSON.parse(savedUser));
@@ -174,9 +177,10 @@ export default function useServerConnection() {
         return false;
     }, [serverUrl, refreshToken]);
 
-    const connect = useCallback(async (serverIp, port = 3001) => {
+    const connect = useCallback(async (serverIp, port = serverPort) => {
         const url = `http://${serverIp}:${port}`;
         setServerUrl(url);
+        setServerPort(port);
         setConnecting(true);
         setError(null);
 
@@ -185,8 +189,9 @@ export default function useServerConnection() {
             if (!response.ok) throw new Error('Server unreachable');
 
             localStorage.setItem('serverUrl', url);
+            localStorage.setItem('serverPort', port.toString());
             if (window.electronAPI?.setServerConfig) {
-                await window.electronAPI.setServerConfig({ serverUrl: url });
+                await window.electronAPI.setServerConfig({ serverUrl: url, serverPort: port });
             }
             setConnected(true);
             setConnecting(false);
@@ -197,7 +202,7 @@ export default function useServerConnection() {
             setError(err.message);
             return { success: false, error: err.message };
         }
-    }, []);
+    }, [serverPort]);
 
     const autoDetectServer = useCallback(async () => {
         setConnecting(true);
@@ -229,7 +234,7 @@ export default function useServerConnection() {
         const scanBatch = async (batch) => {
             const promises = batch.map(async (ip) => {
                 try {
-                    const response = await fetch(`http://${ip}:3001/api/health`, { 
+                    const response = await fetch(`http://${ip}:${serverPort}/api/health`, { 
                         method: 'GET',
                         signal: AbortSignal.timeout(500)
                     });
@@ -247,7 +252,7 @@ export default function useServerConnection() {
             const found = await scanBatch(batch);
             if (found) {
                 setConnecting(false);
-                return { success: true, ip: found, url: `http://${found}:3001` };
+                return { success: true, ip: found, url: `http://${found}:${serverPort}` };
             }
         }
 
@@ -272,8 +277,9 @@ export default function useServerConnection() {
                 setCurrentUser(data.user);
 
                 localStorage.setItem('serverUrl', serverUrl);
+                localStorage.setItem('serverPort', serverPort.toString());
                 if (window.electronAPI?.setServerConfig) {
-                    await window.electronAPI.setServerConfig({ serverUrl: serverUrl });
+                    await window.electronAPI.setServerConfig({ serverUrl: serverUrl, serverPort: serverPort });
                 }
                 sessionStorage.setItem('accessToken', data.accessToken);
                 sessionStorage.setItem('refreshToken', data.refreshToken);
@@ -324,6 +330,8 @@ export default function useServerConnection() {
         connected,
         connecting,
         serverUrl,
+        serverPort,
+        setServerPort,
         error,
         currentUser,
         onlineUsers,

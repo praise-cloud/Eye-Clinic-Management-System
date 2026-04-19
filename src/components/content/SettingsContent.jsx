@@ -27,6 +27,7 @@ const SettingsContent = () => {
   const [loadingBackups, setLoadingBackups] = useState(false)
   const [serverMode, setServerMode] = useState(false)
   const [serverUrl, setServerUrl] = useState('')
+  const [serverPort, setServerPort] = useState(3001)
   const [sqlHost, setSqlHost] = useState('')
   const [sqlPort, setSqlPort] = useState(1433)
   const [sqlDatabase, setSqlDatabase] = useState('eye_clinic_db')
@@ -64,6 +65,7 @@ const SettingsContent = () => {
           if (res?.success && res.config) {
             setServerMode(res.config.isServerMode || false)
             setServerUrl(res.config.serverUrl || '')
+            setServerPort(res.config.serverPort || 3001)
             if (res.config.sql_server) {
               setSqlHost(res.config.sql_server.host || 'localhost')
               setSqlPort(res.config.sql_server.port || 1433)
@@ -114,13 +116,13 @@ const SettingsContent = () => {
     setConnectionResult(null)
     try {
       // Try localhost first
-      const targets = ['localhost:3001', '127.0.0.1:3001'];
+      const targets = [`localhost:${serverPort}`, `127.0.0.1:${serverPort}`];
       
       // Add local network range
       for (let i = 1; i < 255; i++) {
-        targets.push(`192.168.1.${i}:3001`);
-        targets.push(`192.168.0.${i}:3001`);
-        targets.push(`10.0.0.${i}:3001`);
+        targets.push(`192.168.1.${i}:${serverPort}`);
+        targets.push(`192.168.0.${i}:${serverPort}`);
+        targets.push(`10.0.0.${i}:${serverPort}`);
       }
 
       // Scan in parallel with timeout
@@ -159,10 +161,10 @@ const SettingsContent = () => {
   const handleStartServer = async () => {
     setServerStarting(true)
     try {
-      const res = await window.electronAPI?.serverStart?.({ port: 3001 })
+      const res = await window.electronAPI?.serverStart?.({ port: serverPort })
       if (res?.success) {
         setServerStatus(res.status)
-        setSuccessMessage('Server started successfully on port 3001.')
+        setSuccessMessage(`Server started successfully on port ${serverPort}.`)
         setShowSuccess(true)
         setTimeout(() => setShowSuccess(false), 5000)
         loadServerConfig()
@@ -198,7 +200,7 @@ const SettingsContent = () => {
       const config = {
         isServerMode: serverMode,
         serverUrl: serverUrl,
-        serverPort: 3001,
+        serverPort: serverPort,
         sql_server: {
           host: sqlHost,
           port: sqlPort,
@@ -617,7 +619,7 @@ const SettingsContent = () => {
                     {serverStatus?.running && serverStatus?.serverIp && (
                       <div className="bg-indigo-100 dark:bg-indigo-800/30 rounded-xl p-3 mb-3">
                         <p className="text-xs font-bold text-indigo-600 dark:text-indigo-300 mb-1">Server IP Address</p>
-                        <p className="text-lg font-mono font-black text-indigo-800 dark:text-indigo-200">{serverStatus.serverIp}:3001</p>
+                        <p className="text-lg font-mono font-black text-indigo-800 dark:text-indigo-200">{serverStatus.serverIp}:{serverPort}</p>
                         <p className="text-xs text-indigo-500 mt-1">Other computers connect to this address</p>
                       </div>
                     )}
@@ -637,8 +639,12 @@ const SettingsContent = () => {
                     )}
                   </div>
                   <div className="grid grid-cols-1 gap-4">
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">SQL Server Host</label>
+<div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">API Port</label>
+                    <input type="number" value={serverPort} onChange={(e) => setServerPort(parseInt(e.target.value) || 3001)} className="input-premium text-xs font-mono" placeholder="3001" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">SQL Server Host</label>
                       <input type="text" value={sqlHost} onChange={(e) => setSqlHost(e.target.value)} className="input-premium text-xs font-mono" placeholder="localhost" />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
@@ -681,7 +687,7 @@ const SettingsContent = () => {
                         value={serverUrl}
                         onChange={(e) => setServerUrl(e.target.value)}
                         className="input-premium text-xs font-mono flex-1"
-                        placeholder="http://192.168.1.100:3001"
+                        placeholder={`http://192.168.1.100:${serverPort}`}
                       />
                       <button onClick={handleAutoDetectServer} disabled={testingConnection} className="btn btn-secondary px-3 text-xs font-bold">
                         {testingConnection ? '...' : '🔍'}

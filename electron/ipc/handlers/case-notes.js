@@ -1,10 +1,23 @@
 const { ipcMain, BrowserWindow } = require('electron');
-const DatabaseService = require('../../../src/services/DatabaseService');
+const Database = require('../../../database');
 const { buildErrorResponse, safeHandle } = require('./utils');
 const http = require('http');
+const path = require('path');
+const fs = require('fs');
 
 let _currentUser = null;
 let _accessToken = null;
+let _db = null;
+
+async function getDb() {
+    if (!_db) {
+        const { app } = require('electron');
+        const userDataPath = app.getPath('userData');
+        _db = new Database(path.join(userDataPath, 'eye_clinic.db'));
+        await _db.initialize();
+    }
+    return _db;
+}
 
 function httpRequest(url, method, body, headers = {}) {
     return new Promise((resolve) => {
@@ -59,7 +72,7 @@ module.exports = function registerCaseNoteHandlers(ctx) {
                 const url = `/api/case-notes${params.toString() ? '?' + params.toString() : ''}`;
                 return await httpRequest(`${serverUrl}${url}`, 'GET', '', { 'Authorization': `Bearer ${getToken()}` });
             }
-            const caseNotes = await DatabaseService.getCaseNotesByPatient(filters.patient_id || '');
+const caseNotes = await getDb().then(db => filters.patient_id ? db.getCaseNotesByPatient(filters.patient_id) : []);
             return { success: true, caseNotes };
         } catch (error) { return buildErrorResponse(error, { scope: 'caseNotes', action: 'getAll' }); }
     });
@@ -117,10 +130,17 @@ module.exports = function registerCaseNoteHandlers(ctx) {
             const existing = await db.get('SELECT * FROM case_notes WHERE id = ?', [id]);
             if (!existing) return { success: false, error: 'Case note not found' };
 
-            const fields = ['chief_complaint', 'visual_acuity_od', 'visual_acuity_os',
-                'intraocular_pressure_od', 'intraocular_pressure_os',
-                'cvf_analysis_od', 'cvf_analysis_os', 'diagnosis', 'recommendation',
-                'next_appointment'];
+const fields = ['visit_date', 'chief_complaint', 'history_of_present_illness', 'duration', 'affected_eye',
+                'va_distance_uncorrected_od', 'va_distance_uncorrected_os', 'va_distance_glasses_od', 'va_distance_glasses_os',
+                'va_distance_pinhole_od', 'va_distance_pinhole_os', 'va_near_uncorrected_od', 'va_near_uncorrected_os',
+                'va_near_glasses_od', 'va_near_glasses_os', 'va_best_corrected_od', 'va_best_corrected_os',
+                'refraction_sphere_od', 'refraction_sphere_os', 'refraction_cylinder_od', 'refraction_cylinder_os',
+                'refraction_axis_od', 'refraction_axis_os', 'refraction_add_od', 'refraction_add_os',
+                'intraocular_pressure_od', 'intraocular_pressure_os', 'iop_method',
+                'anterior_segment_od', 'anterior_segment_os', 'posterior_segment_od', 'posterior_segment_os',
+                'diagnostic_tests', 'cvf_analysis_od', 'cvf_analysis_os', 'oct_findings',
+                'diagnosis', 'differential_diagnosis', 'severity', 'treatment_plan', 'medications', 'procedures',
+                'follow_up_date', 'follow_up_instructions'];
             const sets = [];
             const params = [];
 
@@ -186,16 +206,32 @@ module.exports = function registerCaseNoteHandlers(ctx) {
         } catch (error) { return buildErrorResponse(error, { scope: 'caseNotes', action: 'sign' }); }
     });
 
-    safeHandle('caseNotes:getByPatient', async (event, patientId) => {
+safeHandle('caseNotes:getByPatient', async (event, patientId) => {
         try {
             if (!patientId) return { success: false, error: 'Patient ID required' };
             const serverUrl = ctx.appConfig?.serverUrl;
             if (serverUrl) {
                 return await httpRequest(`${serverUrl}/api/case-notes?patient_id=${patientId}`, 'GET', '', { 'Authorization': `Bearer ${getToken()}` });
             }
-            const caseNotes = await DatabaseService.getCaseNotesByPatient(patientId);
+            const caseNotes = await getDb().then(db => db.getCaseNotesByPatient(patientId));
             return { success: true, caseNotes };
         } catch (error) { return buildErrorResponse(error, { scope: 'caseNotes', action: 'getByPatient' }); }
+    });
+
+    safeHandle('caseNotes:delete', async (event, id) => {
+        try {
+            const authErr = requireDoctor(); if (authErr) return authErr;
+            if (!id) return { success: false, error: 'Case note ID required' };
+            
+            const serverUrl = ctx.appConfig?.serverUrl;
+            if (serverUrl) {
+                return await httpRequest(`${serverUrl}/api/case-notes/${id}`, 'DELETE', '', { 'Authorization': `Bearer ${getToken()}` });
+            }
+            
+            await getDb().then(db => db.deleteCaseNote(id));
+            BrowserWindow.getAllWindows().forEach(w => w.webContents.send('data:update', { table: 'case_notes', action: 'delete', id }));
+            return { success: true };
+        } catch (error) { return buildErrorResponse(error, { scope: 'caseNotes', action: 'delete' }); }
     });
 };
 

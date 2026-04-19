@@ -2,18 +2,20 @@ appId: com.korene.eyeclinic
 productName: KORENE
 copyright: Copyright © 2026 KORENE Eye Clinic
 
-asar: true
+asar: false
 compression: maximum
 nodeGypRebuild: false
 buildDependenciesFromSource: false
 
 directories:
-  output: release/KORENE
+  output: release/KORENE_v2
   buildResources: build
 
 files:
   - dist/**/*
   - electron/**/*
+  - src/services/**/*
+  - src/utils/**/*
   - database.js
   - package.json
   - node_modules/**/*

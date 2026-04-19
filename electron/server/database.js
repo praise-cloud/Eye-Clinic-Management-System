@@ -327,7 +327,7 @@ function initializeTables() {
     )
   `);
 
-  // 17. case_notes (NEW)
+  // 17. case_notes (EXPANDED with ophthalmology fields)
   database.exec(`
     CREATE TABLE IF NOT EXISTS case_notes (
       id TEXT PRIMARY KEY,
@@ -335,17 +335,60 @@ function initializeTables() {
       visit_id TEXT,
       test_id TEXT,
       doctor_id TEXT NOT NULL,
+      
+      visit_date DATE,
       chief_complaint TEXT,
-      visual_acuity_od TEXT,
-      visual_acuity_os TEXT,
+      history_of_present_illness TEXT,
+      duration TEXT,
+      affected_eye TEXT,
+      
+      va_distance_uncorrected_od TEXT,
+      va_distance_uncorrected_os TEXT,
+      va_distance_glasses_od TEXT,
+      va_distance_glasses_os TEXT,
+      va_distance_pinhole_od TEXT,
+      va_distance_pinhole_os TEXT,
+      va_near_uncorrected_od TEXT,
+      va_near_uncorrected_os TEXT,
+      va_near_glasses_od TEXT,
+      va_near_glasses_os TEXT,
+      va_best_corrected_od TEXT,
+      va_best_corrected_os TEXT,
+      
+      refraction_sphere_od TEXT,
+      refraction_sphere_os TEXT,
+      refraction_cylinder_od TEXT,
+      refraction_cylinder_os TEXT,
+      refraction_axis_od TEXT,
+      refraction_axis_os TEXT,
+      refraction_add_od TEXT,
+      refraction_add_os TEXT,
+      
       intraocular_pressure_od TEXT,
       intraocular_pressure_os TEXT,
+      iop_method TEXT,
+      
+      anterior_segment_od TEXT,
+      anterior_segment_os TEXT,
+      posterior_segment_od TEXT,
+      posterior_segment_os TEXT,
+      
+      diagnostic_tests TEXT,
       cvf_analysis_od TEXT,
       cvf_analysis_os TEXT,
+      oct_findings TEXT,
+      
       diagnosis TEXT,
-      recommendation TEXT,
-      next_appointment DATE,
-      status TEXT DEFAULT 'draft' CHECK (status IN ('draft', 'signed')),
+      differential_diagnosis TEXT,
+      severity TEXT,
+      
+      treatment_plan TEXT,
+      medications TEXT,
+      procedures TEXT,
+      follow_up_date DATE,
+      follow_up_instructions TEXT,
+      
+      status TEXT DEFAULT 'draft',
       signed_off_by TEXT,
       signed_off_at DATETIME,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,

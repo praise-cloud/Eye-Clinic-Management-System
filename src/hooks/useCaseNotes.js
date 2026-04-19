@@ -172,6 +172,29 @@ export default function useCaseNotes() {
         }
     }, []);
 
+    const deleteCaseNote = useCallback(async (id) => {
+        setError(null);
+        try {
+            let result;
+            if (isServerMode()) {
+                result = await serverApiCall(`/api/case-notes/${id}`, 'DELETE');
+            } else {
+                result = await window.electronAPI?.deleteCaseNote?.(id);
+            }
+            if (result?.success) {
+                setCaseNotes(prev => prev.filter(n => n.id !== id));
+                return true;
+            } else {
+                setError(result?.error);
+                return false;
+            }
+        } catch (err) {
+            logger.error('useCaseNotes: Error deleting case note', { error: err.message });
+            setError(err.message);
+            return false;
+        }
+    }, []);
+
     useEffect(() => {
         const handler = (e) => {
             const data = e.detail;
@@ -190,6 +213,7 @@ export default function useCaseNotes() {
         createCaseNote,
         updateCaseNote,
         signCaseNote,
-        getCaseNoteById
+        getCaseNoteById,
+        deleteCaseNote
     };
 }

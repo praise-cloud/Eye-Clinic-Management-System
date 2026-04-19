@@ -4,13 +4,11 @@ import Layout from './layout/Layout'
 import DashboardContent from './content/DashboardContent'
 import MessagesContent from './content/MessagesContent'
 import PatientsContent from './content/PatientsContent'
-import TestsContent from './content/TestsContent'
 import ReportsContent from './content/ReportsContent'
 import InventoryContent from './content/InventoryContent'
 import PharmacyContent from './content/PharmacyContent'
 import SettingsContent from './content/SettingsContent'
 import AddPatientModal from './modals/AddPatientModal'
-import UploadTestModal from './modals/UploadTestModal'
 import GenerateReportModal from './modals/GenerateReportModal'
 import NewMessageModal from './modals/NewMessageModal'
 import useUser from '../hooks/useUser'
@@ -35,7 +33,6 @@ const MainApp = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [modals, setModals] = useState({
     addPatient: false,
-    uploadTest: false,
     generateReport: false,
     newMessage: false
   });
@@ -51,10 +48,9 @@ const MainApp = () => {
     if (path.startsWith('/pharmacy')) return 'pharmacy';
     if (path.startsWith('/patients')) return 'patients';
     if (path.startsWith('/messages')) return 'messages';
-    if (path.startsWith('/tests')) return 'tests';
+    if (path.startsWith('/reports')) return 'reports';
     if (path.startsWith('/case-notes')) return 'case-notes';
     if (path.startsWith('/reminders')) return 'reminders';
-    if (path.startsWith('/reports')) return 'reports';
     if (path.startsWith('/settings')) return 'settings';
     return 'dashboard';
   };
@@ -160,11 +156,10 @@ const MainApp = () => {
         <Route path="/messages" element={<MessagesContent />} />
         <Route path="/case-notes" element={<CaseNotesPage />} />
         <Route path="/patients" element={<PatientsContent searchTerm={searchTerm} ref={patientsContentRef} />} />
-        <Route path="/tests" element={<TestsContent />} />
         <Route path="/reports" element={<ReportsContent />} />
         <Route path="/inventory" element={<InventoryContent />} />
-        <Route path="/inventory/create" element={<CreateInventoryItemScreen />} />
-        <Route path="/inventory/edit/:id" element={<CreateInventoryItemScreen />} />
+        <Route path="/inventory/create" element={(user?.role === 'assistant' || user?.role === 'admin' || user?.role === 'doctor') ? <CreateInventoryItemScreen /> : <Navigate to="/inventory" replace />} />
+        <Route path="/inventory/edit/:id" element={(user?.role === 'assistant') ? <Navigate to="/inventory" replace /> : <CreateInventoryItemScreen />} />
         <Route path="/inventory/view/:id" element={<ViewInventoryItemScreen />} />
         <Route path="/pharmacy" element={user?.role === 'assistant' ? <PharmacyContent /> : <Navigate to="/" replace />} />
         <Route path="/reminders" element={user?.role === 'assistant' ? <RemindersPage /> : <Navigate to="/" replace />} />
@@ -198,7 +193,6 @@ const MainApp = () => {
 
       {/* Modals */}
       {modals.addPatient && <AddPatientModal onClose={() => closeModal('addPatient')} onPatientAdded={handlePatientAdded} />}
-      {modals.uploadTest && <UploadTestModal onClose={() => closeModal('uploadTest')} currentUser={user} />}
       {modals.generateReport && <GenerateReportModal onClose={() => closeModal('generateReport')} />}
       {modals.newMessage && <NewMessageModal onClose={() => closeModal('newMessage')} />}
 

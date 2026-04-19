@@ -320,19 +320,74 @@ class Database {
         visit_id TEXT,
         test_id TEXT,
         doctor_id TEXT NOT NULL,
+        
+        -- Patient Visit Info
+        visit_date DATE,
         chief_complaint TEXT,
-        visual_acuity_od TEXT,
-        visual_acuity_os TEXT,
+        history_of_present_illness TEXT,
+        duration TEXT,
+        affected_eye TEXT CHECK (affected_eye IN ('OD', 'OS', 'OU', 'both')),
+        
+        -- Visual Acuity
+        va_distance_uncorrected_od TEXT,
+        va_distance_uncorrected_os TEXT,
+        va_distance_glasses_od TEXT,
+        va_distance_glasses_os TEXT,
+        va_distance_pinhole_od TEXT,
+        va_distance_pinhole_os TEXT,
+        va_near_uncorrected_od TEXT,
+        va_near_uncorrected_os TEXT,
+        va_near_glasses_od TEXT,
+        va_near_glasses_os TEXT,
+        va_best_corrected_od TEXT,
+        va_best_corrected_os TEXT,
+        
+        -- Refraction
+        refraction_sphere_od TEXT,
+        refraction_sphere_os TEXT,
+        refraction_cylinder_od TEXT,
+        refraction_cylinder_os TEXT,
+        refraction_axis_od TEXT,
+        refraction_axis_os TEXT,
+        refraction_add_od TEXT,
+        refraction_add_os TEXT,
+        
+        -- Intraocular Pressure
         intraocular_pressure_od TEXT,
         intraocular_pressure_os TEXT,
+        iop_method TEXT,
+        
+        -- Anterior Segment
+        anterior_segment_od TEXT,
+        anterior_segment_os TEXT,
+        
+        -- Posterior Segment
+        posterior_segment_od TEXT,
+        posterior_segment_os TEXT,
+        
+        -- Diagnostic Tests
+        diagnostic_tests TEXT,
         cvf_analysis_od TEXT,
         cvf_analysis_os TEXT,
+        oct_findings TEXT,
+        
+        -- Assessment & Diagnosis
         diagnosis TEXT,
-        recommendation TEXT,
-        next_appointment DATE,
-        status TEXT DEFAULT 'draft' CHECK (status IN ('draft', 'signed')),
+        differential_diagnosis TEXT,
+        severity TEXT,
+        
+        -- Treatment Plan
+        treatment_plan TEXT,
+        medications TEXT,
+        procedures TEXT,
+        follow_up_date DATE,
+        follow_up_instructions TEXT,
+        
+        -- Status & Sign-off
+        status TEXT DEFAULT 'draft' CHECK (status IN ('draft', 'signed', 'completed')),
         signed_off_by TEXT,
         signed_off_at DATETIME,
+        
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (patient_id) REFERENCES patients(id),
@@ -410,6 +465,47 @@ class Database {
     await addColumnIfMissing('prescriptions', 'glasses_amount_adjusted', 'REAL DEFAULT 0');
     await addColumnIfMissing('prescriptions', 'glasses_adjustment_notes', 'TEXT');
     await addColumnIfMissing('prescriptions', 'status', "TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'dispensed', 'cancelled', 'pending_return'))");
+    
+    // Case Notes migrations - comprehensive ophthalmology fields
+    await addColumnIfMissing('case_notes', 'visit_date', 'DATE');
+    await addColumnIfMissing('case_notes', 'history_of_present_illness', 'TEXT');
+    await addColumnIfMissing('case_notes', 'duration', 'TEXT');
+    await addColumnIfMissing('case_notes', 'affected_eye', 'TEXT');
+    await addColumnIfMissing('case_notes', 'va_distance_uncorrected_od', 'TEXT');
+    await addColumnIfMissing('case_notes', 'va_distance_uncorrected_os', 'TEXT');
+    await addColumnIfMissing('case_notes', 'va_distance_glasses_od', 'TEXT');
+    await addColumnIfMissing('case_notes', 'va_distance_glasses_os', 'TEXT');
+    await addColumnIfMissing('case_notes', 'va_distance_pinhole_od', 'TEXT');
+    await addColumnIfMissing('case_notes', 'va_distance_pinhole_os', 'TEXT');
+    await addColumnIfMissing('case_notes', 'va_near_uncorrected_od', 'TEXT');
+    await addColumnIfMissing('case_notes', 'va_near_uncorrected_os', 'TEXT');
+    await addColumnIfMissing('case_notes', 'va_near_glasses_od', 'TEXT');
+    await addColumnIfMissing('case_notes', 'va_near_glasses_os', 'TEXT');
+    await addColumnIfMissing('case_notes', 'va_best_corrected_od', 'TEXT');
+    await addColumnIfMissing('case_notes', 'va_best_corrected_os', 'TEXT');
+    await addColumnIfMissing('case_notes', 'refraction_sphere_od', 'TEXT');
+    await addColumnIfMissing('case_notes', 'refraction_sphere_os', 'TEXT');
+    await addColumnIfMissing('case_notes', 'refraction_cylinder_od', 'TEXT');
+    await addColumnIfMissing('case_notes', 'refraction_cylinder_os', 'TEXT');
+    await addColumnIfMissing('case_notes', 'refraction_axis_od', 'TEXT');
+    await addColumnIfMissing('case_notes', 'refraction_axis_os', 'TEXT');
+    await addColumnIfMissing('case_notes', 'refraction_add_od', 'TEXT');
+    await addColumnIfMissing('case_notes', 'refraction_add_os', 'TEXT');
+    await addColumnIfMissing('case_notes', 'iop_method', 'TEXT');
+    await addColumnIfMissing('case_notes', 'anterior_segment_od', 'TEXT');
+    await addColumnIfMissing('case_notes', 'anterior_segment_os', 'TEXT');
+    await addColumnIfMissing('case_notes', 'posterior_segment_od', 'TEXT');
+    await addColumnIfMissing('case_notes', 'posterior_segment_os', 'TEXT');
+    await addColumnIfMissing('case_notes', 'diagnostic_tests', 'TEXT');
+    await addColumnIfMissing('case_notes', 'oct_findings', 'TEXT');
+    await addColumnIfMissing('case_notes', 'differential_diagnosis', 'TEXT');
+    await addColumnIfMissing('case_notes', 'severity', 'TEXT');
+    await addColumnIfMissing('case_notes', 'treatment_plan', 'TEXT');
+    await addColumnIfMissing('case_notes', 'medications', 'TEXT');
+    await addColumnIfMissing('case_notes', 'procedures', 'TEXT');
+    await addColumnIfMissing('case_notes', 'follow_up_date', 'DATE');
+    await addColumnIfMissing('case_notes', 'follow_up_instructions', 'TEXT');
+    await addColumnIfMissing('case_notes', 'status', "TEXT DEFAULT 'draft'");
   }
 
   async isFirstRun() {
@@ -515,6 +611,92 @@ class Database {
        FROM users u LEFT JOIN user_presence p ON u.id = p.user_id
        ORDER BY p.is_online DESC, u.first_name`
     );
+  }
+
+  // Case Notes CRUD
+  async createCaseNote(data) {
+    const id = uuidv4();
+    const {
+      patient_id, visit_id, doctor_id, visit_date, chief_complaint, history_of_present_illness, duration,
+      affected_eye, va_distance_uncorrected_od, va_distance_uncorrected_os, va_distance_glasses_od, va_distance_glasses_os,
+      va_distance_pinhole_od, va_distance_pinhole_os, va_near_uncorrected_od, va_near_uncorrected_os,
+      va_near_glasses_od, va_near_glasses_os, va_best_corrected_od, va_best_corrected_os,
+      refraction_sphere_od, refraction_sphere_os, refraction_cylinder_od, refraction_cylinder_os,
+      refraction_axis_od, refraction_axis_os, refraction_add_od, refraction_add_os,
+      intraocular_pressure_od, intraocular_pressure_os, iop_method,
+      anterior_segment_od, anterior_segment_os, posterior_segment_od, posterior_segment_os,
+      diagnostic_tests, cvf_analysis_od, cvf_analysis_os, oct_findings,
+      diagnosis, differential_diagnosis, severity, treatment_plan, medications, procedures,
+      follow_up_date, follow_up_instructions, status
+    } = data;
+    
+    await this.run(
+      `INSERT INTO case_notes (
+        id, patient_id, visit_id, doctor_id, visit_date, chief_complaint, history_of_present_illness, duration,
+        affected_eye, va_distance_uncorrected_od, va_distance_uncorrected_os, va_distance_glasses_od, va_distance_glasses_os,
+        va_distance_pinhole_od, va_distance_pinhole_os, va_near_uncorrected_od, va_near_uncorrected_os,
+        va_near_glasses_od, va_near_glasses_os, va_best_corrected_od, va_best_corrected_os,
+        refraction_sphere_od, refraction_sphere_os, refraction_cylinder_od, refraction_cylinder_os,
+        refraction_axis_od, refraction_axis_os, refraction_add_od, refraction_add_os,
+        intraocular_pressure_od, intraocular_pressure_os, iop_method,
+        anterior_segment_od, anterior_segment_os, posterior_segment_od, posterior_segment_os,
+        diagnostic_tests, cvf_analysis_od, cvf_analysis_os, oct_findings,
+        diagnosis, differential_diagnosis, severity, treatment_plan, medications, procedures,
+        follow_up_date, follow_up_instructions, status
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [id, patient_id, visit_id || null, doctor_id, visit_date || null, chief_complaint, history_of_present_illness, duration,
+        affected_eye, va_distance_uncorrected_od, va_distance_uncorrected_os, va_distance_glasses_od, va_distance_glasses_os,
+        va_distance_pinhole_od, va_distance_pinhole_os, va_near_uncorrected_od, va_near_uncorrected_os,
+        va_near_glasses_od, va_near_glasses_os, va_best_corrected_od, va_best_corrected_os,
+        refraction_sphere_od, refraction_sphere_os, refraction_cylinder_od, refraction_cylinder_os,
+        refraction_axis_od, refraction_axis_os, refraction_add_od, refraction_add_os,
+        intraocular_pressure_od, intraocular_pressure_os, iop_method,
+        anterior_segment_od, anterior_segment_os, posterior_segment_od, posterior_segment_os,
+        diagnostic_tests, cvf_analysis_od, cvf_analysis_os, oct_findings,
+        diagnosis, differential_diagnosis, severity, treatment_plan, medications, procedures,
+        follow_up_date || null, follow_up_instructions, status || 'draft']
+    );
+    return { id, ...data };
+  }
+
+  async getCaseNotesByPatient(patientId) {
+    return this.all(
+      `SELECT cn.*, u.first_name as doctor_first_name, u.last_name as doctor_last_name
+       FROM case_notes cn
+       JOIN users u ON cn.doctor_id = u.id
+       WHERE cn.patient_id = ?
+       ORDER BY cn.created_at DESC`,
+      [patientId]
+    );
+  }
+
+  async getCaseNoteById(id) {
+    return this.get(
+      `SELECT cn.*, u.first_name as doctor_first_name, u.last_name as doctor_last_name,
+              p.first_name as patient_first_name, p.last_name as patient_last_name
+       FROM case_notes cn
+       JOIN users u ON cn.doctor_id = u.id
+       JOIN patients p ON cn.patient_id = p.id
+       WHERE cn.id = ?`,
+      [id]
+    );
+  }
+
+  async updateCaseNote(id, data) {
+    const fields = Object.keys(data).filter(k => k !== 'id');
+    const set = fields.map(f => `${f} = ?`).join(', ');
+    const values = fields.map(f => data[f]);
+    
+    await this.run(
+      `UPDATE case_notes SET ${set}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+      [...values, id]
+    );
+    return { id, ...data };
+  }
+
+  async deleteCaseNote(id) {
+    await this.run('DELETE FROM case_notes WHERE id = ?', [id]);
+    return { success: true };
   }
 
   async getSetting(key) {
