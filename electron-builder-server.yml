@@ -13,6 +13,7 @@ directories:
 
 files:
   - electron/server/**/*
+  - electron/server-main.js
   - database.js
   - package.json
   - scripts/start-server.js
@@ -24,7 +25,6 @@ files:
   - "!node_modules/**/README*"
   - "!node_modules/**/LICENSE*"
   - "!node_modules/.git/**/*"
-  - "!node_modules/electron/**/*"
   - "!node_modules/react/**/*"
   - "!node_modules/react-dom/**/*"
   - "!node_modules/@babel/**/*"
@@ -41,17 +41,19 @@ files:
   - "!node_modules/sql.js/**/*"
   - "!node_modules/puppeteer/**/*"
   - "!node_modules/puppeteer-core/**/*"
-  - dist/**/*
 
 extraMetadata:
-  main: scripts/start-server.js
+  main: electron/server-main.js
   version: 1.0.0
 
 asarUnpack:
   - node_modules/better-sqlite3/**/*
+  - node_modules/bcryptjs/**/*
 
 win:
   target:
     - target: dir
   artifactName: KORENE_Server-${version}.${ext}
   signAndEditExecutable: false
+
+afterPack: ./scripts/afterPack.js

@@ -2,7 +2,7 @@ appId: com.korene.eyeclinic
 productName: KORENE
 copyright: Copyright © 2026 KORENE Eye Clinic
 
-asar: false
+asar: true
 compression: maximum
 nodeGypRebuild: false
 buildDependenciesFromSource: false
