@@ -45,7 +45,11 @@ const useUser = () => {
 
       const result = await (window.electronAPI?.getCurrentUser?.() ?? null);
       if (result?.success && result.user) {
-        const userData = result.user;
+        const u = result.user;
+        const userData = {
+          ...u,
+          name: u.name || `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.email
+        };
         setUser(userData);
         localStorage.setItem('currentUser', JSON.stringify(userData));
         setLoading(false);
@@ -148,7 +152,11 @@ const useUser = () => {
         logger.info('useUser: Login result', { success: result?.success });
 
         if (result?.success && result?.user) {
-          const userData = result.user;
+          const u = result.user;
+          const userData = {
+            ...u,
+            name: u.name || `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.email
+          };
           setUser(userData);
           localStorage.setItem('currentUser', JSON.stringify(userData));
 
@@ -195,7 +203,7 @@ const useUser = () => {
               method: 'POST',
               headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' }
             });
-          } catch {}
+          } catch { }
         }
         sessionStorage.removeItem('accessToken');
         sessionStorage.removeItem('refreshToken');
@@ -205,10 +213,10 @@ const useUser = () => {
 
       const current = user || (localStorage.getItem('currentUser') ? JSON.parse(localStorage.getItem('currentUser')) : null);
       if (current?.id && window.electronAPI?.setUserOffline) {
-        try { await window.electronAPI.setUserOffline(current.id); } catch {}
+        try { await window.electronAPI.setUserOffline(current.id); } catch { }
       }
       if (window.electronAPI?.logout) {
-        try { await window.electronAPI.logout(); } catch {}
+        try { await window.electronAPI.logout(); } catch { }
       }
     } catch (err) {
       logger.error('useUser: Logout failed', { error: err.message });

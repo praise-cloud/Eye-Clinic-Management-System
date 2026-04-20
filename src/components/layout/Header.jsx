@@ -156,14 +156,16 @@ const Header = ({ activeSection, currentUser, searchTerm, onSearchChange, onSect
             >
               <div className="relative">
                 <img
-                  src={currentUser?.avatar || 'https://ui-avatars.com/api/?name=' + (currentUser?.name || 'User') + '&background=6366f1&color=fff'}
+                  src={currentUser?.avatar || 'https://ui-avatars.com/api/?name=' + encodeURIComponent((currentUser?.name || (currentUser?.first_name ? `${currentUser.first_name} ${currentUser.last_name || ''}`.trim() : 'User'))) + '&background=6366f1&color=fff'}
                   alt="avatar"
                   className="w-10 h-10 rounded-xl border-2 border-white dark:border-slate-700 shadow-sm"
                 />
                 <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-emerald-500 border-2 border-white dark:border-slate-800 rounded-full"></div>
               </div>
               <div className="hidden md:flex flex-col text-left">
-                <span className="text-sm font-bold text-slate-900 dark:text-white leading-tight">{currentUser?.name || 'User'}</span>
+                <span className="text-sm font-bold text-slate-900 dark:text-white leading-tight">
+                  {currentUser?.name || (currentUser?.first_name ? `${currentUser.first_name} ${currentUser.last_name || ''}`.trim() : 'User')}
+                </span>
                 <span className="text-[10px] font-black text-indigo-500 uppercase tracking-widest">{currentUser?.role || 'Clinician'}</span>
               </div>
               <svg className={`w-4 h-4 text-slate-400 transition-transform duration-300 ${showUserDropdown ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" /></svg>
